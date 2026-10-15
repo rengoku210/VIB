@@ -7,15 +7,22 @@ interface DiscordModalProps {
 }
 
 export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) => {
-  // Close on Escape key press
+  // Close on Escape key press and lock body scroll
   React.useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -45,7 +52,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             <MessageSquare className="w-6 h-6 text-indigo-400" />
           </div>
           <div>
-            <h3 className="font-chakra font-bold text-xl text-white">VIB Discord Lounge</h3>
+            <h3 id="discord-modal-title" className="font-chakra font-bold text-xl text-white">VIB Discord Lounge</h3>
             <div className="flex items-center gap-2 text-xs font-chakra text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>4,120 Players Online Now</span>

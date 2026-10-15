@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -58,6 +58,15 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   onOpenCheckout,
 }) => {
   const [activeRegion, setActiveRegion] = useState<'in' | 'php' | 'other'>('in');
+  const indianCarouselRef = useRef<HTMLDivElement>(null);
+  const phpCarouselRef = useRef<HTMLDivElement>(null);
+
+  const scrollCarousel = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
+    if (ref.current) {
+      const scrollAmount = direction === 'left' ? -320 : 320;
+      ref.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const indianPacks = [
     { vp: '475 VP', priceINR: 499 },
@@ -559,14 +568,25 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
       {/* 2. REGION SELECTOR BAR (Matching Reference 3)                             */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+        <div role="tablist" aria-label="VP Regions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
           {/* Indian VP Tab */}
           <div
+            role="tab"
+            tabIndex={0}
+            aria-selected={activeRegion === 'in'}
+            aria-label="Indian VP region, standard rates"
             onClick={() => {
               setActiveRegion('in');
               onNavigate('vp-catalog');
             }}
-            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md ${
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveRegion('in');
+                onNavigate('vp-catalog');
+              }
+            }}
+            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
               activeRegion === 'in'
                 ? 'bg-gradient-to-r from-purple-950/70 to-[#180f2d] border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
                 : 'bg-[#0c0a18] border-white/[0.08] hover:border-purple-500/40'
@@ -585,12 +605,24 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
           {/* Philippines VP Tab */}
           <div
+            role="tab"
+            tabIndex={0}
+            aria-selected={activeRegion === 'php'}
+            aria-label="Philippines VP region, cheaper rates"
             onClick={() => {
               setActiveRegion('php');
               const el = document.getElementById('php-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md ${
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveRegion('php');
+                const el = document.getElementById('php-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
               activeRegion === 'php'
                 ? 'bg-gradient-to-r from-purple-950/70 to-[#180f2d] border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
                 : 'bg-[#0c0a18] border-white/[0.08] hover:border-purple-500/40'
@@ -609,12 +641,24 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
           {/* Other Regions Tab */}
           <div
+            role="tab"
+            tabIndex={0}
+            aria-selected={activeRegion === 'other'}
+            aria-label="Other Regions, on request"
             onClick={() => {
               setActiveRegion('other');
               const el = document.getElementById('other-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md ${
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveRegion('other');
+                const el = document.getElementById('other-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className={`lg:col-span-3 p-3.5 rounded-xl border transition-all duration-300 flex items-center gap-3.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
               activeRegion === 'other'
                 ? 'bg-gradient-to-r from-purple-950/70 to-[#180f2d] border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
                 : 'bg-[#0c0a18] border-white/[0.08] hover:border-purple-500/40'
@@ -696,26 +740,33 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
         <div className="relative">
           {/* Left Arrow Button */}
           <button
+            type="button"
             aria-label="Previous Indian VP Packs"
-            className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex"
+            onClick={() => scrollCarousel(indianCarouselRef, 'left')}
+            className="absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
 
           {/* Right Arrow Button */}
           <button
+            type="button"
             aria-label="Next Indian VP Packs"
-            className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex"
+            onClick={() => scrollCarousel(indianCarouselRef, 'right')}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
 
-          {/* 7 Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {/* 7 Cards Grid / Carousel */}
+          <div
+            ref={indianCarouselRef}
+            className="flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 scroll-smooth snap-x"
+          >
             {indianPacks.map((pack, idx) => (
               <div
                 key={idx}
-                className="p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md relative"
+                className="min-w-[155px] sm:min-w-[170px] lg:min-w-0 snap-start p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md relative flex-shrink-0 lg:flex-shrink"
               >
                 {/* Badge if present */}
                 {pack.badge && (
@@ -752,10 +803,11 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
                 {/* Buy Button */}
                 <button
+                  type="button"
                   onClick={() => handleBuy(pack.vp, pack.priceINR, 'Indian')}
-                  className="w-full mt-3 py-1.5 rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                 >
-                  <ShoppingCart className="w-3 h-3" />
+                  <ShoppingCart className="w-3.5 h-3.5" />
                   <span>Buy Now</span>
                 </button>
               </div>
@@ -815,26 +867,33 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
         <div className="relative">
           {/* Left Arrow Button */}
           <button
+            type="button"
             aria-label="Previous Philippines VP Packs"
-            className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex"
+            onClick={() => scrollCarousel(phpCarouselRef, 'left')}
+            className="absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
 
           {/* Right Arrow Button */}
           <button
+            type="button"
             aria-label="Next Philippines VP Packs"
-            className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex"
+            onClick={() => scrollCarousel(phpCarouselRef, 'right')}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#180f2d] border border-purple-500/50 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center justify-center z-20 shadow-lg cursor-pointer transition-all hidden sm:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
 
-          {/* 7 Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {/* 7 Cards Grid / Carousel */}
+          <div
+            ref={phpCarouselRef}
+            className="flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 scroll-smooth snap-x"
+          >
             {phpPacks.map((pack, idx) => (
               <div
                 key={idx}
-                className="p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md relative"
+                className="min-w-[155px] sm:min-w-[170px] lg:min-w-0 snap-start p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md relative flex-shrink-0 lg:flex-shrink"
               >
                 {/* Badge if present */}
                 {pack.badge && (
@@ -865,10 +924,11 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
                 {/* Buy Button */}
                 <button
+                  type="button"
                   onClick={() => handleBuy(pack.vp, pack.priceINR, 'Philippines')}
-                  className="w-full mt-3 py-1.5 rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                 >
-                  <ShoppingCart className="w-3 h-3" />
+                  <ShoppingCart className="w-3.5 h-3.5" />
                   <span>Buy Now</span>
                 </button>
               </div>
@@ -947,7 +1007,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
 
             <a
-              href="https://wa.me/919999999999"
+              href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
               target="_blank"
               rel="noreferrer"
               className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all flex items-center gap-1.5 shadow-md whitespace-nowrap cursor-pointer"
@@ -1047,7 +1107,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="flex items-center gap-2 pt-2">
               <a
-                href="https://wa.me/919999999999"
+                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1.5"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -71,6 +71,18 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
   const [journeyType, setJourneyType] = useState<'rankup' | 'derank'>('rankup');
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    soundFx.playClickSound();
+    if (carouselRef.current) {
+      const scrollAmount = 300;
+      carouselRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
 
   const [timeLeft, setTimeLeft] = useState({ hours: 2, minutes: 14, seconds: 36 });
   const [currentBid, setCurrentBid] = useState(4850);
@@ -293,8 +305,22 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="flex flex-col space-y-2">
             <div
-              onClick={() => setSelectedMarketplace('guaranteed')}
-              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] ${
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedMarketplace === 'guaranteed'}
+              aria-label="Select Lifetime Guaranteed Profiles marketplace"
+              onClick={() => {
+                soundFx.playClickSound();
+                setSelectedMarketplace('guaranteed');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  soundFx.playClickSound();
+                  setSelectedMarketplace('guaranteed');
+                }
+              }}
+              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                 selectedMarketplace === 'guaranteed'
                   ? 'bg-gradient-to-br from-[#1b1625] via-[#130f1c] to-[#0d0914] border-amber-500/70 shadow-[0_0_35px_rgba(245,158,11,0.22)]'
                   : 'bg-[#0e0c18] border-purple-500/15 hover:border-amber-500/50'
@@ -359,7 +385,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   const el = document.getElementById('featured-profiles');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="text-purple-400 font-semibold text-[11px] ml-3 whitespace-nowrap hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-purple-400 font-semibold text-[11px] ml-3 whitespace-nowrap hover:underline flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 rounded p-1"
               >
                 <span>Learn More</span>
                 <ArrowRight className="w-3 h-3" />
@@ -369,8 +395,22 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
 
           <div className="flex flex-col space-y-2">
             <div
-              onClick={() => setSelectedMarketplace('public')}
-              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] ${
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedMarketplace === 'public'}
+              aria-label="Select Public Listings marketplace"
+              onClick={() => {
+                soundFx.playClickSound();
+                setSelectedMarketplace('public');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  soundFx.playClickSound();
+                  setSelectedMarketplace('public');
+                }
+              }}
+              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 selectedMarketplace === 'public'
                   ? 'bg-gradient-to-br from-[#0c1426] via-[#090f1d] to-[#070b16] border-sky-500/70 shadow-[0_0_35px_rgba(14,165,233,0.22)]'
                   : 'bg-[#0e0c18] border-purple-500/15 hover:border-sky-500/50'
@@ -462,28 +502,42 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => onNavigate('profiles')}
-              className="px-4 py-1.5 rounded-xl bg-[#23153c] border border-purple-500/40 text-xs font-bold text-purple-200 hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              className="px-4 py-2 rounded-xl bg-[#23153c] border border-purple-500/40 text-xs font-bold text-purple-200 hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
               <span>View All Featured</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
-            <button className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer">
-              <ChevronLeft className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => scrollCarousel('left')}
+              aria-label="Scroll left to view previous profiles"
+              className="min-w-[44px] min-h-[44px] rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <ChevronLeft className="w-5 h-5" />
             </button>
-            <button className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer">
-              <ChevronRight className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => scrollCarousel('right')}
+              aria-label="Scroll right to view next profiles"
+              className="min-w-[44px] min-h-[44px] rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5">
+        <div
+          ref={carouselRef}
+          className="flex overflow-x-auto lg:grid lg:grid-cols-5 gap-2.5 sm:gap-3.5 pb-2 scrollbar-none snap-x scroll-smooth"
+        >
           {profiles.map((p) => {
             const isFav = favoriteIds.includes(p.id);
             return (
               <div
                 key={p.id}
-                className="rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                className="min-w-[240px] sm:min-w-[260px] lg:min-w-0 snap-start rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
               >
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#100c1e]">
                   <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-[#f59e0b] text-black font-black text-[9px] tracking-wider uppercase shadow-md pointer-events-none select-none">
@@ -492,11 +546,11 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleFav(p.id)}
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-lg cursor-pointer bg-black/40 hover:bg-black/60 border border-white/10 transition-colors z-10"
-                    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-label={isFav ? `Remove ${p.title} from favorites` : `Add ${p.title} to favorites`}
+                    className="absolute top-2 right-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg cursor-pointer bg-black/50 hover:bg-black/75 border border-white/15 transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 backdrop-blur-sm"
                   >
                     <Heart
-                      className={`w-3.5 h-3.5 ${
+                      className={`w-4 h-4 ${
                         isFav
                           ? 'fill-rose-500 text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]'
                           : 'text-white/80'
@@ -507,6 +561,9 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                     src={p.avatarImg}
                     alt={p.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/assets/hires/profiles/card1_exact.jpg';
+                    }}
                   />
                   <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0c0a18] to-transparent pointer-events-none" />
                 </div>
@@ -515,8 +572,11 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   <div className={`h-7 rounded-md bg-[#131024] border ${p.slot1RankGlow} p-0.5 flex items-center justify-center overflow-hidden shadow-sm`}>
                     <img
                       src={p.rankIcon}
-                      alt={p.rankName}
+                      alt={`${p.rankName} rank emblem`}
                       className="w-5 h-5 object-contain filter drop-shadow-[0_0_6px_currentColor]"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/25.png';
+                      }}
                     />
                   </div>
                   {p.weapons.map((w, idx) => (
@@ -526,8 +586,11 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                     >
                       <img
                         src={w.img}
-                        alt="Weapon"
+                        alt="Weapon skin preview"
                         className="w-full h-full object-contain filter drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                        }}
                       />
                     </div>
                   ))}
@@ -537,13 +600,14 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   <h3 className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors font-rajdhani">
                     {p.title}
                   </h3>
-                  <div className="text-[11px] text-gray-400 leading-snug">
+                  <div className="text-[11px] text-gray-300 leading-snug">
                     {p.sub}
                   </div>
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <img
                       src={p.rankIcon}
-                      alt={p.rankName}
+                      alt=""
+                      aria-hidden="true"
                       className="w-3.5 h-3.5 object-contain"
                     />
                     <span className="text-[11px] font-semibold text-slate-300">
@@ -557,18 +621,20 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                     <span className="text-base font-black text-[#ff2ebb] font-rajdhani">
                       {formatCurrencyPrice(p.priceINR, currency)}
                     </span>
-                    <span className="text-[10px] text-gray-500 line-through font-mono">
+                    <span className="text-[10px] text-gray-400 line-through font-mono">
                       {formatCurrencyPrice(p.originalPriceINR, currency)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
+                      type="button"
                       onClick={() => onOpenCheckout(p.title, p.priceINR)}
-                      className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)]"
+                      className="flex-1 min-h-[44px] px-3 py-2 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                     >
                       View Details
                     </button>
                     <button
+                      type="button"
                       onClick={() =>
                         onAddToCart({
                           id: p.id,
@@ -580,7 +646,8 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                           quantity: 1,
                         })
                       }
-                      className="p-1.5 rounded-lg bg-[#581c87] hover:bg-[#6b21a8] text-white transition-colors cursor-pointer border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)]"
+                      aria-label={`Add ${p.title} to cart`}
+                      className="min-w-[44px] min-h-[44px] p-2 rounded-lg bg-[#581c87] hover:bg-[#6b21a8] text-white transition-colors cursor-pointer border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                       title="Add to Cart"
                     >
                       <ShoppingCart className="w-4 h-4" />
@@ -1092,8 +1159,22 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div
-            onClick={() => setJourneyType('rankup')}
-            className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-2.5 ${
+            role="button"
+            tabIndex={0}
+            aria-pressed={journeyType === 'rankup'}
+            aria-label="Select Rankup Services mode"
+            onClick={() => {
+              soundFx.playClickSound();
+              setJourneyType('rankup');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                soundFx.playClickSound();
+                setJourneyType('rankup');
+              }
+            }}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
               journeyType === 'rankup'
                 ? 'bg-gradient-to-br from-[#0a1526]/95 to-[#070e1a]/95 backdrop-blur-sm border-cyan-500/60 shadow-[0_0_25px_rgba(6,182,212,0.2)]'
                 : 'bg-[#080b15] border-purple-500/15 opacity-80 hover:opacity-100'
@@ -1113,8 +1194,9 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-cyan-400 flex-shrink-0" /><span>Real Progress Tracking</span></div>
             </div>
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onNavigate('rankup'); }}
-              className="px-5 py-2.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white border border-cyan-500/40 font-bold text-xs font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white border border-cyan-500/40 font-bold text-xs font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
             >
               <span>Rankup Plans</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -1122,8 +1204,22 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
           </div>
 
           <div
-            onClick={() => setJourneyType('derank')}
-            className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-2.5 ${
+            role="button"
+            tabIndex={0}
+            aria-pressed={journeyType === 'derank'}
+            aria-label="Select Derank Services mode"
+            onClick={() => {
+              soundFx.playClickSound();
+              setJourneyType('derank');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                soundFx.playClickSound();
+                setJourneyType('derank');
+              }
+            }}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
               journeyType === 'derank'
                 ? 'bg-gradient-to-br from-[#240a15]/95 to-[#17060e]/95 backdrop-blur-sm border-rose-500/60 shadow-[0_0_25px_rgba(244,63,94,0.2)]'
                 : 'bg-[#15070f] border-purple-500/15 opacity-80 hover:opacity-100'
@@ -1143,8 +1239,9 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-rose-400 flex-shrink-0" /><span>Play with Friends</span></div>
             </div>
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onNavigate('rankup'); }}
-              className="px-5 py-2.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 font-bold text-xs font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 font-bold text-xs font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
             >
               <span>Derank Plans</span>
               <ArrowRight className="w-3.5 h-3.5" />

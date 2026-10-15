@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -20,6 +20,8 @@ import {
   CreditCard,
   Flame,
   Award,
+  Search,
+  X,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -43,6 +45,12 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
 }) => {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
 
   const toggleFav = (id: string) => {
     soundFx.playClickSound();
@@ -51,11 +59,22 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     );
   };
 
-  // 5 Real Featured Profiles strictly matching Reference 1
-  const profiles = [
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    soundFx.playClickSound();
+    if (carouselRef.current) {
+      const scrollAmount = 320;
+      carouselRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  // 5 Real Featured Profiles strictly matching Reference 1 (Lifetime Guaranteed)
+  const guaranteedProfiles = [
     {
       id: 'p-immortal-310',
-      badge: 'FEATURED',
+      badge: 'LIFETIME GUARANTEED',
       title: 'Immortal Profile',
       sub: 'Level 310 • 20+ Skins',
       rankName: 'Immortal',
@@ -72,7 +91,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     },
     {
       id: 'p-ascendant-205',
-      badge: 'FEATURED',
+      badge: 'LIFETIME GUARANTEED',
       title: 'Ascendant Profile',
       sub: 'Level 205 • Prime Collection',
       rankName: 'Ascendant',
@@ -89,7 +108,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     },
     {
       id: 'p-radiant-420',
-      badge: 'FEATURED',
+      badge: 'LIFETIME GUARANTEED',
       title: 'Radiant Profile',
       sub: 'Level 420 • Full Access',
       rankName: 'Radiant',
@@ -106,7 +125,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     },
     {
       id: 'p-diamond-180',
-      badge: 'FEATURED',
+      badge: 'LIFETIME GUARANTEED',
       title: 'Diamond Profile',
       sub: 'Level 180 • Multiple Skins',
       rankName: 'Diamond',
@@ -123,7 +142,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     },
     {
       id: 'p-ascendant-250',
-      badge: 'FEATURED',
+      badge: 'LIFETIME GUARANTEED',
       title: 'Ascendant Profile',
       sub: 'Level 250 • Rare Skins',
       rankName: 'Ascendant',
@@ -139,6 +158,108 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       ],
     },
   ];
+
+  // 5 Verified Public Community Listings
+  const publicProfiles = [
+    {
+      id: 'pub-plat-145',
+      badge: 'PUBLIC LISTING',
+      title: 'Platinum 3 Profile',
+      sub: 'Level 145 • Glitchpop & Prime',
+      rankName: 'Platinum',
+      rankIcon: '/assets/hires/ranks/platinum.png',
+      slot1RankGlow: 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
+      priceINR: 6499,
+      originalPriceINR: 8999,
+      avatarImg: '/assets/hires/profiles/card4_exact.jpg',
+      weapons: [
+        { img: '/assets/items/vandal-prime.png', border: 'border-cyan-500/40' },
+        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
+        { img: '/assets/items/vandal-rgx.png', border: 'border-cyan-500/40' },
+      ],
+    },
+    {
+      id: 'pub-gold-90',
+      badge: 'PUBLIC LISTING',
+      title: 'Gold 2 Profile',
+      sub: 'Level 90 • Oni Phantom Collection',
+      rankName: 'Gold',
+      rankIcon: '/assets/hires/ranks/gold.png',
+      slot1RankGlow: 'border-amber-400/40 shadow-[0_0_8px_rgba(245,158,11,0.3)]',
+      priceINR: 4299,
+      originalPriceINR: 5999,
+      avatarImg: '/assets/hires/profiles/card2_exact.jpg',
+      weapons: [
+        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
+        { img: '/assets/items/vandal-rgx.png', border: 'border-amber-500/40' },
+        { img: '/assets/items/phantom-rgx.png', border: 'border-amber-500/40' },
+      ],
+    },
+    {
+      id: 'pub-dia-210',
+      badge: 'PUBLIC LISTING',
+      title: 'Diamond 1 Profile',
+      sub: 'Level 210 • Reaver & Kuronami',
+      rankName: 'Diamond',
+      rankIcon: '/assets/hires/ranks/diamond.png',
+      slot1RankGlow: 'border-[#38bdf8]/40 shadow-[0_0_8px_rgba(56,189,248,0.3)]',
+      priceINR: 9499,
+      originalPriceINR: 13999,
+      avatarImg: '/assets/hires/profiles/card1_exact.jpg',
+      weapons: [
+        { img: '/assets/items/vandal-reaper.png', border: 'border-purple-500/40' },
+        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
+        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
+      ],
+    },
+    {
+      id: 'pub-asc-165',
+      badge: 'PUBLIC LISTING',
+      title: 'Ascendant 1 Profile',
+      sub: 'Level 165 • ChronoVoid & Prime',
+      rankName: 'Ascendant',
+      rankIcon: '/assets/hires/ranks/ascendant.png',
+      slot1RankGlow: 'border-emerald-400/40 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
+      priceINR: 12999,
+      originalPriceINR: 17999,
+      avatarImg: '/assets/hires/profiles/card5_exact.jpg',
+      weapons: [
+        { img: '/assets/items/vandal-prime.png', border: 'border-emerald-500/40' },
+        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
+        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
+      ],
+    },
+    {
+      id: 'pub-silv-85',
+      badge: 'PUBLIC LISTING',
+      title: 'Silver 3 Profile',
+      sub: 'Level 85 • Magepunk & Ion',
+      rankName: 'Silver',
+      rankIcon: '/assets/hires/ranks/silver.png',
+      slot1RankGlow: 'border-slate-400/40 shadow-[0_0_8px_rgba(148,163,184,0.3)]',
+      priceINR: 3199,
+      originalPriceINR: 4499,
+      avatarImg: '/assets/hires/profiles/card3_exact.jpg',
+      weapons: [
+        { img: '/assets/items/vandal-prime.png', border: 'border-slate-500/40' },
+        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
+        { img: '/assets/items/vandal-rgx.png', border: 'border-slate-500/40' },
+      ],
+    },
+  ];
+
+  const currentList = selectedMarketplace === 'guaranteed' ? guaranteedProfiles : publicProfiles;
+
+  const filteredProfiles = currentList.filter((p) => {
+    if (!localSearch.trim()) return true;
+    const q = localSearch.toLowerCase().trim();
+    return (
+      p.title.toLowerCase().includes(q) ||
+      p.sub.toLowerCase().includes(q) ||
+      p.rankName.toLowerCase().includes(q) ||
+      p.badge.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white space-y-8 sm:space-y-10 pb-16">
@@ -235,8 +356,22 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           {/* ------------------------------------------------------------- */}
           <div className="flex flex-col space-y-2">
             <div
-              onClick={() => setSelectedMarketplace('guaranteed')}
-              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] ${
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedMarketplace === 'guaranteed'}
+              aria-label="Select Lifetime Guaranteed Profiles marketplace"
+              onClick={() => {
+                soundFx.playClickSound();
+                setSelectedMarketplace('guaranteed');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  soundFx.playClickSound();
+                  setSelectedMarketplace('guaranteed');
+                }
+              }}
+              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                 selectedMarketplace === 'guaranteed'
                   ? 'bg-gradient-to-br from-[#1b1625] via-[#130f1c] to-[#0d0914] border-amber-500/80 shadow-[0_0_35px_rgba(245,158,11,0.22)]'
                   : 'bg-[#0e0c18] border-white/10 hover:border-amber-500/50'
@@ -304,7 +439,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('services')}
-                className="text-amber-400 font-semibold text-[11px] ml-3 whitespace-nowrap hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-amber-400 font-semibold text-[11px] ml-3 whitespace-nowrap hover:underline flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-md p-1"
               >
                 <span>Learn More</span>
                 <ArrowRight className="w-3 h-3" />
@@ -317,8 +452,22 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           {/* ------------------------------------------------------------- */}
           <div className="flex flex-col space-y-2">
             <div
-              onClick={() => setSelectedMarketplace('public')}
-              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] ${
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedMarketplace === 'public'}
+              aria-label="Select Public Listings marketplace"
+              onClick={() => {
+                soundFx.playClickSound();
+                setSelectedMarketplace('public');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  soundFx.playClickSound();
+                  setSelectedMarketplace('public');
+                }
+              }}
+              className={`relative overflow-hidden p-6 sm:p-7 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between group min-h-[250px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 selectedMarketplace === 'public'
                   ? 'bg-gradient-to-br from-[#0c1426] via-[#090f1d] to-[#070b16] border-sky-500/80 shadow-[0_0_35px_rgba(14,165,233,0.22)]'
                   : 'bg-[#0e0c18] border-white/10 hover:border-sky-500/50'
@@ -405,161 +554,258 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-[0.22em] text-amber-400 uppercase font-semibold">
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>FEATURED LISTINGS</span>
+              <span>
+                {selectedMarketplace === 'guaranteed' ? 'GUARANTEED LISTINGS' : 'COMMUNITY LISTINGS'}
+              </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-rajdhani">
-              Handpicked Featured Profiles
+              {selectedMarketplace === 'guaranteed'
+                ? 'Handpicked Lifetime Guaranteed Profiles'
+                : 'Verified Community Public Listings'}
             </h2>
             <p className="text-xs text-gray-400">
-              Premium profiles from our marketplace
+              {selectedMarketplace === 'guaranteed'
+                ? 'Official VIB-vetted accounts with lifetime replacement guarantee'
+                : 'Player-to-player verified accounts with VIB Escrow buyer protection'}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            {localSearch && (
+              <button
+                type="button"
+                onClick={() => setLocalSearch('')}
+                className="px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/40 text-xs font-semibold text-purple-300 hover:bg-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+              >
+                <span>Clear &quot;{localSearch}&quot;</span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
-              onClick={() => onNavigate('profiles')}
-              className="px-4 py-1.5 rounded-xl bg-[#23153c] border border-purple-500/40 text-xs font-bold text-purple-200 hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              type="button"
+              onClick={() => {
+                const q = selectedMarketplace === 'guaranteed' ? 'public' : 'guaranteed';
+                setSelectedMarketplace(q);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#23153c] border border-purple-500/40 text-xs font-bold text-purple-200 hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
-              <span>View All Featured</span>
+              <span>Switch to {selectedMarketplace === 'guaranteed' ? 'Public' : 'Guaranteed'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
-            <button className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer">
-              <ChevronLeft className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => scrollCarousel('left')}
+              aria-label="Scroll left to view previous profiles"
+              className="min-w-[44px] min-h-[44px] rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <ChevronLeft className="w-5 h-5" />
             </button>
-            <button className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer">
-              <ChevronRight className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => scrollCarousel('right')}
+              aria-label="Scroll right to view next profiles"
+              className="min-w-[44px] min-h-[44px] rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* 5 Cards Row (Matching Reference 1 exactly) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          {profiles.map((p) => {
-            const isFav = favoriteIds.includes(p.id);
-            return (
-              <div
-                key={p.id}
-                className="rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+        {/* Search Active Notification Pill */}
+        {localSearch && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-purple-400" />
+              <span>
+                Filtering profiles matching &ldquo;<strong className="text-white">{localSearch}</strong>&rdquo; (Found {filteredProfiles.length} result{filteredProfiles.length === 1 ? '' : 's'})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocalSearch('')}
+              className="text-purple-400 hover:text-white font-bold underline cursor-pointer p-1"
+            >
+              Reset Search
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {filteredProfiles.length === 0 ? (
+          <div className="text-center py-16 px-4 rounded-2xl border border-white/10 bg-[#0c0a18] space-y-4">
+            <div className="w-14 h-14 mx-auto rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+              <Search className="w-7 h-7" />
+            </div>
+            <h3 className="text-xl font-bold text-white font-rajdhani">
+              No profiles found matching &ldquo;{localSearch}&rdquo;
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-400 max-w-md mx-auto">
+              We couldn&apos;t find any accounts in the {selectedMarketplace === 'guaranteed' ? 'Lifetime Guaranteed' : 'Public'} catalog matching your query. Try searching by rank name (e.g. Immortal, Radiant, Diamond) or clear the filter.
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setLocalSearch('')}
+                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-purple-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               >
-                {/* Character preview card top with close-up bust */}
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#100c1e]">
-                  <img
-                    src={p.avatarImg}
-                    alt={p.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-
-                  {/* Top Left Badge: FEATURED (Amber pill) */}
-                  <div className="absolute top-2 left-2">
-                    <span className="text-[9px] font-extrabold tracking-wider px-2 py-0.5 rounded-md bg-[#f59e0b] text-black font-rajdhani uppercase shadow-md">
-                      {p.badge}
-                    </span>
-                  </div>
-
-                  {/* Top Right: Heart Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => toggleFav(p.id)}
-                    aria-label={isFav ? `Remove ${p.title} from favorites` : `Add ${p.title} to favorites`}
-                    className="absolute top-2 right-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-black/60 hover:bg-black/90 text-white transition-colors cursor-pointer border border-white/15 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                  >
-                    <Heart
-                      className={`w-4 h-4 ${
-                        isFav ? 'fill-rose-500 text-rose-500' : 'text-gray-200'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* 4 Preview Slots: Slot 1 is Rank Emblem, Slots 2-4 are Weapons (Matching Reference Exactly) */}
-                <div className="px-2.5 pt-2 grid grid-cols-4 gap-1">
-                  {/* Slot 1: Rank Emblem */}
-                  <div className={`h-7 rounded-md bg-[#131024] border ${p.slot1RankGlow} p-0.5 flex items-center justify-center overflow-hidden shadow-sm`}>
+                Clear Search
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMarketplace(selectedMarketplace === 'guaranteed' ? 'public' : 'guaranteed')}
+                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+              >
+                Check {selectedMarketplace === 'guaranteed' ? 'Public' : 'Guaranteed'} Catalog
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Cards Row (Horizontally scrollable on mobile, grid on desktop) */
+          <div
+            ref={carouselRef}
+            className="flex overflow-x-auto lg:grid lg:grid-cols-5 gap-3.5 pb-2 scrollbar-none snap-x scroll-smooth"
+          >
+            {filteredProfiles.map((p) => {
+              const isFav = favoriteIds.includes(p.id);
+              return (
+                <div
+                  key={p.id}
+                  className="min-w-[260px] sm:min-w-[280px] lg:min-w-0 snap-start rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                >
+                  {/* Character preview card top with close-up bust */}
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#100c1e]">
                     <img
-                      src={p.rankIcon}
-                      alt={p.rankName}
-                      className="w-5 h-5 object-contain filter drop-shadow-[0_0_6px_currentColor]"
+                      src={p.avatarImg}
+                      alt={p.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/hires/profiles/card1_exact.jpg';
+                      }}
                     />
-                  </div>
-                  {/* Slots 2-4: Weapons */}
-                  {p.weapons.map((w, idx) => (
-                    <div
-                      key={idx}
-                      className={`h-7 rounded-md bg-[#131024] border ${w.border} p-0.5 flex items-center justify-center overflow-hidden shadow-sm`}
+
+                    {/* Top Left Badge: (Amber/Blue pill) */}
+                    <div className="absolute top-2 left-2">
+                      <span className={`text-[9px] font-extrabold tracking-wider px-2 py-0.5 rounded-md font-rajdhani uppercase shadow-md ${
+                        selectedMarketplace === 'guaranteed'
+                          ? 'bg-[#f59e0b] text-black'
+                          : 'bg-sky-500 text-black'
+                      }`}>
+                        {p.badge}
+                      </span>
+                    </div>
+
+                    {/* Top Right: Heart Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleFav(p.id)}
+                      aria-label={isFav ? `Remove ${p.title} from favorites` : `Add ${p.title} to favorites`}
+                      className="absolute top-2 right-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-black/60 hover:bg-black/90 text-white transition-colors cursor-pointer border border-white/15 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                     >
+                      <Heart
+                        className={`w-4 h-4 ${
+                          isFav ? 'fill-rose-500 text-rose-500' : 'text-gray-200'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 4 Preview Slots: Slot 1 is Rank Emblem, Slots 2-4 are Weapons (Matching Reference Exactly) */}
+                  <div className="px-2.5 pt-2 grid grid-cols-4 gap-1">
+                    {/* Slot 1: Rank Emblem */}
+                    <div className={`h-7 rounded-md bg-[#131024] border ${p.slot1RankGlow} p-0.5 flex items-center justify-center overflow-hidden shadow-sm`}>
                       <img
-                        src={w.img}
-                        alt="Weapon"
-                        className="w-full h-full object-contain filter drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]"
+                        src={p.rankIcon}
+                        alt={`${p.rankName} rank emblem`}
+                        className="w-5 h-5 object-contain filter drop-shadow-[0_0_6px_currentColor]"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/25.png';
+                        }}
                       />
                     </div>
-                  ))}
-                </div>
-
-                {/* Profile Details (Matching Reference Exactly) */}
-                <div className="p-3 space-y-1">
-                  <h3 className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors font-rajdhani">
-                    {p.title}
-                  </h3>
-                  <div className="text-[11px] text-gray-400 leading-snug">
-                    {p.sub}
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    <img
-                      src={p.rankIcon}
-                      alt={p.rankName}
-                      className="w-3.5 h-3.5 object-contain"
-                    />
-                    <span className="text-[11px] font-semibold text-slate-300">
-                      {p.rankName}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Pricing and Action Buttons (Matching Reference Exactly) */}
-                <div className="p-3 pt-2 border-t border-white/5 space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-base font-black text-[#ff2ebb] font-rajdhani">
-                      {formatCurrencyPrice(p.priceINR, currency)}
-                    </span>
-                    <span className="text-[10px] text-gray-500 line-through font-mono">
-                      {formatCurrencyPrice(p.originalPriceINR, currency)}
-                    </span>
+                    {/* Slots 2-4: Weapons */}
+                    {p.weapons.map((w, idx) => (
+                      <div
+                        key={idx}
+                        className={`h-7 rounded-md bg-[#131024] border ${w.border} p-0.5 flex items-center justify-center overflow-hidden shadow-sm`}
+                      >
+                        <img
+                          src={w.img}
+                          alt="Weapon skin preview"
+                          className="w-full h-full object-contain filter drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onOpenCheckout(p.title, p.priceINR)}
-                      className="flex-1 min-h-[40px] px-3 py-2 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                    >
-                      View Details
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onAddToCart({
-                          id: p.id,
-                          title: p.title,
-                          subtitle: p.sub,
-                          priceINR: p.priceINR,
-                          type: 'profile',
-                          image: p.avatarImg,
-                          quantity: 1,
-                        })
-                      }
-                      aria-label={`Add ${p.title} to cart`}
-                      className="min-w-[40px] min-h-[40px] p-2 rounded-lg bg-[#581c87] hover:bg-[#6b21a8] text-white transition-colors cursor-pointer border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                      title="Add to Cart"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                    </button>
+                  {/* Profile Details (Matching Reference Exactly) */}
+                  <div className="p-3 space-y-1">
+                    <h3 className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors font-rajdhani">
+                      {p.title}
+                    </h3>
+                    <div className="text-[11px] text-gray-300 leading-snug">
+                      {p.sub}
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <img
+                        src={p.rankIcon}
+                        alt=""
+                        aria-hidden="true"
+                        className="w-3.5 h-3.5 object-contain"
+                      />
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        {p.rankName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pricing and Action Buttons (Matching Reference Exactly) */}
+                  <div className="p-3 pt-2 border-t border-white/5 space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-base font-black text-[#ff2ebb] font-rajdhani">
+                        {formatCurrencyPrice(p.priceINR, currency)}
+                      </span>
+                      <span className="text-[10px] text-gray-400 line-through font-mono">
+                        {formatCurrencyPrice(p.originalPriceINR, currency)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenCheckout(p.title, p.priceINR)}
+                        className="flex-1 min-h-[44px] px-3 py-2 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onAddToCart({
+                            id: p.id,
+                            title: p.title,
+                            subtitle: p.sub,
+                            priceINR: p.priceINR,
+                            type: 'profile',
+                            image: p.avatarImg,
+                            quantity: 1,
+                          })
+                        }
+                        aria-label={`Add ${p.title} to cart`}
+                        className="min-w-[44px] min-h-[44px] p-2 rounded-lg bg-[#581c87] hover:bg-[#6b21a8] text-white transition-colors cursor-pointer border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                        title="Add to Cart"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* ========================================================================= */}

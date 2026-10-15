@@ -25,15 +25,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [orderState, setOrderState] = useState<'form' | 'processing' | 'success'>('form');
   const [copied, setCopied] = useState(false);
 
-  // Close on Escape key press
+  // Close on Escape key press and lock body scroll
   React.useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         handleReset();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -124,7 +131,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <Zap className="w-5 h-5" style={{ color: activePkg.theme.primaryColor }} />
               </div>
               <div>
-                <h3 className="font-chakra font-bold text-xl text-white">
+                <h3 id="checkout-title" className="font-chakra font-bold text-xl text-white">
                   Order {currentTitle}
                 </h3>
                 <p className="text-xs font-rajdhani text-gray-400">

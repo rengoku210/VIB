@@ -40,6 +40,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
   const [discountedOnly, setDiscountedOnly] = useState(false);
   const [priceMax, setPriceMax] = useState(200000);
   const [sortBy, setSortBy] = useState('recommended');
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Exact 13 VP packs matching Reference 2
   const vpPacks = [
@@ -182,11 +183,27 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
       {/* 2. MAIN 2-COLUMN CATALOG LAYOUT (Matching Reference 2) */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Mobile Filter Toggle */}
+        <div className="lg:hidden mb-4">
+          <button
+            type="button"
+            onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+            className="w-full py-2.5 px-4 rounded-xl bg-[#0c0a18] border border-purple-500/40 text-purple-200 font-bold text-xs font-rajdhani uppercase tracking-wider flex items-center justify-between shadow-md cursor-pointer min-h-[44px]"
+            aria-expanded={isMobileFilterOpen}
+          >
+            <span className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-400" />
+              <span>{isMobileFilterOpen ? 'Hide Filters & Categories' : 'Show Filters & Categories'}</span>
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isMobileFilterOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* ------------------------------------------------------------- */}
           {/* Left Sidebar (col-span-3)                                     */}
           {/* ------------------------------------------------------------- */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className={`lg:col-span-3 space-y-4 ${isMobileFilterOpen ? 'block' : 'hidden lg:block'}`}>
             {/* CATEGORIES */}
             <div className="p-4 rounded-xl bg-[#0c0a18] border border-white/[0.08] space-y-2.5 shadow-md">
               <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-gray-400 font-bold">
@@ -320,7 +337,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                 Can't find the VP amount you need? Contact us on WhatsApp for custom requests.
               </p>
               <a
-                href="https://wa.me/919999999999"
+                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
@@ -343,7 +360,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                 For orders outside this time, please contact us on WhatsApp.
               </p>
               <a
-                href="https://wa.me/919999999999"
+                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-1.5 rounded-lg bg-[#261545] hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-purple-500/30 cursor-pointer"
@@ -503,7 +520,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
               </div>
 
               <a
-                href="https://wa.me/919999999999"
+                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs whitespace-nowrap cursor-pointer shadow-md flex items-center gap-1.5 transition-all"

@@ -167,6 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       <header
         ref={headerRef}
+        aria-hidden={!isHeaderVisible}
         className={`fixed top-0 left-0 right-0 z-50 w-full bg-[#07070d]/95 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 lg:px-8 py-2.5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform ${
           isHeaderVisible ? 'translate-y-0 shadow-lg' : '-translate-y-full pointer-events-none'
         }`}
@@ -376,12 +377,12 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onToggleSound}
             aria-label={soundEnabled ? 'Mute sound effects' : 'Enable sound effects'}
             title={soundEnabled ? 'SFX: On (click to mute)' : 'SFX: Off (click to enable)'}
-            className="hidden sm:flex min-w-[36px] min-h-[36px] items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
             {soundEnabled ? (
               <Volume2 className="w-4 h-4 text-fuchsia-400" />
             ) : (
-              <VolumeX className="w-4 h-4 text-gray-500" />
+              <VolumeX className="w-4 h-4 text-gray-400" />
             )}
           </button>
 
@@ -391,9 +392,9 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={cycleCurrency}
             aria-label={`Currency: ${currency}. Click to switch.`}
             title="Switch Currency (INR / USD / EUR)"
-            className="min-h-[36px] px-2.5 py-1 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 hover:border-purple-500/40 text-gray-200 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 flex items-center gap-1 text-[11px] font-mono font-bold"
+            className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 hover:border-purple-500/40 text-gray-200 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 flex items-center justify-center gap-1.5 text-xs font-mono font-bold"
           >
-            <span className="text-purple-400 font-extrabold">
+            <span className="text-purple-400 font-extrabold text-sm">
               {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : '€'}
             </span>
             <span>{currency}</span>
@@ -418,7 +419,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onOpenAuth('login')}
-            className="min-h-[38px] text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-white/15 bg-[#121020] hover:bg-[#1a172e] hover:border-white/25 text-gray-200 transition-colors cursor-pointer hidden sm:flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            className="min-h-[44px] text-xs font-semibold px-4 py-2 rounded-lg border border-white/15 bg-[#121020] hover:bg-[#1a172e] hover:border-white/25 text-gray-200 transition-colors cursor-pointer hidden sm:flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
             Login
           </button>
@@ -427,7 +428,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onOpenAuth('signup')}
-            className="min-h-[38px] text-xs font-bold px-4 py-1.5 rounded-lg text-white bg-[#8b5cf6] hover:bg-[#7c3aed] shadow-[0_0_15px_rgba(139,92,246,0.45)] transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+            className="min-h-[44px] text-xs font-bold px-4 py-2 rounded-lg text-white bg-[#8b5cf6] hover:bg-[#7c3aed] shadow-[0_0_15px_rgba(139,92,246,0.45)] transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
           >
             <span>Sign Up</span>
           </button>
@@ -440,7 +441,7 @@ export const Header: React.FC<HeaderProps> = ({
           id="mobile-navigation"
           role="navigation"
           aria-label="Mobile Navigation"
-          className="lg:hidden mt-3 pt-3 border-t border-white/10 space-y-3 pb-2 animate-in fade-in slide-in-from-top-2 duration-200"
+          className="lg:hidden mt-3 pt-3 border-t border-white/10 space-y-3 pb-3 max-h-[calc(100dvh-75px)] overflow-y-auto pr-1 animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {/* Mobile Search Bar - text-base prevents iOS Safari auto-zoom */}
           <form onSubmit={handleSearchSubmit} className="relative">

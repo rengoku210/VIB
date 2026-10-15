@@ -12,6 +12,7 @@ import {
   Flame,
   Layers,
   Award,
+  AlertCircle,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { ClientPage } from './Header';
@@ -37,6 +38,7 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
   const [bidCount, setBidCount] = useState(18);
   const [userBidInput, setUserBidInput] = useState('5000');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
+  const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
 
   // Live ticking countdown timer
   useEffect(() => {
@@ -58,9 +60,10 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
 
   const handlePlaceBid = (e: React.FormEvent) => {
     e.preventDefault();
+    setBidErrorMessage(null);
     const bidVal = parseInt(userBidInput, 10);
     if (isNaN(bidVal) || bidVal <= currentBid) {
-      alert(`Bid must be greater than current bid of ₹${currentBid.toLocaleString()}`);
+      setBidErrorMessage(`Bid must be greater than current bid of ₹${currentBid.toLocaleString()}`);
       return;
     }
     setCurrentBid(bidVal);
@@ -239,15 +242,22 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
               </div>
 
               {bidSuccessMessage && (
-                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2">
+                <div role="status" className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   <span>{bidSuccessMessage}</span>
                 </div>
               )}
 
+              {bidErrorMessage && (
+                <div id="bid-error" role="alert" className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                  <span>{bidErrorMessage}</span>
+                </div>
+              )}
+
               <form onSubmit={handlePlaceBid} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-gray-300 font-bold uppercase">
+                  <label htmlFor="bid-amount-input" className="text-xs font-mono text-gray-300 font-bold uppercase cursor-pointer">
                     Enter Your Maximum Bid (INR)
                   </label>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -256,10 +266,15 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                         ₹
                       </span>
                       <input
+                        id="bid-amount-input"
                         type="number"
                         value={userBidInput}
-                        onChange={(e) => setUserBidInput(e.target.value)}
+                        onChange={(e) => {
+                          setUserBidInput(e.target.value);
+                          if (bidErrorMessage) setBidErrorMessage(null);
+                        }}
                         min={currentBid + 1}
+                        aria-describedby={bidErrorMessage ? "bid-error" : undefined}
                         className="w-full pl-8 pr-4 py-3 sm:py-3.5 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
                         placeholder="Enter amount"
                       />

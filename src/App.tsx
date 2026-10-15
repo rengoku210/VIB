@@ -106,6 +106,15 @@ export default function App() {
     }
 
     setCurrentPage(page);
+    try {
+      const url = new URL(window.location.href);
+      if (page === 'home') {
+        url.searchParams.delete('page');
+      } else {
+        url.searchParams.set('page', page);
+      }
+      window.history.pushState({ page }, '', url.toString());
+    } catch {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -115,6 +124,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#07070d] text-white flex flex-col justify-between relative overflow-x-hidden font-inter selection:bg-fuchsia-600 selection:text-white">
+      {/* Accessibility Skip-to-content */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2.5 focus:bg-purple-600 focus:text-white focus:rounded-xl focus:shadow-xl focus:outline-none focus:ring-2 focus:ring-white font-semibold text-xs uppercase tracking-wider"
+      >
+        Skip to main content
+      </a>
+
       {/* Top Header Navigation matching exact mockups */}
       <Header
         currentPage={currentPage}
@@ -128,12 +145,12 @@ export default function App() {
         onToggleSound={() => setSoundEnabled((prev) => !prev)}
         onSearch={(q) => {
           setSearchQuery(q);
-          setCurrentPage('profiles');
+          handleNavigate('profiles');
         }}
       />
 
       {/* Main Page Content */}
-      <main className="flex-1 w-full">
+      <main id="main-content" className="flex-1 w-full" tabIndex={-1}>
         {currentPage === 'home' && (
           <ClientHomePage
             currency={currency}

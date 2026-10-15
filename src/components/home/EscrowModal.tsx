@@ -12,15 +12,22 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
   const [amount, setAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // Close on Escape key press
+  // Close on Escape key press and lock body scroll
   React.useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -58,7 +65,7 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
             <ShieldCheck className="w-6 h-6 text-amber-400" />
           </div>
           <div>
-            <h3 className="font-chakra font-bold text-xl text-white">VIB Escrow Desk</h3>
+            <h3 id="escrow-modal-title" className="font-chakra font-bold text-xl text-white">VIB Escrow Desk</h3>
             <span className="text-xs font-chakra text-amber-400">Official Middleman Service</span>
           </div>
         </div>
