@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle, ShieldCheck, Zap, AlertCircle, Copy, ArrowRight } from 'lucide-react';
 import { VPPackage, Currency } from '../types';
 import { VP_PACKAGES } from '../data/packages';
+import { useAuth } from '../context/AuthContext';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -18,12 +19,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   customItem,
   currency,
 }) => {
-  const [riotId, setRiotId] = useState('');
-  const [tagline, setTagline] = useState('');
-  const [email, setEmail] = useState('');
+  const { user, token } = useAuth();
+  const [riotId, setRiotId] = useState(() => user?.riot_id?.split('#')[0] || '');
+  const [tagline, setTagline] = useState(() => user?.riot_id?.split('#')[1] || '');
+  const [email, setEmail] = useState(() => user?.email || '');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
   const [orderState, setOrderState] = useState<'form' | 'processing' | 'success'>('form');
   const [copied, setCopied] = useState(false);
+
+  // Sync user info when modal opens
+  React.useEffect(() => {
+    if (user && isOpen) {
+      if (user.riot_id) {
+        const parts = user.riot_id.split('#');
+        if (parts[0]) setRiotId(parts[0]);
+        if (parts[1]) setTagline(parts[1]);
+      }
+      if (user.email) setEmail(user.email);
+    }
+  }, [user, isOpen]);
 
   // Close on Escape key press and lock body scroll
   React.useEffect(() => {
@@ -56,10 +70,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       ? `€${(currentPriceINR / 90).toFixed(2)}`
       : `₹${currentPriceINR.toLocaleString('en-IN')}`;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!riotId || !tagline) return;
     setOrderState('processing');
+
+    if (token) {
+      try {
+        await fetch('/api/user/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: currentTitle,
+            amount: currentPriceINR,
+            currency,
+            type: currentTitle.includes('VP') ? 'vp' : 'profile',
+            paymentMethod: paymentMethod === 'upi' ? 'UPI Instant Transfer' : paymentMethod === 'card' ? 'Credit/Debit Card' : 'Net Banking',
+            details: {
+              riotId: `${riotId}#${tagline}`,
+              email,
+            },
+          }),
+        });
+      } catch (err) {
+        console.warn('Order dispatch error:', err);
+      }
+    }
+
     setTimeout(() => {
       setOrderState('success');
     }, 1200);

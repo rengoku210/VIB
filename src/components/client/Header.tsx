@@ -15,9 +15,13 @@ import {
   MessageSquare,
   Shield,
   Zap,
+  LogOut,
+  Award,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { soundFx } from '../../utils/audio';
+import { useAuth } from '../../context/AuthContext';
 
 export type ClientPage =
   | 'home'
@@ -30,7 +34,9 @@ export type ClientPage =
   | 'coaching'
   | 'auctions'
   | 'community'
-  | 'support';
+  | 'support'
+  | 'dashboard'
+  | 'admin';
 
 interface HeaderProps {
   currentPage: ClientPage;
@@ -57,6 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSound,
   onSearch,
 }) => {
+  const { user, logout, openAuthModal, isAdmin } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -415,23 +422,77 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Login Button */}
-          <button
-            type="button"
-            onClick={() => onOpenAuth('login')}
-            className="min-h-[44px] text-xs font-semibold px-4 py-2 rounded-lg border border-white/15 bg-[#121020] hover:bg-[#1a172e] hover:border-white/25 text-gray-200 transition-colors cursor-pointer hidden sm:flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-          >
-            Login
-          </button>
+          {/* User Authenticated Controls vs Login/Sign Up */}
+          {user ? (
+            <div className="hidden sm:flex items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleNav('admin')}
+                  className={`min-h-[44px] text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    currentPage === 'admin'
+                      ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.5)]'
+                      : 'border-amber-500/30 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60'
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Admin Console</span>
+                </button>
+              )}
 
-          {/* Sign Up Button (solid purple pill matching reference) */}
-          <button
-            type="button"
-            onClick={() => onOpenAuth('signup')}
-            className="min-h-[44px] text-xs font-bold px-4 py-2 rounded-lg text-white bg-[#8b5cf6] hover:bg-[#7c3aed] shadow-[0_0_15px_rgba(139,92,246,0.45)] transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
-          >
-            <span>Sign Up</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => handleNav('dashboard')}
+                className={`min-h-[44px] text-xs font-bold px-3.5 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-2 ${
+                  currentPage === 'dashboard'
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'
+                    : 'border-purple-500/30 bg-[#120f26] text-purple-200 hover:bg-purple-950/70 hover:border-purple-500/60'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-400/40 flex-shrink-0">
+                  <img
+                    src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span>{user.name.split(' ')[0]}</span>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-900/80 text-purple-300 uppercase">
+                  {user.role}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={logout}
+                aria-label="Logout"
+                title="Logout"
+                className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Login Button */}
+              <button
+                type="button"
+                onClick={() => openAuthModal('login')}
+                className="min-h-[44px] text-xs font-semibold px-4 py-2 rounded-lg border border-white/15 bg-[#121020] hover:bg-[#1a172e] hover:border-white/25 text-gray-200 transition-colors cursor-pointer hidden sm:flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                Login
+              </button>
+
+              {/* Sign Up Button (solid purple pill matching reference) */}
+              <button
+                type="button"
+                onClick={() => openAuthModal('signup')}
+                className="min-h-[44px] text-xs font-bold px-4 py-2 rounded-lg text-white bg-[#8b5cf6] hover:bg-[#7c3aed] shadow-[0_0_15px_rgba(139,92,246,0.45)] transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+              >
+                <span>Sign Up</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -603,28 +664,60 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAuth('login');
-                }}
-                className="min-h-[44px] px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-xs font-semibold text-gray-200"
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAuth('signup');
-                }}
-                className="min-h-[44px] px-4 py-2 rounded-lg bg-[#8b5cf6] text-xs font-bold text-white shadow-[0_0_12px_rgba(139,92,246,0.4)]"
-              >
-                Sign Up
-              </button>
-            </div>
+            {user ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('admin')}
+                    className="min-h-[44px] px-2.5 py-1.5 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-bold font-rajdhani uppercase"
+                  >
+                    Admin
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleNav('dashboard')}
+                  className="min-h-[44px] px-3 py-1.5 rounded-lg bg-purple-950/80 border border-purple-500/40 text-purple-200 text-xs font-bold font-rajdhani uppercase flex items-center gap-1.5"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="min-h-[44px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-rose-300 text-xs font-bold font-rajdhani uppercase"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    openAuthModal('login');
+                  }}
+                  className="min-h-[44px] px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-xs font-semibold text-gray-200"
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    openAuthModal('signup');
+                  }}
+                  className="min-h-[44px] px-4 py-2 rounded-lg bg-[#8b5cf6] text-xs font-bold text-white shadow-[0_0_12px_rgba(139,92,246,0.4)]"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

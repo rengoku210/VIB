@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header, ClientPage } from './components/client/Header';
 import { Footer } from './components/client/Footer';
 import { ClientHomePage } from './components/client/ClientHomePage';
@@ -10,6 +10,9 @@ import { ClientRankupPage } from './components/client/ClientRankupPage';
 import { ClientRentalsPage } from './components/client/ClientRentalsPage';
 import { ClientCoachingPage } from './components/client/ClientCoachingPage';
 import { ClientAuctionsPage } from './components/client/ClientAuctionsPage';
+import { UserDashboard } from './components/dashboard/UserDashboard';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { DiscordModal } from './components/home/DiscordModal';
@@ -17,13 +20,31 @@ import { EscrowModal } from './components/home/EscrowModal';
 import { VP_PACKAGES } from './data/packages';
 import { Currency, CartItem } from './types';
 import { soundFx } from './utils/audio';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export default function App() {
+function AppContent() {
+  const { user, isAdmin, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
+
   const getInitialPage = (): ClientPage => {
     try {
       const params = new URLSearchParams(window.location.search);
       const p = params.get('page') as ClientPage;
-      if (p && ['home', 'profiles', 'vp', 'vp-catalog', 'services', 'rankup', 'rentals', 'coaching', 'auctions'].includes(p)) {
+      if (
+        p &&
+        [
+          'home',
+          'profiles',
+          'vp',
+          'vp-catalog',
+          'services',
+          'rankup',
+          'rentals',
+          'coaching',
+          'auctions',
+          'dashboard',
+          'admin',
+        ].includes(p)
+      ) {
         return p;
       }
     } catch {}
@@ -35,11 +56,26 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  React.useEffect(() => {
+  // Handle URL history state & back/forward navigation
+  useEffect(() => {
     const onPopState = () => {
       const params = new URLSearchParams(window.location.search);
       const p = (params.get('page') as ClientPage) || 'home';
-      if (['home', 'profiles', 'vp', 'vp-catalog', 'services', 'rankup', 'rentals', 'coaching', 'auctions'].includes(p)) {
+      if (
+        [
+          'home',
+          'profiles',
+          'vp',
+          'vp-catalog',
+          'services',
+          'rankup',
+          'rentals',
+          'coaching',
+          'auctions',
+          'dashboard',
+          'admin',
+        ].includes(p)
+      ) {
         setCurrentPage(p);
       } else {
         setCurrentPage('home');
@@ -48,6 +84,17 @@ export default function App() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  // Protected route enforcement on auth state changes
+  useEffect(() => {
+    if (currentPage === 'admin' && user && !isAdmin) {
+      setCurrentPage('dashboard');
+    }
+    if ((currentPage === 'dashboard' || currentPage === 'admin') && !user) {
+      // If user logs out while on protected route, return to home
+      setCurrentPage('home');
+    }
+  }, [user, isAdmin, currentPage]);
 
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -105,6 +152,24 @@ export default function App() {
       return;
     }
 
+    // Role-based route guard: Dashboard requires authenticated session
+    if (page === 'dashboard' && !user) {
+      openAuthModal('login');
+      return;
+    }
+
+    // Role-based route guard: Admin Console requires admin/superadmin role
+    if (page === 'admin') {
+      if (!user) {
+        openAuthModal('login');
+        return;
+      }
+      if (!isAdmin) {
+        alert('Access Restricted: Administrative privileges required.');
+        return;
+      }
+    }
+
     setCurrentPage(page);
     try {
       const url = new URL(window.location.href);
@@ -118,10 +183,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleAuth = (mode: 'login' | 'signup') => {
-    handleOpenCustomCheckout(mode === 'login' ? 'Account Portal Login' : 'New User Registration', 0);
-  };
-
   return (
     <div className="min-h-screen bg-[#07070d] text-white flex flex-col justify-between relative overflow-x-hidden font-inter selection:bg-fuchsia-600 selection:text-white">
       {/* Accessibility Skip-to-content */}
@@ -132,7 +193,7 @@ export default function App() {
         Skip to main content
       </a>
 
-      {/* Top Header Navigation matching exact mockups */}
+      {/* Top Header Navigation matching exact mockups & auto-hide behavior */}
       <Header
         currentPage={currentPage}
         onNavigate={handleNavigate}
@@ -140,7 +201,7 @@ export default function App() {
         onCurrencyChange={setCurrency}
         cartCount={cartItems.reduce((s, i) => s + i.quantity, 0)}
         onOpenCart={() => setIsCartOpen(true)}
-        onOpenAuth={handleAuth}
+        onOpenAuth={(mode) => openAuthModal(mode)}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled((prev) => !prev)}
         onSearch={(q) => {
@@ -228,9 +289,23 @@ export default function App() {
             onOpenCheckout={handleOpenCustomCheckout}
           />
         )}
+
+        {currentPage === 'dashboard' && (
+          <UserDashboard
+            currency={currency}
+            onNavigate={(p) => handleNavigate(p as ClientPage)}
+            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'admin' && (
+          <AdminDashboard
+            onNavigate={(p) => handleNavigate(p as ClientPage)}
+          />
+        )}
       </main>
 
-      {/* Client Footer matching all mockups */}
+      {/* Client Footer */}
       <Footer onNavigate={handleNavigate} />
 
       {/* Slide-over Shopping Cart Drawer */}
@@ -256,6 +331,16 @@ export default function App() {
         currency={currency}
       />
 
+      {/* Authentication Modal (Login / Sign Up / Forgot Password) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        initialMode={authModalMode}
+        onClose={closeAuthModal}
+        onSuccess={() => {
+          closeAuthModal();
+        }}
+      />
+
       {/* Community Discord Modal */}
       <DiscordModal
         isOpen={isDiscordModalOpen}
@@ -268,5 +353,13 @@ export default function App() {
         onClose={() => setIsEscrowModalOpen(false)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

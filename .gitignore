@@ -17,3 +17,8 @@ playwright_test.png
 side_by_side_top.png
 screenshot_*.png
 vib_pdf_text.txt
+
+# Database binaries
+data/*.db
+data/*.db-wal
+data/*.db-shm
