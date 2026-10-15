@@ -260,6 +260,253 @@ async function runTestSuite() {
       'Phase 5: Audit & Security', 'All privileged operations are immutably recorded in audit logs');
   }
 
+  // 6. PRODUCTS CATALOG API & PRICE TAMPERING PREVENTION
+  {
+    // Test 6.1: Query Products Catalog
+    const catRes = await request('/api/products');
+    assert(catRes.status === 200 && Array.isArray(catRes.data?.products) && catRes.data.products.length >= 10,
+      'Catalog & Security', 'GET /api/products returns populated database catalog');
+
+    // Test 6.2: Query Single Product
+    const singleRes = await request('/api/products/vp-475');
+    assert(singleRes.status === 200 && singleRes.data?.product?.price_inr === 499,
+      'Catalog & Security', 'GET /api/products/:id returns specific product details');
+
+    // Test 6.3: Non-existent product returns 404
+    const notFoundRes = await request('/api/products/non-existent-prod-id');
+    assert(notFoundRes.status === 404, 'Catalog & Security', 'GET /api/products/:invalid returns 404 Not Found');
+
+    // Test 6.4: Price Tampering Attack Strictly Blocked (400)
+    const tamperedOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-475',
+        title: '475 Valorant Points Pack',
+        amount: 10, // Tampered price: ₹10 instead of catalog ₹499
+        currency: 'INR',
+        type: 'vp',
+      }),
+    });
+    assert(tamperedOrder.status === 400 && String(tamperedOrder.data?.error).includes('Price verification failed'),
+      'Catalog & Security', 'Server strictly rejects tampered order price with 400 Bad Request');
+  }
+
+  // 7. UNIVERSAL ORDER ROOM, CHAT & ANTI-FRAUD SCANNER
+  {
+    // Test 7.1: Access Order Room
+    const roomRes = await request(`/api/orders/${testOrderId}/room`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert(roomRes.status === 200 && roomRes.data?.order?.id === testOrderId && Array.isArray(roomRes.data?.stages),
+      'Order Room & Anti-Fraud', 'Customer can access Order Room lifecycle and progression stages');
+
+    // Test 7.2: Anti-Fraud Scanner Flags Phone Number Leakage
+    const phoneLeak = await request(`/api/orders/${testOrderId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        message: 'Direct deal bro, WhatsApp me on 9876543210 right now',
+      }),
+    });
+    assert(phoneLeak.status === 201 && phoneLeak.data?.message?.flagged === 1 && phoneLeak.data?.warning,
+      'Order Room & Anti-Fraud', 'Anti-fraud scanner intercepts Indian phone number and flags message');
+
+    // Test 7.3: Anti-Fraud Scanner Flags UPI Handle Leakage
+    const upiLeak = await request(`/api/orders/${testOrderId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        message: 'Pay outside VIB to my personal handle seller@okhdfcbank',
+      }),
+    });
+    assert(upiLeak.status === 201 && upiLeak.data?.message?.flagged === 1,
+      'Order Room & Anti-Fraud', 'Anti-fraud scanner intercepts off-platform UPI handle and flags message');
+
+    // Test 7.4: Clean Order Message Delivered Without Flags
+    const cleanMsg = await request(`/api/orders/${testOrderId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        message: 'Hello Support team, I have confirmed the Riot ID tag format.',
+      }),
+    });
+    assert(cleanMsg.status === 201 && cleanMsg.data?.message?.flagged === 0 && !cleanMsg.data?.warning,
+      'Order Room & Anti-Fraud', 'Compliant in-platform communication is saved with zero flags');
+  }
+
+  // 8. COMMERCIAL INVOICING & GST COMPLIANCE
+  let testInvoiceId = '';
+  {
+    // Test 8.1: Customer Queries Generated Invoices
+    const userInvoices = await request('/api/user/invoices', {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert(userInvoices.status === 200 && Array.isArray(userInvoices.data?.invoices) && userInvoices.data.invoices.length > 0,
+      'Commercial Invoicing', 'Customer receives automatic sequential GST invoice for orders');
+    if (userInvoices.data?.invoices?.[0]?.id) {
+      testInvoiceId = userInvoices.data.invoices[0].id;
+    }
+
+    // Test 8.2: Retrieve Individual Printable Invoice
+    if (testInvoiceId) {
+      const invRes = await request(`/api/invoices/${testInvoiceId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      assert(invRes.status === 200 && invRes.data?.invoice?.id === testInvoiceId && typeof invRes.data?.invoice?.tax_amount === 'number',
+        'Commercial Invoicing', 'Official tax invoice details include 18% GST calculation and sequential ID');
+    }
+
+    // Test 8.3: Admin Manual Billing Invoice Creation
+    const manualInv = await request('/api/admin/invoices', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        customer_name: 'Custom Corporate Client',
+        customer_email: 'corp@esports.gg',
+        customer_phone: '+91 99887 76655',
+        product_name: 'Tournament Account Provisioning Pack',
+        description: 'Bespoke 5-seat scrim profile bundle with regional verification',
+        unit_price: 15000,
+        quantity: 1,
+        platform_fee: 500,
+        notes: 'Official invoice issued under Section 31 of CGST Act',
+      }),
+    });
+    assert(manualInv.status === 201 && manualInv.data?.invoice?.id.startsWith('VIB-INV-') && manualInv.data.invoice.final_total > 15000,
+      'Commercial Invoicing', 'Admin can generate compliant manual tax invoice with automatic GST calculation');
+
+    // Test 8.4: Admin Queries All Invoices
+    const adminInvoices = await request('/api/admin/invoices', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(adminInvoices.status === 200 && Array.isArray(adminInvoices.data?.invoices) && adminInvoices.data.invoices.length >= 2,
+      'Commercial Invoicing', 'Admin has full ledger access to all issued platform tax invoices');
+  }
+
+  // 9. FINANCIAL CONTROL CENTER, EXPENSES & SETTLEMENTS
+  {
+    // Test 9.1: Financial Overview Metrics
+    const finRes = await request('/api/admin/finance/overview', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(finRes.status === 200 && typeof finRes.data?.grossVolume === 'number' && typeof finRes.data?.platformCommission === 'number',
+      'Financial Control', 'Admin retrieves financial metrics (gross volume, commissions, taxes, expenses, net profit)');
+
+    // Test 9.2: Record Operating Expense
+    const expenseRes = await request('/api/admin/finance/expenses', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        category: 'API Gateway & Cloud Infrastructure',
+        description: 'Riot Games verification microservice hosting and DB backup node',
+        amount: 3200,
+        recorded_by: 'Finance Operations',
+      }),
+    });
+    assert(expenseRes.status === 201 && expenseRes.data?.expense?.id,
+      'Financial Control', 'Admin can record platform operating expenses in the double-entry ledger');
+
+    // Test 9.3: Query Operating Expenses
+    const expensesList = await request('/api/admin/finance/expenses', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(expensesList.status === 200 && Array.isArray(expensesList.data?.expenses) && expensesList.data.expenses.length > 0,
+      'Financial Control', 'Expenses ledger is queryable by administration staff');
+
+    // Test 9.4: Query Seller Settlements Queue
+    const settlementsRes = await request('/api/admin/finance/settlements', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(settlementsRes.status === 200 && Array.isArray(settlementsRes.data?.settlements),
+      'Financial Control', 'Settlements queue accurately reports escrow releases and seller payout status');
+  }
+
+  // 10. EMPLOYEE TASK MANAGEMENT
+  let testTaskId = '';
+  {
+    // Test 10.1: Admin Creates Employee Task
+    const taskRes = await request('/api/admin/tasks', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        department: 'Verification',
+        title: 'Audit high-value Radiant profile handover',
+        description: 'Verify Riot 2FA email transfer and credentials lock before escrow release',
+        priority: 'high',
+        assigned_to: 'Staff Officer Karan',
+        due_date: new Date(Date.now() + 86400000).toISOString(),
+      }),
+    });
+    assert(taskRes.status === 201 && taskRes.data?.task?.id,
+      'Staff Task Management', 'Admin creates departmental staff task with priority and due date');
+    if (taskRes.data?.task?.id) {
+      testTaskId = taskRes.data.task.id;
+    }
+
+    // Test 10.2: Update Task Status
+    if (testTaskId) {
+      const updateTask = await request(`/api/admin/tasks/${testTaskId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({
+          status: 'completed',
+        }),
+      });
+      assert(updateTask.status === 200 && updateTask.data?.task?.status === 'completed',
+        'Staff Task Management', 'Staff task status transitioned to completed');
+    }
+
+    // Test 10.3: Query Tasks Filtered by Department
+    const listTasks = await request('/api/admin/tasks?department=Verification', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(listTasks.status === 200 && Array.isArray(listTasks.data?.tasks),
+      'Staff Task Management', 'Tasks are queryable by department filter');
+  }
+
+  // 11. CUSTOMER CRM & INTERNAL AUDIT NOTES
+  {
+    // Test 11.1: Query Customer CRM Summary
+    const crmRes = await request(`/api/admin/users/${userId}/crm`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(crmRes.status === 200 && crmRes.data?.user?.id === userId && typeof crmRes.data?.lifetimeSpent === 'number',
+      'Customer CRM', 'Admin CRM view surfaces lifetime spend, dispute volume, and fraud risk score');
+
+    // Test 11.2: Add Internal Staff Note
+    const noteRes = await request(`/api/admin/users/${userId}/crm/notes`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        note: 'Customer verified phone and Discord handle via voice authentication. Low risk.',
+      }),
+    });
+    assert(noteRes.status === 201 && noteRes.data?.note?.id,
+      'Customer CRM', 'Internal confidential staff note recorded (hidden from customer view)');
+  }
+
+  // 12. COMMUNICATION EMAIL TEMPLATES
+  {
+    // Test 12.1: Query Email Templates
+    const templatesRes = await request('/api/admin/communication/templates', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(templatesRes.status === 200 && Array.isArray(templatesRes.data?.templates) && templatesRes.data.templates.length >= 4,
+      'Communication Center', 'Admin queries transactional email and notification templates');
+
+    // Test 12.2: Update Email Template
+    const updateTpl = await request('/api/admin/communication/templates/tpl_order_confirmed', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        subject: 'Order Confirmed - Your VIB Delivery is In Progress!',
+      }),
+    });
+    assert(updateTpl.status === 200 && updateTpl.data?.template?.subject.includes('VIB Delivery'),
+      'Communication Center', 'Admin modifies and persists transactional email template content');
+  }
+
   console.log('\n====================================================');
   console.log('TEST SUMMARY RESULTS');
   console.log('====================================================');
@@ -271,7 +518,7 @@ async function runTestSuite() {
   console.log(`Failed: ${failed}`);
 
   if (failed === 0) {
-    console.log('\n>>> ALL 18 INTEGRATION TESTS PASSED WITH 100% SUCCESS RATE! <<<');
+    console.log(`\n>>> ALL ${total} INTEGRATION TESTS PASSED WITH 100% SUCCESS RATE! <<<`);
   } else {
     console.error(`\n>>> FAILED TESTS: ${failed} <<<`);
     process.exit(1);

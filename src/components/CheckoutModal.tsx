@@ -8,7 +8,7 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   pkg?: VPPackage;
-  customItem?: { title: string; priceINR: number };
+  customItem?: { title: string; priceINR: number; productId?: string; id?: string };
   currency: Currency;
 }
 
@@ -84,6 +84,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
+            package_id: pkg?.id,
+            product_id: customItem?.productId || customItem?.id,
             title: currentTitle,
             amount: currentPriceINR,
             currency,

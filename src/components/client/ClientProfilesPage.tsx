@@ -32,7 +32,7 @@ interface ClientProfilesPageProps {
   currency: Currency;
   onNavigate: (page: ClientPage) => void;
   onAddToCart: (item: CartItem) => void;
-  onOpenCheckout: (title: string, priceINR: number) => void;
+  onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
   searchQuery?: string;
 }
 
@@ -46,7 +46,19 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    fetch('/api/products?category=profile')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.products)) {
+          setDbProducts(data.products);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch catalog products:', err));
+  }, []);
 
   React.useEffect(() => {
     setLocalSearch(searchQuery);
@@ -775,7 +787,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => onOpenCheckout(p.title, p.priceINR)}
+                        onClick={() => onOpenCheckout(p.title, p.priceINR, p.id)}
                         className="flex-1 min-h-[44px] px-3 py-2 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                       >
                         View Details

@@ -27,7 +27,7 @@ interface ClientVPOverviewPageProps {
   currency: Currency;
   onNavigate: (page: ClientPage) => void;
   onAddToCart: (item: CartItem) => void;
-  onOpenCheckout: (title: string, priceINR: number) => void;
+  onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
 }
 
 /* Flag Components */
@@ -88,8 +88,10 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
     { vp: '3,650 VP', priceINR: 1999 },
   ];
 
-  const handleBuy = (vp: string, price: number, region: string) => {
-    onOpenCheckout(`${vp} (${region} Top-Up)`, price);
+  const handleBuy = (vp: string, price: number, region: string, productId?: string) => {
+    const vpClean = vp.replace(/[^0-9]/g, '');
+    const mappedId = productId || `vp-${vpClean}`;
+    onOpenCheckout(`${vp} (${region} Top-Up)`, price, mappedId);
   };
 
   return (

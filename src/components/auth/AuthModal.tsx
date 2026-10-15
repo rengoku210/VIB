@@ -170,25 +170,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Quick fill demo helper for immediate verification
-  const fillDemoAccount = (role: 'superadmin' | 'moderator' | 'seller' | 'customer') => {
-    setMode('login');
-    setLocalError(null);
-    if (role === 'superadmin') {
-      setEmail('admin@vib.gg');
-      setPassword('AdminPassword@123');
-    } else if (role === 'moderator') {
-      setEmail('moderator@vib.gg');
-      setPassword('Moderator@123');
-    } else if (role === 'seller') {
-      setEmail('seller@vib.gg');
-      setPassword('SellerPassword@123');
-    } else {
-      setEmail('customer@vib.gg');
-      setPassword('CustomerPassword@123');
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
       <div
@@ -341,43 +322,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </>
               )}
             </button>
-
-            {/* Quick Demo Accounts Helper */}
-            <div className="pt-3 border-t border-white/5 space-y-2">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400 text-center">
-                Instant One-Click Demo Credentials
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-rajdhani">
-                <button
-                  type="button"
-                  onClick={() => fillDemoAccount('superadmin')}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-900/40 border border-purple-500/20 text-purple-300 font-bold transition-all text-center"
-                >
-                  Super Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoAccount('moderator')}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-900/40 border border-purple-500/20 text-purple-300 font-bold transition-all text-center"
-                >
-                  Staff Mod
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoAccount('seller')}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-900/40 border border-purple-500/20 text-purple-300 font-bold transition-all text-center"
-                >
-                  Verified Seller
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoAccount('customer')}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-900/40 border border-purple-500/20 text-purple-300 font-bold transition-all text-center"
-                >
-                  Customer User
-                </button>
-              </div>
-            </div>
           </form>
         )}
 

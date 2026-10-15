@@ -21,9 +21,13 @@ import {
   MessageSquare,
   FileText,
   Award,
+  Download,
+  Printer,
+  X,
+  Send,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { formatCurrencyPrice } from '../../utils/format';
 import { Currency } from '../../types';
 
 interface UserDashboardProps {
@@ -38,11 +42,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenCheckout,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'tickets' | 'notifications' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings'>('overview');
 
   // Live state from backend
   const [orders, setOrders] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,15 +68,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [ticketPriority, setTicketPriority] = useState('medium');
   const [ticketSubmitting, setTicketSubmitting] = useState(false);
 
+  // Order Room state (Universal Order Flow & Chat)
+  const [selectedOrderRoom, setSelectedOrderRoom] = useState<any | null>(null);
+  const [orderRoomMessages, setOrderRoomMessages] = useState<any[]>([]);
+  const [newOrderMessage, setNewOrderMessage] = useState('');
+  const [messageWarning, setMessageWarning] = useState<string | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [orderRoomLoading, setOrderRoomLoading] = useState(false);
+
+  // Tax Invoice Modal state
+  const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+
   // Load user data from API
   const fetchDashboardData = async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [ovRes, ordRes, txnRes, tktRes, notifRes] = await Promise.all([
+      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes] = await Promise.all([
         fetch('/api/user/overview', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/orders', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/transactions', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/invoices', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/tickets', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/notifications', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
@@ -83,6 +100,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (txnRes.ok) {
         const d = await txnRes.json();
         setTransactions(d.transactions || []);
+      }
+      if (invRes.ok) {
+        const d = await invRes.json();
+        setInvoices(d.invoices || []);
       }
       if (tktRes.ok) {
         const d = await tktRes.json();
@@ -102,6 +123,71 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   useEffect(() => {
     fetchDashboardData();
   }, [token]);
+
+  // Open dedicated Order Room
+  const handleOpenOrderRoom = async (orderId: string) => {
+    if (!token) return;
+    setOrderRoomLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/room`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setSelectedOrderRoom(d.orderRoom);
+        setOrderRoomMessages(d.orderRoom.messages || []);
+        setMessageWarning(null);
+      }
+    } catch (err) {
+      console.error('Failed to load order room:', err);
+    } finally {
+      setOrderRoomLoading(false);
+    }
+  };
+
+  // Send message in Order Room with live anti-fraud scanning
+  const handleSendOrderMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrderMessage.trim() || !selectedOrderRoom || !token) return;
+    setSendingMessage(true);
+    setMessageWarning(null);
+
+    try {
+      const res = await fetch(`/api/orders/${selectedOrderRoom.orderId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: newOrderMessage.trim() }),
+      });
+
+      if (res.ok) {
+        const d = await res.json();
+        setOrderRoomMessages((prev) => [
+          ...prev,
+          {
+            id: d.messageId,
+            sender_id: user?.id,
+            sender_name: user?.name,
+            sender_role: user?.role,
+            message: newOrderMessage.trim(),
+            flagged: d.flagged ? 1 : 0,
+            flag_reason: d.flagReason,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        setNewOrderMessage('');
+        if (d.flagged) {
+          setMessageWarning(`Security Notice: ${d.flagReason}`);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to dispatch message:', err);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   // Update profile handler
   const handleProfileSave = async (e: React.FormEvent) => {
@@ -146,14 +232,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         fetchDashboardData();
       }
     } catch (err) {
-      console.error('Failed to submit ticket:', err);
+      console.error('Failed to create ticket:', err);
     } finally {
       setTicketSubmitting(false);
     }
   };
 
   // Mark notification read
-  const handleMarkRead = async (id: string) => {
+  const handleMarkNotificationRead = async (id: string) => {
     if (!token) return;
     try {
       await fetch(`/api/user/notifications/${id}/read`, {
@@ -163,20 +249,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: 1 } : n))
       );
-    } catch {}
+    } catch (err) {
+      console.error('Failed to mark read:', err);
+    }
   };
 
   if (!user) {
     return (
-      <div className="max-w-[1360px] mx-auto px-4 py-20 text-center space-y-4">
-        <h2 className="text-2xl font-bold font-rajdhani text-white">Access Restricted</h2>
-        <p className="text-gray-400 text-sm">Please sign in to access your VIB member dashboard.</p>
-        <button
-          onClick={() => onNavigate('home')}
-          className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase"
-        >
-          Return to Marketplace
-        </button>
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-purple-400 mb-3 animate-pulse" />
+        <h2 className="text-xl font-bold font-rajdhani text-white uppercase tracking-wider mb-2">
+          Authentication Required
+        </h2>
+        <p className="text-xs text-gray-400 max-w-sm mb-4">
+          Please log in to access your persistent orders, wallet balance, and secure escrow dashboard.
+        </p>
       </div>
     );
   }
@@ -184,15 +271,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const unreadNotifs = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="w-full bg-[#06050e] text-white min-h-[calc(100vh-80px)] pb-20 pt-6">
-      <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Top Profile Banner Card */}
+      <div className="relative rounded-3xl bg-gradient-to-r from-[#0d0c1b] via-[#15122c] to-[#0c0d1c] border border-purple-500/30 p-6 sm:p-8 overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Profile Banner Header */}
-        <div className="p-6 rounded-2xl bg-[#0c0d1c] border border-purple-500/20 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-purple-500/40 relative shadow-[0_0_20px_rgba(168,85,247,0.3)] flex-shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-purple-400/50 shadow-lg flex-shrink-0 bg-purple-950/40">
               <img
                 src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
                 alt={user.name}
@@ -262,7 +348,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
 
         {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto no-scrollbar pb-1 mt-6">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
@@ -304,6 +390,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTab('invoices')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+              activeTab === 'invoices'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Tax Invoices ({invoices.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('tickets')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === 'tickets'
@@ -312,7 +411,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             }`}
           >
             <Headphones className="w-4 h-4" />
-            <span>Support &amp; Escrow ({tickets.length})</span>
+            <span>Support &amp; Disputes ({tickets.length})</span>
           </button>
 
           <button
@@ -346,108 +445,95 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <span>Profile Settings</span>
           </button>
         </div>
+      </div>
 
+      {/* Main Tab Panels */}
+      <div className="space-y-6">
         {/* ============================================================== */}
         {/* TAB 1: OVERVIEW                                                */}
         {/* ============================================================== */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in">
-            {/* Quick Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
                   <span>ACTIVE ORDERS</span>
                   <Package className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="text-2xl font-black font-rajdhani text-white">
-                  {orders.filter((o) => o.status === 'processing' || o.status === 'pending').length} Active
+                  {orders.filter((o) => o.status === 'processing' || o.status === 'pending').length}
                 </div>
-                <div className="text-[11px] text-gray-400">Dispatched with escrow protection</div>
+                <div className="text-[11px] text-gray-500">Live orders currently in fulfillment queue</div>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
-                  <span>COMPLETED TRANSACTIONS</span>
+                  <span>COMPLETED DELIVERIES</span>
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-black font-rajdhani text-white">
-                  {orders.filter((o) => o.status === 'completed').length} Delivered
+                <div className="text-2xl font-black font-rajdhani text-emerald-400">
+                  {orders.filter((o) => o.status === 'completed').length}
                 </div>
-                <div className="text-[11px] text-gray-400">100% verified fulfillment</div>
+                <div className="text-[11px] text-gray-500">Successfully verified and credited orders</div>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
                   <span>ACTIVE DISPUTES / TICKETS</span>
-                  <Headphones className="w-4 h-4 text-amber-400" />
+                  <Headphones className="w-4 h-4 text-indigo-400" />
                 </div>
-                <div className="text-2xl font-black font-rajdhani text-white">
-                  {tickets.filter((t) => t.status === 'open').length} Open
+                <div className="text-2xl font-black font-rajdhani text-indigo-300">
+                  {tickets.filter((t) => t.status === 'open').length}
                 </div>
-                <div className="text-[11px] text-gray-400">24/7 middleman assistance</div>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
-                <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
-                  <span>ESCROW GUARANTEE</span>
-                  <ShieldCheck className="w-4 h-4 text-sky-400" />
-                </div>
-                <div className="text-2xl font-black font-rajdhani text-sky-300">
-                  Secured
-                </div>
-                <div className="text-[11px] text-gray-400">Funds released upon delivery</div>
+                <div className="text-[11px] text-gray-500">Active communications with VIB support</div>
               </div>
             </div>
 
-            {/* Recent Orders Showcase */}
+            {/* Recent Orders List Preview */}
             <div className="p-6 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg font-rajdhani uppercase tracking-wider text-white">
-                  Recent Orders
-                </h3>
+                <h2 className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">
+                  Recent Orders &amp; Escrow Deliveries
+                </h2>
                 <button
                   type="button"
                   onClick={() => setActiveTab('orders')}
-                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer font-bold font-rajdhani"
+                  className="text-xs text-purple-400 hover:text-purple-300 font-mono flex items-center gap-1 cursor-pointer"
                 >
-                  <span>View All Orders</span>
+                  <span>View All ({orders.length})</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {orders.length === 0 ? (
-                <div className="text-center py-10 text-gray-400 space-y-2">
-                  <Package className="w-10 h-10 mx-auto text-gray-500" />
-                  <p className="text-sm">You haven't placed any orders yet.</p>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('vp-catalog')}
-                    className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs uppercase"
-                  >
-                    Browse VP Catalog
-                  </button>
+                <div className="py-8 text-center text-xs text-gray-500">
+                  No orders placed yet. Browse our verified Valorant profiles or VP top-ups to get started.
                 </div>
               ) : (
                 <div className="divide-y divide-white/5">
                   {orders.slice(0, 3).map((ord) => (
-                    <div key={ord.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="font-bold text-sm text-white font-rajdhani flex items-center gap-2">
-                          <span>{ord.title}</span>
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
-                            ord.status === 'completed'
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-purple-950 text-purple-300 border border-purple-500/30'
-                          }`}>
-                            {ord.status}
-                          </span>
-                        </div>
+                    <div key={ord.id} className="py-3 flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-sm text-white">{ord.title}</div>
                         <div className="text-xs text-gray-400 font-mono">
-                          Order #{ord.id} • {new Date(ord.created_at).toLocaleDateString()} • {ord.payment_method}
+                          #{ord.id} • {new Date(ord.created_at).toLocaleDateString()} • {ord.payment_method}
                         </div>
                       </div>
-                      <div className="font-black text-base text-fuchsia-300 font-rajdhani">
-                        ₹{ord.amount.toLocaleString('en-IN')}
+                      <div className="flex items-center gap-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase ${
+                          ord.status === 'completed'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-950 text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {ord.status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenOrderRoom(ord.id)}
+                          className="px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 border border-purple-500/30 text-purple-200 text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                        >
+                          Order Room
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -458,18 +544,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* TAB 2: ALL ORDERS                                             */}
+        {/* TAB 2: ORDERS                                                 */}
         {/* ============================================================== */}
         {activeTab === 'orders' && (
           <div className="space-y-4 animate-in fade-in">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-                Order History &amp; Delivery Tracking
+                Your Order History ({orders.length})
               </h2>
               <button
                 type="button"
                 onClick={fetchDashboardData}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-gray-300 flex items-center gap-1.5"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Refresh</span>
@@ -477,23 +563,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
 
             {orders.length === 0 ? (
-              <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400 space-y-3">
-                <Package className="w-12 h-12 mx-auto text-gray-600" />
-                <h3 className="text-base font-bold text-white font-rajdhani">No Orders Found</h3>
-                <p className="text-xs max-w-sm mx-auto">Browse our Indian VP packs, rankup journeys, or accounts marketplace to place your first order.</p>
+              <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400">
+                <Package className="w-12 h-12 mx-auto text-gray-600 mb-2" />
+                <p className="text-sm font-semibold">No orders recorded yet.</p>
+                <p className="text-xs text-gray-500 mt-1">Explore our catalog of verified profiles and instant VP packs.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-3">
                 {orders.map((ord) => (
-                  <div key={ord.id} className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-3 hover:border-purple-500/30 transition-all">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                  <div
+                    key={ord.id}
+                    className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 hover:border-purple-500/30 transition-all space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <div className="font-black text-base text-white font-rajdhani flex items-center gap-2">
-                          <span>{ord.title}</span>
-                          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded uppercase ${
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-base font-rajdhani">{ord.title}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
                             ord.status === 'completed'
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-purple-950 text-purple-300 border border-purple-500/40'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-amber-950 text-amber-300 border border-amber-500/30'
                           }`}>
                             {ord.status}
                           </span>
@@ -510,7 +599,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400 pt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400 pt-2 border-t border-white/5">
                       <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1.5">
                           <ShieldCheck className="w-4 h-4 text-purple-400" />
@@ -522,6 +611,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => handleOpenOrderRoom(ord.id)}
+                          className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Open Order Room</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => {
                             setActiveTab('tickets');
                             setTicketSubject(`Assistance required for Order #${ord.id}`);
@@ -529,7 +627,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                           }}
                           className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-200 transition-colors"
                         >
-                          Need Help With Order?
+                          Need Help?
                         </button>
                       </div>
                     </div>
@@ -592,144 +690,150 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* TAB 4: SUPPORT DESK & DISPUTES                                */}
+        {/* TAB 4: TAX INVOICES & BILLING (NEW REQUIREMENT)              */}
+        {/* ============================================================== */}
+        {activeTab === 'invoices' && (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
+                  Official GST Tax Invoices
+                </h2>
+                <p className="text-xs text-gray-400">
+                  Compliance-verified invoices with statutory tax breakdown and middleman escrow certificate.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchDashboardData}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {invoices.length === 0 ? (
+              <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400">
+                <FileText className="w-12 h-12 mx-auto text-gray-600 mb-2" />
+                <p className="text-sm font-semibold">No tax invoices generated yet.</p>
+                <p className="text-xs text-gray-500 mt-1">Invoices are automatically generated upon order checkout.</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="p-4">Invoice No.</th>
+                        <th className="p-4">Particulars</th>
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Subtotal</th>
+                        <th className="p-4">GST (18%)</th>
+                        <th className="p-4">Total</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-gray-300">
+                      {invoices.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="p-4 font-bold text-purple-300">{inv.id}</td>
+                          <td className="p-4 font-sans font-semibold text-white max-w-xs truncate">{inv.product_name}</td>
+                          <td className="p-4 text-gray-400">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                          <td className="p-4">₹{Number(inv.subtotal).toLocaleString('en-IN')}</td>
+                          <td className="p-4 text-amber-300">₹{Number(inv.tax_amount).toLocaleString('en-IN')}</td>
+                          <td className="p-4 font-bold text-emerald-400">₹{Number(inv.final_total).toLocaleString('en-IN')}</td>
+                          <td className="p-4">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 uppercase text-[10px]">
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600 border border-purple-500/40 text-purple-200 hover:text-white font-rajdhani uppercase font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ml-auto"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>View Invoice</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 5: SUPPORT DESK & DISPUTES                                */}
         {/* ============================================================== */}
         {activeTab === 'tickets' && (
           <div className="space-y-4 animate-in fade-in">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-                Support Desk &amp; Middleman Dispute Resolution
+                Support Desk &amp; Dispute Resolution
               </h2>
               <button
                 type="button"
                 onClick={() => setShowNewTicketModal(true)}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani flex items-center gap-1.5 shadow-md cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create Support Ticket</span>
+                <span>Open New Ticket</span>
               </button>
             </div>
-
-            {/* New Ticket Form Modal */}
-            {showNewTicketModal && (
-              <div className="p-6 rounded-2xl bg-[#0e0f22] border border-purple-500/40 space-y-4 animate-in slide-in-from-top-2">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <h3 className="font-bold text-base text-white font-rajdhani uppercase">
-                    New Support &amp; Dispute Ticket
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowNewTicketModal(false)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleCreateTicket} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Subject *</label>
-                      <input
-                        type="text"
-                        value={ticketSubject}
-                        onChange={(e) => setTicketSubject(e.target.value)}
-                        placeholder="e.g. Question regarding order fulfillment"
-                        required
-                        className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Category</label>
-                      <select
-                        value={ticketCategory}
-                        onChange={(e) => setTicketCategory(e.target.value)}
-                        className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
-                      >
-                        <option value="orders">Orders &amp; VP Top-Up</option>
-                        <option value="payment">Payment &amp; Billing</option>
-                        <option value="dispute">Escrow Dispute</option>
-                        <option value="account">Account &amp; Security</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Message *</label>
-                    <textarea
-                      value={ticketMessage}
-                      onChange={(e) => setTicketMessage(e.target.value)}
-                      rows={4}
-                      placeholder="Describe your issue or order inquiry with relevant details..."
-                      required
-                      className="w-full p-3 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowNewTicketModal(false)}
-                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={ticketSubmitting}
-                      className="px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani disabled:opacity-50"
-                    >
-                      {ticketSubmitting ? 'Submitting...' : 'Submit Ticket'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
 
             {tickets.length === 0 ? (
               <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400">
                 <Headphones className="w-12 h-12 mx-auto text-gray-600 mb-2" />
-                <p className="text-sm">You have no open support or dispute tickets.</p>
+                <p className="text-sm font-semibold">No active support tickets.</p>
+                <p className="text-xs text-gray-500 mt-1">Our executive staff is available 24/7 if you need assistance with an order or account issue.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {tickets.map((tkt) => {
-                  const msgs = JSON.parse(tkt.messages_json || '[]');
+                  const messages = JSON.parse(tkt.messages_json || '[]');
                   return (
-                    <div key={tkt.id} className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-base text-white font-rajdhani flex items-center gap-2">
-                            <span>{tkt.subject}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30 uppercase">
-                              {tkt.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-400 font-mono">
-                            Ticket #{tkt.id} • Category: {tkt.category.toUpperCase()} • Priority: {tkt.priority.toUpperCase()}
-                          </div>
+                    <div
+                      key={tkt.id}
+                      className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-base font-rajdhani">{tkt.subject}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                            tkt.status === 'open'
+                              ? 'bg-amber-950 text-amber-300 border border-amber-500/30'
+                              : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {tkt.status}
+                          </span>
                         </div>
                         <div className="text-xs text-gray-400 font-mono">
-                          {new Date(tkt.updated_at).toLocaleString()}
+                          Ticket #{tkt.id} • {new Date(tkt.created_at).toLocaleDateString()}
                         </div>
                       </div>
 
-                      {/* Messages Thread */}
-                      <div className="space-y-2 pt-1">
-                        {msgs.map((m: any, idx: number) => (
+                      <div className="space-y-2 pt-2 border-t border-white/5">
+                        {messages.map((m: any, idx: number) => (
                           <div
                             key={idx}
-                            className={`p-3 rounded-xl text-xs space-y-1 ${
-                              m.sender === 'staff'
-                                ? 'bg-purple-950/40 border border-purple-500/30 ml-4 text-purple-100'
-                                : 'bg-white/5 border border-white/5 text-gray-200'
+                            className={`p-3 rounded-xl text-xs ${
+                              m.sender === 'user'
+                                ? 'bg-purple-950/30 border border-purple-500/20 text-purple-100'
+                                : 'bg-white/5 border border-white/10 text-gray-200'
                             }`}
                           >
-                            <div className="flex items-center justify-between font-mono text-[10px] text-gray-400">
-                              <span className="font-bold text-purple-300">{m.senderName || m.sender}</span>
+                            <div className="flex items-center justify-between font-mono text-[10px] text-gray-400 mb-1">
+                              <strong>{m.senderName}</strong>
                               <span>{new Date(m.time).toLocaleTimeString()}</span>
                             </div>
-                            <p className="font-sans leading-relaxed">{m.text}</p>
+                            <p className="whitespace-pre-wrap">{m.text}</p>
                           </div>
                         ))}
                       </div>
@@ -742,45 +846,52 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* TAB 5: NOTIFICATIONS CENTER                                   */}
+        {/* TAB 6: NOTIFICATIONS                                          */}
         {/* ============================================================== */}
         {activeTab === 'notifications' && (
           <div className="space-y-4 animate-in fade-in">
             <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-              Platform &amp; Order Notifications
+              Notification Feed ({notifications.length})
             </h2>
 
             {notifications.length === 0 ? (
               <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400">
                 <Bell className="w-12 h-12 mx-auto text-gray-600 mb-2" />
-                <p className="text-sm">No notifications.</p>
+                <p className="text-sm">You have zero notifications.</p>
               </div>
             ) : (
               <div className="space-y-2.5">
                 {notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    onClick={() => handleMarkRead(notif.id)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3.5 ${
+                    className={`p-4 rounded-xl border transition-all flex items-start justify-between gap-4 ${
                       notif.read
-                        ? 'bg-[#0c0d1c] border-white/5 opacity-70 hover:opacity-100'
-                        : 'bg-[#120f26] border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                        ? 'bg-[#0c0d1c] border-white/5 text-gray-400'
+                        : 'bg-purple-950/30 border-purple-500/40 text-purple-100 shadow-md'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 flex-shrink-0 mt-0.5">
-                      <Bell className="w-4 h-4" />
-                    </div>
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-sm text-white font-rajdhani tracking-wide">
-                          {notif.title}
-                        </h4>
-                        <span className="text-[10px] font-mono text-gray-400">
-                          {new Date(notif.created_at).toLocaleDateString()}
-                        </span>
+                    <div className="space-y-1">
+                      <div className="font-bold text-sm text-white flex items-center gap-2">
+                        <span>{notif.title}</span>
+                        {!notif.read && (
+                          <span className="w-2 h-2 rounded-full bg-fuchsia-500" />
+                        )}
                       </div>
-                      <p className="text-xs text-gray-300 leading-relaxed font-sans">{notif.message}</p>
+                      <p className="text-xs leading-relaxed text-gray-300">{notif.message}</p>
+                      <div className="text-[10px] font-mono text-gray-400">
+                        {new Date(notif.created_at).toLocaleString()}
+                      </div>
                     </div>
+
+                    {!notif.read && (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkNotificationRead(notif.id)}
+                        className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] font-mono uppercase text-gray-300 cursor-pointer flex-shrink-0"
+                      >
+                        Mark Read
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -789,12 +900,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* TAB 6: SETTINGS & ACCOUNT SECURITY                             */}
+        {/* TAB 7: PROFILE SETTINGS                                       */}
         {/* ============================================================== */}
         {activeTab === 'settings' && (
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-6 animate-in fade-in max-w-2xl">
+          <div className="max-w-2xl p-6 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-6 animate-in fade-in">
             <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-              Profile &amp; Account Settings
+              Profile &amp; Account Preferences
             </h2>
 
             {saveSuccess && (
@@ -868,6 +979,359 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* ============================================================== */}
+      {/* MODAL 1: ORDER ROOM (UNIVERSAL ORDER FLOW & INTERNAL CHAT)      */}
+      {/* ============================================================== */}
+      {selectedOrderRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-room-title"
+            className="relative w-full max-w-3xl rounded-3xl bg-[#0c0d1c] border border-purple-500/40 p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 id="order-room-title" className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">
+                    Order Room: #{selectedOrderRoom.orderId}
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-purple-900/60 border border-purple-500/40 text-purple-300">
+                    {selectedOrderRoom.status}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
+                  {selectedOrderRoom.title} • ₹{selectedOrderRoom.amount.toLocaleString('en-IN')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderRoom(null)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mandatory Anti-Fraud Warning Banner (Requirements Clause 13) */}
+            <div className="my-3 p-3 rounded-xl bg-amber-950/80 border border-amber-500/50 text-amber-200 text-xs flex items-center gap-2.5 shadow-inner">
+              <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div>
+                <strong className="font-bold">Official Escrow Security Notice: </strong>
+                Keep all communication, payments, and account deliveries strictly inside VIB. Off-platform deals (sharing WhatsApp, phone numbers, or external UPI) are unprotected and result in immediate account restriction.
+              </div>
+            </div>
+
+            {/* Order Lifecycle Progression Stages */}
+            <div className="py-2 flex items-center justify-between gap-1 text-[10px] font-mono uppercase text-gray-400 border-b border-white/5 overflow-x-auto no-scrollbar">
+              <span className="px-2 py-1 rounded bg-purple-950 text-purple-300 border border-purple-500/40">1. Payment Verified</span>
+              <ChevronRight className="w-3 h-3 text-gray-600" />
+              <span className="px-2 py-1 rounded bg-purple-950 text-purple-300 border border-purple-500/40">2. Processing</span>
+              <ChevronRight className="w-3 h-3 text-gray-600" />
+              <span className={`px-2 py-1 rounded ${selectedOrderRoom.status === 'completed' ? 'bg-purple-950 text-purple-300 border border-purple-500/40' : 'bg-white/5'}`}>
+                3. Delivery Submitted
+              </span>
+              <ChevronRight className="w-3 h-3 text-gray-600" />
+              <span className={`px-2 py-1 rounded ${selectedOrderRoom.status === 'completed' ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-white/5'}`}>
+                4. Completed
+              </span>
+            </div>
+
+            {/* Chat Thread */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 py-4 pr-1 max-h-[45vh]">
+              {orderRoomMessages.length === 0 ? (
+                <div className="py-12 text-center text-xs text-gray-500">
+                  No messages yet. Dispatch team will update this room shortly.
+                </div>
+              ) : (
+                orderRoomMessages.map((msg, i) => (
+                  <div
+                    key={msg.id || i}
+                    className={`p-3.5 rounded-2xl text-xs max-w-[85%] ${
+                      msg.sender_id === user?.id
+                        ? 'ml-auto bg-purple-600 text-white rounded-tr-none'
+                        : msg.sender_role === 'system'
+                        ? 'mx-auto bg-white/5 border border-white/10 text-gray-300 text-center max-w-md'
+                        : 'mr-auto bg-[#15122c] border border-purple-500/30 text-purple-100 rounded-tl-none'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] opacity-75 font-mono mb-1 gap-2">
+                      <strong>{msg.sender_name}</strong>
+                      <span>{new Date(msg.created_at).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{msg.message}</p>
+                    {msg.flagged === 1 && (
+                      <div className="mt-1.5 p-1.5 rounded bg-rose-950 text-rose-200 text-[10px] flex items-center gap-1 border border-rose-500/40">
+                        <AlertCircle className="w-3 h-3 text-rose-400" />
+                        <span>Flagged by Anti-Fraud System: {msg.flag_reason}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {messageWarning && (
+              <div className="p-2 rounded-lg bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-2 mb-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>{messageWarning}</span>
+              </div>
+            )}
+
+            {/* Message Input Box */}
+            <form onSubmit={handleSendOrderMessage} className="pt-3 border-t border-white/10 flex items-center gap-2">
+              <input
+                type="text"
+                value={newOrderMessage}
+                onChange={(e) => setNewOrderMessage(e.target.value)}
+                placeholder="Message dispatch staff or seller... (Protected by VIB Escrow)"
+                className="flex-1 p-2.5 rounded-xl bg-[#141224] border border-white/15 text-white text-xs focus:outline-none focus:border-purple-500 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={sendingMessage || !newOrderMessage.trim()}
+                className="min-h-[44px] px-4 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 2: OFFICIAL TAX INVOICE VIEW & PRINT                     */}
+      {/* ============================================================== */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invoice-view-title"
+            className="relative w-full max-w-2xl rounded-3xl bg-[#0e0f1a] border border-purple-500/40 p-6 sm:p-8 shadow-2xl text-white space-y-6 my-8"
+          >
+            {/* Action Bar */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                <span className="font-rajdhani font-black text-sm uppercase tracking-wider text-purple-300">
+                  Tax Invoice Certificate
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / Save PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoice(null)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Invoice Printable Area */}
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 id="invoice-view-title" className="text-2xl font-black font-rajdhani text-white uppercase tracking-wider">
+                    VIB DIGITAL SERVICES
+                  </h2>
+                  <div className="text-xs text-gray-400 font-mono mt-1 space-y-0.5">
+                    <div>GSTIN: 29AAECV1092F1Z8 • MSME Reg. Verified</div>
+                    <div>Digital Profile &amp; Game Escrow Services Division</div>
+                    <div>Bangalore, Karnataka, India • support@vib.gg</div>
+                  </div>
+                </div>
+                <div className="text-right font-mono">
+                  <div className="text-lg font-black text-purple-400">{selectedInvoice.id}</div>
+                  <div className="text-xs text-gray-400">Date: {new Date(selectedInvoice.invoice_date).toLocaleDateString()}</div>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 text-[10px] uppercase font-bold">
+                    {selectedInvoice.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bill To */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-mono text-gray-400 uppercase text-[10px] block mb-1">Billed To (Customer):</span>
+                  <div className="font-bold text-white text-sm">{selectedInvoice.customer_name}</div>
+                  <div className="text-gray-300 font-mono">{selectedInvoice.customer_email}</div>
+                  <div className="text-gray-400 font-mono">{selectedInvoice.customer_phone || 'India'}</div>
+                </div>
+                <div>
+                  <span className="font-mono text-gray-400 uppercase text-[10px] block mb-1">Transaction Ref:</span>
+                  <div className="font-mono text-purple-300 font-bold">{selectedInvoice.payment_reference || 'VIB-TXN-VERIFIED'}</div>
+                  <div className="text-gray-400 mt-1">Payment Method: <strong className="text-gray-200">{selectedInvoice.payment_method}</strong></div>
+                  <div className="text-gray-400">Order ID: <strong className="text-gray-200">{selectedInvoice.order_id || 'N/A'}</strong></div>
+                </div>
+              </div>
+
+              {/* Particulars Table */}
+              <div className="rounded-xl border border-white/10 overflow-hidden">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-white/5 text-gray-400 border-b border-white/10">
+                    <tr>
+                      <th className="p-3">Particulars / Service Description</th>
+                      <th className="p-3 text-center">Qty</th>
+                      <th className="p-3 text-right">Taxable Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-200">
+                    <tr>
+                      <td className="p-3">
+                        <div className="font-bold text-white font-sans">{selectedInvoice.product_name}</div>
+                        <div className="text-[11px] text-gray-400 font-mono">{selectedInvoice.description}</div>
+                      </td>
+                      <td className="p-3 text-center font-bold">1</td>
+                      <td className="p-3 text-right">₹{Number(selectedInvoice.subtotal).toLocaleString('en-IN')}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Calculations Footer */}
+              <div className="flex justify-end">
+                <div className="w-64 space-y-2 text-xs font-mono">
+                  <div className="flex justify-between text-gray-400">
+                    <span>Taxable Subtotal:</span>
+                    <span>₹{Number(selectedInvoice.subtotal).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-300">
+                    <span>CGST + SGST (18%):</span>
+                    <span>₹{Number(selectedInvoice.tax_amount).toLocaleString('en-IN')}</span>
+                  </div>
+                  {Number(selectedInvoice.platform_fee) > 0 && (
+                    <div className="flex justify-between text-gray-400">
+                      <span>Platform Escrow Fee:</span>
+                      <span>₹{Number(selectedInvoice.platform_fee).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-white/15 flex justify-between font-bold text-base text-emerald-400 font-rajdhani">
+                    <span>Total Paid:</span>
+                    <span>₹{Number(selectedInvoice.final_total).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/10 text-center text-[10px] text-gray-500 font-mono">
+                This is a computer-generated tax invoice issued by VIB Digital Services. Protected under electronic authentication laws.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 3: CREATE SUPPORT TICKET                                 */}
+      {/* ============================================================== */}
+      {showNewTicketModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-modal-title"
+            className="relative w-full max-w-lg rounded-2xl bg-[#0c0d1c] border border-purple-500/30 p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 id="ticket-modal-title" className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">
+                Open Support or Dispute Ticket
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowNewTicketModal(false)}
+                className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTicket} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Subject *</label>
+                <input
+                  type="text"
+                  value={ticketSubject}
+                  onChange={(e) => setTicketSubject(e.target.value)}
+                  placeholder="e.g. Inquiry regarding order #ord_1001"
+                  required
+                  className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Category</label>
+                  <select
+                    value={ticketCategory}
+                    onChange={(e) => setTicketCategory(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="orders">Orders &amp; Delivery</option>
+                    <option value="disputes">Order Dispute</option>
+                    <option value="payment">Payment Issue</option>
+                    <option value="account">Account Access</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Priority</label>
+                  <select
+                    value={ticketPriority}
+                    onChange={(e) => setTicketPriority(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High (Urgent)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Message *</label>
+                <textarea
+                  value={ticketMessage}
+                  onChange={(e) => setTicketMessage(e.target.value)}
+                  placeholder="Describe your issue in detail. Staff will respond within 15-30 minutes."
+                  rows={4}
+                  required
+                  className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewTicketModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={ticketSubmitting}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs uppercase font-rajdhani tracking-wider cursor-pointer shadow-md"
+                >
+                  {ticketSubmitting ? 'Submitting Ticket...' : 'Submit Ticket'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -103,7 +103,7 @@ function AppContent() {
   // Modals state
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutCustomItem, setCheckoutCustomItem] = useState<
-    { title: string; priceINR: number } | undefined
+    { title: string; priceINR: number; productId?: string; id?: string } | undefined
   >(undefined);
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
@@ -131,8 +131,8 @@ function AppContent() {
     setCartItems([]);
   };
 
-  const handleOpenCustomCheckout = (title: string, price: number) => {
-    setCheckoutCustomItem({ title, priceINR: price });
+  const handleOpenCustomCheckout = (title: string, price: number, productId?: string) => {
+    setCheckoutCustomItem({ title, priceINR: price, id: productId, productId });
     setIsCheckoutOpen(true);
   };
 
