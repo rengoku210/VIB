@@ -711,11 +711,12 @@ app.get('/api/user/orders', authenticate, (req: AuthRequest, res: Response): voi
 // User Create Order (from CheckoutModal or cart) with Server-Side Price Verification & Auto Invoicing
 app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const productId = req.body.package_id || req.body.product_id;
+    const isCartOrder = req.body.type === 'cart' || (req.body.title && String(req.body.title).startsWith('Cart Checkout:'));
+    const productId = req.body.product_id || req.body.package_id;
     let title = req.body.title || req.body.package_title;
     let amount = req.body.amount !== undefined ? req.body.amount : req.body.amount_inr;
     const currency = req.body.currency || 'INR';
-    const type = req.body.type || 'vp';
+    const type = req.body.type || (isCartOrder ? 'cart' : 'vp');
     const paymentMethod = req.body.paymentMethod || req.body.payment_method || 'UPI Instant';
     const details = req.body.details || {};
 
@@ -747,18 +748,29 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       const catalogItem = db.prepare('SELECT * FROM products WHERE id = ?').get(resolvedId) as any;
       if (catalogItem) {
         if (!title) title = catalogItem.title;
-        // Verify price: if amount was provided and differs from database catalog price, reject as tampered
-        if (amount !== undefined && Math.abs(Number(amount) - catalogItem.price_inr) > 0.01) {
-          res.status(400).json({
-            error: `Price verification failed. Server catalog price is ₹${catalogItem.price_inr}, but received ₹${amount}.`
-          });
-          return;
+        // Verify price:
+        if (!isCartOrder) {
+          // Direct single catalog item order: price must match catalog exactly
+          if (amount !== undefined && Math.abs(Number(amount) - catalogItem.price_inr) > 0.01) {
+            res.status(400).json({
+              error: `Price verification failed. Server catalog price is ₹${catalogItem.price_inr}, but received ₹${amount}.`
+            });
+            return;
+          }
+          amount = catalogItem.price_inr;
+        } else {
+          // Cart order: if single catalog item matched, verify cart total is not less than the catalog price
+          if (amount !== undefined && Number(amount) < catalogItem.price_inr - 0.01) {
+            res.status(400).json({
+              error: `Price verification failed. Cart total cannot be less than catalog item price ₹${catalogItem.price_inr}.`
+            });
+            return;
+          }
         }
-        amount = catalogItem.price_inr;
       }
     }
 
-    if (!title || amount === undefined || Number(amount) <= 0) {
+    if (!title || amount === undefined || Number(amount) < 0) {
       res.status(400).json({ error: 'Valid title and price are required for order creation.' });
       return;
     }

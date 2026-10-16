@@ -120,6 +120,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     if (token) {
       try {
+        const isCartCheckout = currentTitle.startsWith('Cart Checkout:');
+        const packageId = !customItem && pkg ? pkg.id : undefined;
+        const resolvedProductId = customItem ? (customItem.productId || customItem.id) : pkg?.id;
+        const orderType = isCartCheckout ? 'cart' : currentTitle.includes('VP') ? 'vp' : 'profile';
+
         const res = await fetch('/api/user/orders', {
           method: 'POST',
           headers: {
@@ -127,12 +132,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            package_id: pkg?.id,
-            product_id: customItem?.productId || customItem?.id,
+            package_id: packageId,
+            product_id: resolvedProductId,
             title: currentTitle,
             amount: currentPriceINR,
             currency,
-            type: currentTitle.includes('VP') ? 'vp' : 'profile',
+            type: orderType,
             paymentMethod: paymentMethod === 'upi' ? 'UPI Instant Transfer' : paymentMethod === 'card' ? 'Credit/Debit Card' : 'Net Banking',
             details: {
               riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,

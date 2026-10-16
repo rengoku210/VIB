@@ -102,6 +102,7 @@ function AppContent() {
 
   // Modals state
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutPackage, setCheckoutPackage] = useState<VPPackage | null>(null);
   const [checkoutCustomItem, setCheckoutCustomItem] = useState<
     { title: string; priceINR: number; productId?: string; id?: string } | undefined
   >(undefined);
@@ -133,6 +134,10 @@ function AppContent() {
 
   const handleOpenCustomCheckout = (title: string, price: number, productId?: string) => {
     setCheckoutCustomItem({ title, priceINR: price, id: productId, productId });
+    const matchedPkg = VP_PACKAGES.find(
+      (p) => p.id === productId || p.vpLabel === title || title.includes(p.vpLabel)
+    );
+    setCheckoutPackage(matchedPkg || null);
     setIsCheckoutOpen(true);
   };
 
@@ -141,7 +146,8 @@ function AppContent() {
     const totalINR = cartItems.reduce((sum, item) => sum + item.priceINR * item.quantity, 0);
     const itemNames = cartItems.map((i) => `${i.title} (x${i.quantity})`).join(', ');
     setIsCartOpen(false);
-    handleOpenCustomCheckout(`Cart Checkout: ${itemNames}`, totalINR);
+    const singleProductId = cartItems.length === 1 && cartItems[0].quantity === 1 ? cartItems[0].id : undefined;
+    handleOpenCustomCheckout(`Cart Checkout: ${itemNames}`, totalINR, singleProductId);
   };
 
   const handleNavigate = (page: ClientPage) => {
@@ -325,8 +331,9 @@ function AppContent() {
         onClose={() => {
           setIsCheckoutOpen(false);
           setCheckoutCustomItem(undefined);
+          setCheckoutPackage(null);
         }}
-        pkg={VP_PACKAGES[0]}
+        pkg={checkoutPackage || undefined}
         customItem={checkoutCustomItem}
         currency={currency}
       />

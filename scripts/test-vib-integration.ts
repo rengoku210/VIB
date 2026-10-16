@@ -463,6 +463,53 @@ async function runTestSuite() {
     });
     assert(tamperedOrder.status === 400 && String(tamperedOrder.data?.error).includes('Price verification failed'),
       'Catalog & Security', 'Server strictly rejects tampered order price with 400 Bad Request');
+
+    // Test 6.5: Cart Checkout with Profile (e.g., Diamond Profile ₹8,999) succeeds cleanly
+    const diamondCartOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        product_id: 'p-diamond-180',
+        title: 'Cart Checkout: Diamond Profile (x1)',
+        amount: 8999,
+        currency: 'INR',
+        type: 'cart',
+        details: { riotId: 'Rengoku#ORIPO', email: 'rammodhvadiya210@gmail.com' },
+      }),
+    });
+    assert(diamondCartOrder.status === 201 && diamondCartOrder.data?.order?.id,
+      'Catalog & Security', 'Cart checkout with Diamond Profile (₹8,999) passes catalog verification and creates order');
+
+    // Test 6.6: Multi-item Cart Checkout succeeds cleanly
+    const multiItemCartOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        title: 'Cart Checkout: Diamond Profile (x1), 475 VP (x1)',
+        amount: 9498,
+        currency: 'INR',
+        type: 'cart',
+        details: { riotId: 'Rengoku#ORIPO', email: 'rammodhvadiya210@gmail.com' },
+      }),
+    });
+    assert(multiItemCartOrder.status === 201 && multiItemCartOrder.data?.order?.id,
+      'Catalog & Security', 'Multi-item cart checkout passes verification and creates order');
+
+    // Test 6.7: Cart Checkout Price Tampering Strictly Blocked (400)
+    const tamperedCartOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        product_id: 'p-diamond-180',
+        title: 'Cart Checkout: Diamond Profile (x1)',
+        amount: 10, // Tampered: ₹10 for an ₹8,999 profile
+        currency: 'INR',
+        type: 'cart',
+        details: { riotId: 'Rengoku#ORIPO', email: 'rammodhvadiya210@gmail.com' },
+      }),
+    });
+    assert(tamperedCartOrder.status === 400 && String(tamperedCartOrder.data?.error).includes('Price verification failed'),
+      'Catalog & Security', 'Server strictly rejects underpriced cart checkout with 400 Bad Request');
   }
 
   // 7. UNIVERSAL ORDER ROOM, CHAT & ANTI-FRAUD SCANNER
