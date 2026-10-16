@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, ShieldCheck, CheckCircle2, Lock, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ShieldCheck, CheckCircle2, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
 
 interface EscrowModalProps {
   isOpen: boolean;
@@ -11,6 +12,22 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
   const [sellerTag, setSellerTag] = useState('');
   const [amount, setAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
+  const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !sellerTag.includes('#')) {
+      setRiotVerification(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsVerifyingRiot(true);
+      const res = await verifyRiotIdOnServer(sellerTag.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(res);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [sellerTag, isOpen]);
 
   // Close on Escape key press and lock body scroll
   React.useEffect(() => {
@@ -105,9 +122,23 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
             </div>
 
             <div>
-              <label className="block text-xs font-chakra text-gray-400 uppercase tracking-wider mb-1.5">
-                Counterparty Discord / Riot ID
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-chakra text-gray-400 uppercase tracking-wider">
+                  Counterparty Discord / Riot ID
+                </label>
+                {isVerifyingRiot && (
+                  <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1 animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Checking...
+                  </span>
+                )}
+                {riotVerification?.exists && (
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Verified Riot ID
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 required

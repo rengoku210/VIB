@@ -13,8 +13,10 @@ import {
   EyeOff,
   Zap,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -40,6 +42,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [phone, setPhone] = useState('');
   const [riotId, setRiotId] = useState('');
   const [termsAgreed, setTermsAgreed] = useState(true);
+  const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
+  const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
+
+  // Debounced Riot ID verification on registration
+  useEffect(() => {
+    if (!isOpen || mode !== 'signup' || !riotId.trim()) {
+      setRiotVerification(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsVerifyingRiot(true);
+      const res = await verifyRiotIdOnServer(riotId.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(res);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [riotId, isOpen, mode]);
 
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
@@ -135,6 +156,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (!termsAgreed) {
       setLocalError('You must acknowledge the VIB Marketplace Escrow & Platform Terms.');
       return;
+    }
+
+    // Verify Riot ID if supplied
+    if (riotId.trim()) {
+      setIsVerifyingRiot(true);
+      const check = await verifyRiotIdOnServer(riotId.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(check);
+      if (!check.exists) {
+        setLocalError(check.error || 'The provided Riot ID is not a legitimate Valorant account. Please check your username and tag.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -450,16 +483,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">
-                  Riot ID &amp; Tag
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">
+                    Riot ID &amp; Tag
+                  </label>
+                  {isVerifyingRiot && (
+                    <span className="text-[10px] text-purple-400 font-mono flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Checking...
+                    </span>
+                  )}
+                  {riotVerification?.exists && (
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Verified
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={riotId}
                   onChange={(e) => setRiotId(e.target.value)}
                   placeholder="ValorantPlayer#1234"
-                  className="w-full px-3.5 py-2 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                  className={`w-full px-3.5 py-2 rounded-xl bg-[#141224] border text-white text-sm focus:outline-none transition-colors ${
+                    riotVerification?.exists
+                      ? 'border-emerald-500/60 focus:border-emerald-400'
+                      : riotVerification?.exists === false
+                      ? 'border-rose-500/60 focus:border-rose-400'
+                      : 'border-white/10 focus:border-purple-500'
+                  }`}
                 />
+                {riotVerification?.exists === false && (
+                  <span className="text-[10px] text-rose-400 block leading-tight font-mono">
+                    {riotVerification.error || 'Invalid or non-existent Riot ID'}
+                  </span>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">

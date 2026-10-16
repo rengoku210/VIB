@@ -11,6 +11,7 @@ export interface User {
   name: string;
   phone: string | null;
   riot_id: string | null;
+  riot_verified?: number;
   role: 'user' | 'seller' | 'moderator' | 'admin' | 'superadmin';
   status: 'active' | 'suspended' | 'banned' | 'pending_verification';
   email_verified: number;

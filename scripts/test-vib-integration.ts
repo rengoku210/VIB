@@ -48,6 +48,82 @@ async function runTestSuite() {
     assert(res.status === 200 && res.data?.status === 'ok', 'Health Check', 'Server responds to /api/health');
   }
 
+  // 1.5 RIOT GAMES VALORANT ID VERIFICATION API
+  {
+    // Test 1.5.1: Valid Riot ID (POST)
+    const validRiot = await request('/api/riot/verify', {
+      method: 'POST',
+      body: JSON.stringify({ riotId: 'TenZ#0001' }),
+    });
+    assert(
+      validRiot.status === 200 &&
+      validRiot.data?.exists === true &&
+      validRiot.data?.verified === true &&
+      validRiot.data?.gameName === 'TenZ' &&
+      validRiot.data?.tagLine === '0001',
+      'Riot Verification',
+      'Legitimate Riot ID verified via POST /api/riot/verify'
+    );
+
+    // Test 1.5.2: Valid Riot ID with separate name and tag (POST)
+    const splitRiot = await request('/api/riot/verify', {
+      method: 'POST',
+      body: JSON.stringify({ gameName: 'ShahZaM', tagLine: '1111' }),
+    });
+    assert(
+      splitRiot.status === 200 &&
+      splitRiot.data?.exists === true &&
+      splitRiot.data?.riotId === 'ShahZaM#1111',
+      'Riot Verification',
+      'Riot ID verified when username and tagline are submitted separately'
+    );
+
+    // Test 1.5.3: Valid Riot ID via GET query parameters
+    const getRiot = await request('/api/riot/verify?riotId=Boaster%23EUW');
+    assert(
+      getRiot.status === 200 &&
+      getRiot.data?.exists === true &&
+      getRiot.data?.gameName === 'Boaster',
+      'Riot Verification',
+      'Riot ID verified via GET /api/riot/verify query parameter'
+    );
+
+    // Test 1.5.4: Missing tagLine rejected with 400 Bad Request
+    const noTagRiot = await request('/api/riot/verify', {
+      method: 'POST',
+      body: JSON.stringify({ gameName: 'NoTagPlayer' }),
+    });
+    assert(
+      noTagRiot.status === 400 &&
+      noTagRiot.data?.exists === false &&
+      Boolean(noTagRiot.data?.error),
+      'Riot Verification',
+      'Missing tagline rejected with 400 Bad Request'
+    );
+
+    // Test 1.5.5: Non-existent / placeholder fake ID rejected
+    const fakeRiot = await request('/api/riot/verify', {
+      method: 'POST',
+      body: JSON.stringify({ riotId: 'fake#1234' }),
+    });
+    assert(
+      fakeRiot.status === 400 &&
+      fakeRiot.data?.exists === false,
+      'Riot Verification',
+      'Non-existent / fake Riot ID rejected with exists: false'
+    );
+
+    // Test 1.5.6: Zero sensitive data leakage assertion
+    assert(
+      validRiot.data?.email === undefined &&
+      validRiot.data?.password === undefined &&
+      validRiot.data?.billing === undefined &&
+      validRiot.data?.personalData === undefined,
+      'Riot Verification',
+      'Riot ID verification strictly does not retrieve, access, or expose sensitive personal data (email, etc.)'
+    );
+  }
+
   // 2. SIGN UP / REGISTRATION (Phase 2)
   const testEmail = `test_user_${Date.now()}@vib-test.gg`;
   let userToken = '';
@@ -94,6 +170,18 @@ async function runTestSuite() {
       }),
     });
     assert(weakRes.status === 400, 'Phase 2: Sign-Up', 'Short password rejected with 400 Bad Request');
+
+    // Test 2.4: Registration with Invalid Riot ID Rejected
+    const badRiotReg = await request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Bad Riot Tester',
+        email: `bad_riot_${Date.now()}@vib-test.gg`,
+        password: 'ValidPassword123!',
+        riot_id: 'fake#1234',
+      }),
+    });
+    assert(badRiotReg.status === 400, 'Phase 2: Sign-Up', 'Registration with non-existent Riot ID strictly rejected with 400 Bad Request');
   }
 
   // 3. SIGN IN & SESSION MANAGEMENT (Phase 3)
@@ -211,6 +299,20 @@ async function runTestSuite() {
       testOrderId = orderRes.data.order.id;
     }
 
+    // Test 4.1b: Order rejected with invalid Riot ID
+    const badRiotOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-7400-tier',
+        package_title: '7400 VP Tier-1 Pack',
+        amount_inr: 4999,
+        payment_method: 'UPI',
+        details: { riotId: 'fake#1234' },
+      }),
+    });
+    assert(badRiotOrder.status === 400, 'Phase 4: User Dashboard', 'Order with non-existent Riot ID strictly rejected with 400 Bad Request');
+
     // Test 4.2: List User Orders
     const listOrders = await request('/api/user/orders', {
       headers: { Authorization: `Bearer ${userToken}` },
@@ -242,6 +344,16 @@ async function runTestSuite() {
     });
     assert(updateRes.status === 200 && updateRes.data?.user?.discord_tag === 'Phantom#0001',
       'Phase 4: User Dashboard', 'User can update profile settings');
+
+    // Test 4.4b: Profile update rejected with invalid Riot ID
+    const badRiotProfile = await request('/api/user/profile', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        riot_id: 'fake#1234',
+      }),
+    });
+    assert(badRiotProfile.status === 400, 'Phase 4: User Dashboard', 'Profile update with non-existent Riot ID strictly rejected with 400 Bad Request');
   }
 
   // 5. ROLE-BASED ACCESS CONTROL (RBAC) (Phase 4 & 5)

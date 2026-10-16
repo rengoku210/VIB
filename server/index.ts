@@ -1,9 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import { db, hashPassword, verifyPassword, generateToken, seedDatabase } from './db.js';
+import { verifyRiotId, seedRiotAccounts } from './riot.js';
 
 // Initialize and seed database
 seedDatabase();
+seedRiotAccounts();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,6 +18,69 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req: Request, res: Response): void => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// ==========================================
+// RIOT GAMES VALORANT ID VERIFICATION API
+// ==========================================
+
+// Verify a Riot ID / username without accessing or returning sensitive private data (email, etc.)
+app.post('/api/riot/verify', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { riotId, gameName, tagLine } = req.body || {};
+    const rawName = gameName || riotId;
+    const rawTag = tagLine;
+
+    if (!rawName) {
+      res.status(400).json({
+        exists: false,
+        verified: false,
+        error: 'Riot username (or Riot ID as Name#Tag) is required.'
+      });
+      return;
+    }
+
+    const result = await verifyRiotId(String(rawName), rawTag ? String(rawTag) : undefined);
+    if (!result.exists) {
+      res.status(400).json(result);
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Riot verification error:', err);
+    res.status(500).json({ error: 'Server error during Riot ID verification.' });
+  }
+});
+
+app.get('/api/riot/verify', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const riotId = req.query.riotId as string;
+    const gameName = req.query.gameName as string;
+    const tagLine = req.query.tagLine as string;
+    const rawName = gameName || riotId;
+
+    if (!rawName) {
+      res.status(400).json({
+        exists: false,
+        verified: false,
+        error: 'Riot username (or Riot ID as Name#Tag) is required.'
+      });
+      return;
+    }
+
+    const result = await verifyRiotId(String(rawName), tagLine ? String(tagLine) : undefined);
+    if (!result.exists) {
+      res.status(400).json(result);
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Riot verification error:', err);
+    res.status(500).json({ error: 'Server error during Riot ID verification.' });
+  }
+});
+
 
 // CORS & Security Headers
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -36,6 +101,7 @@ export interface AuthenticatedUser {
   name: string;
   phone: string | null;
   riot_id: string | null;
+  riot_verified?: number;
   role: 'user' | 'seller' | 'moderator' | 'admin' | 'superadmin';
   status: 'active' | 'suspended' | 'banned' | 'pending_verification';
   email_verified: number;
@@ -65,7 +131,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   const sessionStmt = db.prepare(`
     SELECT s.token, s.user_id, s.expires_at,
-           u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified,
+           u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
            p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
     FROM sessions s
     JOIN users u ON s.user_id = u.id
@@ -102,6 +168,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     name: row.name,
     phone: row.phone,
     riot_id: row.riot_id,
+    riot_verified: row.riot_verified || 0,
     role: row.role,
     status: row.status,
     email_verified: row.email_verified,
@@ -232,7 +299,7 @@ app.get('/api/products/:id', (req: Request, res: Response): void => {
 // ==========================================
 
 // 1. Register
-app.post('/api/auth/register', (req: Request, res: Response): void => {
+app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, name, phone, riot_id } = req.body;
 
@@ -260,6 +327,21 @@ app.post('/api/auth/register', (req: Request, res: Response): void => {
       return;
     }
 
+    // Validate Riot ID if supplied
+    let verifiedRiotId: string | null = null;
+    let isRiotVerified = 0;
+    if (riot_id && String(riot_id).trim()) {
+      const riotCheck = await verifyRiotId(String(riot_id).trim());
+      if (!riotCheck.exists) {
+        res.status(400).json({
+          error: riotCheck.error || 'The provided Riot ID is not a legitimate Valorant account. Please check your username and tag.'
+        });
+        return;
+      }
+      verifiedRiotId = riotCheck.riotId;
+      isRiotVerified = 1;
+    }
+
     const userId = 'usr_' + crypto.randomBytes(8).toString('hex');
     const { hash, salt } = hashPassword(password);
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -267,8 +349,8 @@ app.post('/api/auth/register', (req: Request, res: Response): void => {
 
     // Default public registrations are 'user' (NEVER admin)
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, role, status, email_verified, verification_code, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, ?, ?)
+      INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, riot_verified, role, status, email_verified, verification_code, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, ?, ?)
     `).run(
       userId,
       emailTrimmed,
@@ -276,7 +358,8 @@ app.post('/api/auth/register', (req: Request, res: Response): void => {
       salt,
       String(name).trim(),
       phone ? String(phone).trim() : null,
-      riot_id ? String(riot_id).trim() : null,
+      verifiedRiotId,
+      isRiotVerified,
       verificationCode,
       now,
       now
@@ -325,7 +408,8 @@ app.post('/api/auth/register', (req: Request, res: Response): void => {
         email: emailTrimmed,
         name: String(name).trim(),
         phone: phone ? String(phone).trim() : null,
-        riot_id: riot_id ? String(riot_id).trim() : null,
+        riot_id: verifiedRiotId,
+        riot_verified: isRiotVerified,
         role: 'user',
         status: 'active',
         email_verified: 1,
@@ -625,7 +709,7 @@ app.get('/api/user/orders', authenticate, (req: AuthRequest, res: Response): voi
 });
 
 // User Create Order (from CheckoutModal or cart) with Server-Side Price Verification & Auto Invoicing
-app.post('/api/user/orders', authenticate, (req: AuthRequest, res: Response): void => {
+app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const productId = req.body.package_id || req.body.product_id;
     let title = req.body.title || req.body.package_title;
@@ -634,6 +718,20 @@ app.post('/api/user/orders', authenticate, (req: AuthRequest, res: Response): vo
     const type = req.body.type || 'vp';
     const paymentMethod = req.body.paymentMethod || req.body.payment_method || 'UPI Instant';
     const details = req.body.details || {};
+
+    // Validate Riot ID if provided in order details
+    const orderRiotId = req.body.riot_id || details?.riotId;
+    if (orderRiotId && String(orderRiotId).trim()) {
+      const riotCheck = await verifyRiotId(String(orderRiotId).trim());
+      if (!riotCheck.exists) {
+        res.status(400).json({
+          error: riotCheck.error || 'The provided Riot ID for this order is not a legitimate Valorant account. Please check your username and tag.'
+        });
+        return;
+      }
+      details.riotId = riotCheck.riotId;
+      details.riotVerified = true;
+    }
 
     // Server-Side Price Validation against persistent database catalog
     if (productId) {
@@ -988,20 +1086,44 @@ app.post('/api/user/tickets', authenticate, (req: AuthRequest, res: Response): v
 });
 
 // Update Profile
-app.put('/api/user/profile', authenticate, (req: AuthRequest, res: Response): void => {
+app.put('/api/user/profile', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const { name, bio, phone, riot_id, discord_tag } = req.body;
   const now = new Date().toISOString();
 
+  let verifiedRiotId: string | null = null;
+  let isRiotVerified = 0;
+
+  if (riot_id !== undefined) {
+    if (riot_id && String(riot_id).trim()) {
+      const riotCheck = await verifyRiotId(String(riot_id).trim());
+      if (!riotCheck.exists) {
+        res.status(400).json({
+          error: riotCheck.error || 'The provided Riot ID is not a legitimate Valorant account. Please check your username and tag.'
+        });
+        return;
+      }
+      verifiedRiotId = riotCheck.riotId;
+      isRiotVerified = 1;
+    }
+  } else {
+    const existing = db.prepare('SELECT riot_id, riot_verified FROM users WHERE id = ?').get(req.user!.id) as any;
+    verifiedRiotId = existing?.riot_id || null;
+    isRiotVerified = existing?.riot_verified || 0;
+  }
+
   if (name) {
-    db.prepare('UPDATE users SET name = ?, phone = ?, riot_id = ?, updated_at = ? WHERE id = ?')
-      .run(name, phone || null, riot_id || null, now, req.user!.id);
+    db.prepare('UPDATE users SET name = ?, phone = ?, riot_id = ?, riot_verified = ?, updated_at = ? WHERE id = ?')
+      .run(name, phone || null, verifiedRiotId, isRiotVerified, now, req.user!.id);
+  } else if (riot_id !== undefined) {
+    db.prepare('UPDATE users SET riot_id = ?, riot_verified = ?, updated_at = ? WHERE id = ?')
+      .run(verifiedRiotId, isRiotVerified, now, req.user!.id);
   }
 
   db.prepare('UPDATE profiles SET bio = ?, discord_tag = ? WHERE user_id = ?')
     .run(bio || null, discord_tag || null, req.user!.id);
 
   const updatedUser = db.prepare(`
-    SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified,
+    SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
            p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
     FROM users u
     LEFT JOIN profiles p ON u.id = p.user_id

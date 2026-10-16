@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { X, CheckCircle, ShieldCheck, Zap, AlertCircle, Copy, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle, CheckCircle2, ShieldCheck, Zap, AlertCircle, Copy, ArrowRight, Loader2 } from 'lucide-react';
 import { VPPackage, Currency } from '../types';
 import { VP_PACKAGES } from '../data/packages';
 import { useAuth } from '../context/AuthContext';
+import { verifyRiotIdOnServer, RiotVerificationResponse } from '../lib/riot';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -26,6 +27,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
   const [orderState, setOrderState] = useState<'form' | 'processing' | 'success'>('form');
   const [copied, setCopied] = useState(false);
+  const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
+  const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
+  const [riotError, setRiotError] = useState<string | null>(null);
 
   // Sync user info when modal opens
   React.useEffect(() => {
@@ -38,6 +42,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (user.email) setEmail(user.email);
     }
   }, [user, isOpen]);
+
+  // Live debounced Riot ID verification
+  useEffect(() => {
+    if (!isOpen) return;
+    const cleanName = riotId.trim();
+    const cleanTag = tagline.trim();
+
+    if (!cleanName || !cleanTag) {
+      setRiotVerification(null);
+      setRiotError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsVerifyingRiot(true);
+      setRiotError(null);
+      const res = await verifyRiotIdOnServer(cleanName, cleanTag);
+      setIsVerifyingRiot(false);
+      setRiotVerification(res);
+      if (!res.exists) {
+        setRiotError(res.error || 'Valorant account does not exist or has an invalid tag.');
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [riotId, tagline, isOpen]);
 
   // Close on Escape key press and lock body scroll
   React.useEffect(() => {
@@ -73,11 +103,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!riotId || !tagline) return;
+
+    // Verify Riot ID with backend before placing order
+    setIsVerifyingRiot(true);
+    setRiotError(null);
+    const check = await verifyRiotIdOnServer(riotId.trim(), tagline.trim());
+    setIsVerifyingRiot(false);
+    setRiotVerification(check);
+
+    if (!check.exists) {
+      setRiotError(check.error || 'Please provide a legitimate and existing Valorant Riot ID before ordering.');
+      return;
+    }
+
     setOrderState('processing');
 
     if (token) {
       try {
-        await fetch('/api/user/orders', {
+        const res = await fetch('/api/user/orders', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -92,11 +135,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             type: currentTitle.includes('VP') ? 'vp' : 'profile',
             paymentMethod: paymentMethod === 'upi' ? 'UPI Instant Transfer' : paymentMethod === 'card' ? 'Credit/Debit Card' : 'Net Banking',
             details: {
-              riotId: `${riotId}#${tagline}`,
+              riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
               email,
             },
           }),
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          setRiotError(errData?.error || 'Order placement failed. Please verify your details.');
+          setOrderState('form');
+          return;
+        }
       } catch (err) {
         console.warn('Order dispatch error:', err);
       }
@@ -250,9 +300,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     />
                   </div>
                 </div>
-                <span className="text-[10px] text-gray-500 mt-1 block">
-                  Find your Tagline in your Valorant client profile (e.g. PlayerName#NA1)
-                </span>
+
+                {/* Live Valorant Network Verification Feedback */}
+                <div className="mt-2 min-h-[22px]">
+                  {isVerifyingRiot ? (
+                    <div className="flex items-center gap-1.5 text-xs text-purple-300 font-mono animate-pulse">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                      <span>Checking Valorant servers...</span>
+                    </div>
+                  ) : riotError ? (
+                    <div className="flex items-center gap-1.5 text-xs text-rose-400 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{riotError}</span>
+                    </div>
+                  ) : riotVerification?.exists ? (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium animate-in fade-in">
+                      <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
+                      <span>
+                        Legitimate Valorant ID Verified ({riotVerification.riotId} • {riotVerification.region?.toUpperCase() || 'GLOBAL'})
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 block font-chakra">
+                      Enter your official Riot Username and Tag (e.g. TenZ#0001 or Player#IND1).
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Email / Delivery Notification */}

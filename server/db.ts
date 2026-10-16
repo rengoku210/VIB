@@ -232,6 +232,30 @@ try {
 try {
   db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'");
 } catch {}
+try {
+  db.exec('ALTER TABLE users ADD COLUMN riot_verified INTEGER DEFAULT 0');
+} catch {}
+
+// Riot ID Verification Registry Cache Table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS riot_accounts (
+    id TEXT PRIMARY KEY,
+    game_name TEXT NOT NULL COLLATE NOCASE,
+    tag_line TEXT NOT NULL COLLATE NOCASE,
+    riot_id TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    puuid TEXT,
+    region TEXT DEFAULT 'global',
+    account_level INTEGER DEFAULT 1,
+    card_small TEXT,
+    verified INTEGER DEFAULT 1,
+    source TEXT DEFAULT 'verified',
+    verified_at TEXT NOT NULL,
+    last_checked_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_riot_id ON riot_accounts(riot_id);
+  CREATE INDEX IF NOT EXISTS idx_riot_name_tag ON riot_accounts(game_name, tag_line);
+`);
+
 
 // Password hashing utility using scrypt
 export function hashPassword(password: string): { hash: string; salt: string } {

@@ -26,9 +26,11 @@ import {
   X,
   Send,
   ShieldAlert,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Currency } from '../../types';
+import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
 
 interface UserDashboardProps {
   currency: Currency;
@@ -59,6 +61,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [discordTag, setDiscordTag] = useState(user?.discord_tag || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
+  const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  // Live Riot ID verification on settings edit
+  useEffect(() => {
+    if (activeTab !== 'settings' || !riotId.trim() || riotId.trim() === user?.riot_id) {
+      setRiotVerification(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsVerifyingRiot(true);
+      const res = await verifyRiotIdOnServer(riotId.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(res);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [riotId, activeTab, user?.riot_id]);
 
   // New ticket state
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -192,16 +214,31 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   // Update profile handler
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSettingsError(null);
+
+    // Verify Riot ID if updated
+    if (riotId.trim() && riotId.trim() !== user?.riot_id) {
+      setIsVerifyingRiot(true);
+      const check = await verifyRiotIdOnServer(riotId.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(check);
+      if (!check.exists) {
+        setSettingsError(check.error || 'The provided Riot ID is not a legitimate Valorant account. Please check your username and tag.');
+        return;
+      }
+    }
+
     const success = await updateProfile({
       name,
       phone,
-      riot_id: riotId,
+      riot_id: riotId.trim() || undefined,
       discord_tag: discordTag,
       bio,
     });
     if (success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      refreshUser();
     }
   };
 
@@ -301,9 +338,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-xs text-gray-400 font-mono">
+              <div className="flex items-center gap-4 text-xs text-gray-400 font-mono flex-wrap">
                 <span>{user.email}</span>
-                {user.riot_id && <span>• Riot: <strong className="text-purple-300">{user.riot_id}</strong></span>}
+                {user.riot_id && (
+                  <span className="flex items-center gap-1.5">
+                    • Riot: <strong className="text-purple-300">{user.riot_id}</strong>
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-[9px] font-mono font-bold text-emerald-300">
+                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                      VALORANT VERIFIED
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -915,6 +960,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             )}
 
+            {settingsError && (
+              <div role="alert" className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>{settingsError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleProfileSave} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Full Name</label>
@@ -927,14 +979,45 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Riot ID &amp; Tag</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Riot ID &amp; Tag</label>
+                  {isVerifyingRiot && (
+                    <span className="text-[10px] text-purple-400 font-mono flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Checking Valorant servers...
+                    </span>
+                  )}
+                  {riotVerification?.exists && (
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      Verified ({riotVerification.riotId})
+                    </span>
+                  )}
+                  {!riotVerification && user?.riot_id && riotId === user.riot_id && (
+                    <span className="text-[10px] text-purple-300 font-mono flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-purple-400" />
+                      Verified In-Game ID
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={riotId}
                   onChange={(e) => setRiotId(e.target.value)}
                   placeholder="Player#TAG"
-                  className="w-full p-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                  className={`w-full p-2.5 rounded-xl bg-[#141224] border text-white text-xs focus:outline-none transition-colors ${
+                    riotVerification?.exists
+                      ? 'border-emerald-500/60 focus:border-emerald-400'
+                      : riotVerification?.exists === false
+                      ? 'border-rose-500/60 focus:border-rose-400'
+                      : 'border-white/10 focus:border-purple-500'
+                  }`}
                 />
+                {riotVerification?.exists === false && (
+                  <span className="text-[10px] text-rose-400 block font-mono">
+                    {riotVerification.error || 'Valorant Riot ID does not exist.'}
+                  </span>
+                )}
               </div>
 
               <div className="space-y-1.5">
