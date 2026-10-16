@@ -347,7 +347,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
                 alt="Indian VP Agent Part 09"
                 className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-85"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#12081f] via-[#12081f]/75 to-transparent z-[1]" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#12081f] via-[#12081f]/75 to-transparent z-[1] pointer-events-none" />
             </div>
           </div>
 
@@ -408,7 +408,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
                 alt="PHP VP Agent Part 11"
                 className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-85"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#090d1c] via-[#090d1c]/85 to-[#090d1c]/15 z-[1]" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#090d1c] via-[#090d1c]/85 to-[#090d1c]/15 z-[1] pointer-events-none" />
             </div>
           </div>
         </div>

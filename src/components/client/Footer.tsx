@@ -4,9 +4,10 @@ import { ClientPage } from './Header';
 
 interface FooterProps {
   onNavigate: (page: ClientPage) => void;
+  onOpenTracking?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTracking }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -79,6 +80,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             >
               Contact
             </button>
+            {onOpenTracking && (
+              <button
+                type="button"
+                onClick={onOpenTracking}
+                className="min-h-[40px] px-2.5 py-1 flex items-center text-emerald-400 hover:text-emerald-300 font-bold transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                Track Live Order
+              </button>
+            )}
           </nav>
 
           {/* Social Icons with compliant 44x44px touch targets */}

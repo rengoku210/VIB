@@ -2,6 +2,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import { db, hashPassword, verifyPassword, generateToken, seedDatabase } from './db.js';
 import { verifyRiotId, seedRiotAccounts } from './riot.js';
+import {
+  sendOrderPendingVerificationEmail,
+  sendIndianVPCodeIssuedEmail,
+  sendInventoryShortageAlert,
+  sendPaymentRejectedEmail,
+  sendEmail
+} from './email.js';
 
 // Initialize and seed database
 seedDatabase();
@@ -780,9 +787,16 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
     const refNo = 'VIB-' + Date.now().toString(36).toUpperCase();
     const now = new Date().toISOString();
 
+    const initialTimeline = [
+      { status: 'AWAITING_PAYMENT', timestamp: now, note: 'Order placed by customer. Manual payment instructions issued.', actor: req.user!.name }
+    ];
+
     db.prepare(`
-      INSERT INTO orders (id, user_id, type, title, amount, currency, status, payment_method, details_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?)
+      INSERT INTO orders (
+        id, user_id, type, title, amount, currency, status, payment_status, fulfillment_status,
+        payment_method, details_json, timeline_json, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 'processing', 'AWAITING_PAYMENT', 'PENDING', ?, ?, ?, ?, ?)
     `).run(
       orderId,
       req.user!.id,
@@ -792,6 +806,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       currency,
       paymentMethod,
       JSON.stringify(details),
+      JSON.stringify(initialTimeline),
       now,
       now
     );
@@ -868,15 +883,36 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       'notif_' + crypto.randomBytes(8).toString('hex'),
       req.user!.id,
       `Order Received: ${title}`,
-      `Your order #${orderId} for ${currency} ${amount} is currently being processed by dispatch staff. Invoice #${invoiceId} generated.`,
+      `Your order #${orderId} for ${currency} ${amount} is currently awaiting payment verification. Invoice #${invoiceId} generated.`,
       now
     );
+
+    // Dispatch automated confirmation & admin notifications via server/email.ts
+    sendOrderPendingVerificationEmail({
+      id: orderId,
+      user_email: req.user!.email,
+      title,
+      amount: finalAmount,
+      currency,
+      type,
+      details,
+      payment_evidence_ref: details.utr || null
+    }).catch((e) => console.warn('[Order Email Dispatch Warning]:', e));
 
     res.status(201).json({
       message: 'Order created successfully!',
       orderId,
       invoiceId,
-      order: { id: orderId, title, amount: finalAmount, currency, status: 'processing', referenceNo: refNo },
+      order: {
+        id: orderId,
+        title,
+        amount: finalAmount,
+        currency,
+        status: 'processing',
+        payment_status: 'AWAITING_PAYMENT',
+        fulfillment_status: 'PENDING',
+        referenceNo: refNo
+      },
       referenceNo: refNo
     });
   } catch (err: any) {
@@ -1863,6 +1899,789 @@ app.put('/api/admin/communication/templates/:id', authenticate, adminOnly, (req:
     message: 'Email template updated successfully.',
     template: tplRow
   });
+});
+
+// ==========================================
+// 15. MANUAL PAYMENT ARCHITECTURE & SETTINGS
+// ==========================================
+
+// Get Current Active Payment Settings (Public)
+app.get('/api/payment/settings', (req: Request, res: Response): void => {
+  let settings = db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any;
+  if (!settings) {
+    settings = {
+      id: 'default',
+      upi_id: 'thevibofficial@okhdfcbank',
+      payee_name: 'VIB Digital Services Platform',
+      qr_image_url: '/assets/reference_parts/part_01.png',
+      instructions: 'Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank. Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof.',
+      currency: 'INR',
+      support_whatsapp: '+919181801766',
+      support_email: 'thevibofficial@gmail.com',
+      manual_payment_enabled: 1,
+      verification_instructions: 'Payment verification typically completes within 5 to 15 minutes.'
+    };
+  }
+  res.json({ ...settings, settings });
+});
+
+// Update Payment Settings (Admin Only)
+app.put('/api/admin/payment/settings', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const { upi_id, payee_name, qr_image_url, instructions, support_whatsapp, support_email, manual_payment_enabled } = req.body;
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO payment_settings (id, upi_id, payee_name, qr_image_url, instructions, currency, support_whatsapp, support_email, manual_payment_enabled, updated_at)
+    VALUES ('default', ?, ?, ?, ?, 'INR', ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      upi_id = COALESCE(excluded.upi_id, payment_settings.upi_id),
+      payee_name = COALESCE(excluded.payee_name, payment_settings.payee_name),
+      qr_image_url = COALESCE(excluded.qr_image_url, payment_settings.qr_image_url),
+      instructions = COALESCE(excluded.instructions, payment_settings.instructions),
+      support_whatsapp = COALESCE(excluded.support_whatsapp, payment_settings.support_whatsapp),
+      support_email = COALESCE(excluded.support_email, payment_settings.support_email),
+      manual_payment_enabled = COALESCE(excluded.manual_payment_enabled, payment_settings.manual_payment_enabled),
+      updated_at = excluded.updated_at
+  `).run(
+    upi_id || 'thevibofficial@okhdfcbank',
+    payee_name || 'VIB Digital Services Platform',
+    qr_image_url || '/assets/reference_parts/part_01.png',
+    instructions || '',
+    support_whatsapp || '+919181801766',
+    support_email || 'thevibofficial@gmail.com',
+    manual_payment_enabled !== undefined ? Number(manual_payment_enabled) : 1,
+    now
+  );
+
+  logAudit(req.user!.id, req.user!.name, 'UPDATE_PAYMENT_SETTINGS', 'system', 'payment_settings', req.body, req.ip || '127.0.0.1');
+
+  const updated = db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default');
+  res.json({ message: 'Payment settings saved successfully.', settings: updated });
+});
+
+// ==========================================
+// 16. ORDER PAYMENT EVIDENCE & PUBLIC TRACKING
+// ==========================================
+
+// Submit Payment Evidence for an Order (Customer)
+app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, res: Response): void => {
+  const orderId = req.params.id;
+  const { ref, screenshot } = req.body;
+
+  if (!ref || !String(ref).trim()) {
+    res.status(400).json({ error: 'Valid payment transaction reference (UTR / UPI Ref) is required.' });
+    return;
+  }
+
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  const isOwner = order.user_id === req.user!.id;
+  const isStaff = ['admin', 'superadmin', 'moderator'].includes(req.user!.role);
+  if (!isOwner && !isStaff) {
+    res.status(403).json({ error: 'Access denied: You cannot submit evidence for this order.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let timeline = [];
+  try {
+    timeline = order.timeline_json ? JSON.parse(order.timeline_json) : [];
+  } catch {}
+
+  timeline.push({
+    status: 'SUBMITTED_FOR_VERIFICATION',
+    timestamp: now,
+    note: `Customer submitted payment evidence. UTR: ${String(ref).trim()}`,
+    actor: req.user!.name
+  });
+
+  db.prepare(`
+    UPDATE orders SET
+      payment_status = 'SUBMITTED_FOR_VERIFICATION',
+      payment_evidence_ref = ?,
+      payment_evidence_image = COALESCE(?, payment_evidence_image),
+      timeline_json = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(
+    String(ref).trim(),
+    screenshot || null,
+    JSON.stringify(timeline),
+    now,
+    orderId
+  );
+
+  // Send pending verification emails to customer & administrator
+  const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+  sendOrderPendingVerificationEmail({
+    ...updatedOrder,
+    user_email: req.user!.email,
+    payment_evidence_ref: String(ref).trim(),
+  }).catch((e) => console.warn('[Payment Evidence Email Warning]:', e));
+
+  res.json({
+    message: 'Payment evidence submitted successfully! Staff will verify your payment shortly.',
+    order: updatedOrder
+  });
+});
+
+// Public Live Order Tracking
+app.get('/api/orders/track/:orderId', (req: Request, res: Response): void => {
+  const orderId = req.params.orderId;
+  const order = db.prepare(`
+    SELECT o.id, o.type, o.title, o.amount, o.currency, o.status, o.payment_status,
+           o.fulfillment_status, o.payment_evidence_ref, o.issued_code, o.code_issued_at,
+           o.timeline_json, o.details_json, o.created_at, o.updated_at
+    FROM orders o
+    WHERE o.id = ?
+  `).get(orderId) as any;
+
+  if (!order) {
+    res.status(404).json({ error: 'Order not found. Please verify the order reference number.' });
+    return;
+  }
+
+  let timeline = [];
+  let details = {};
+  try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
+  try { details = order.details_json ? JSON.parse(order.details_json) : {}; } catch {}
+
+  const whatsappMsg = encodeURIComponent(`Hello VIB Digital Services, I need assistance with my order #${order.id} (${order.title}).`);
+  const whatsappUrl = `https://wa.me/919181801766?text=${whatsappMsg}`;
+
+  res.json({
+    order: {
+      ...order,
+      timeline,
+      details,
+      whatsappSupportUrl: whatsappUrl
+    }
+  });
+});
+
+// ==========================================
+// 17. ADMIN MANUAL PAYMENT VERIFICATION & FULFILLMENT
+// ==========================================
+
+app.put('/api/admin/orders/:id/verify-payment', authenticate, adminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const orderId = req.params.id;
+  const { action, notes, reason } = req.body;
+
+  const order = db.prepare('SELECT o.*, u.email as user_email, u.name as user_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = ?').get(orderId) as any;
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let timeline = [];
+  try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
+
+  if (action === 'reject') {
+    timeline.push({
+      status: 'PAYMENT_REJECTED',
+      timestamp: now,
+      note: reason || 'Payment rejected by administrator during verification.',
+      actor: req.user!.name
+    });
+
+    db.prepare(`
+      UPDATE orders SET
+        payment_status = 'PAYMENT_REJECTED',
+        admin_notes = ?,
+        timeline_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(reason || notes || 'Payment rejected', JSON.stringify(timeline), now, orderId);
+
+    // Notify customer
+    sendPaymentRejectedEmail(order, reason || 'Transaction UTR could not be verified in banking records.').catch((e) => console.warn(e));
+
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'order', 0, ?)
+    `).run(
+      'notif_' + crypto.randomBytes(8).toString('hex'),
+      order.user_id,
+      `Payment Verification Unresolved: #${order.id}`,
+      `Your payment verification for order #${order.id} was rejected: ${reason || 'Invalid reference'}. Please review your order tracking page.`,
+      now
+    );
+
+    logAudit(req.user!.id, req.user!.name, 'REJECT_PAYMENT', 'order', orderId, { reason }, req.ip || '127.0.0.1');
+
+    const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    res.json({ message: 'Payment marked as rejected. Customer notified.', order: updated });
+    return;
+  }
+
+  if (action === 'approve') {
+    timeline.push({
+      status: 'PAYMENT_VERIFIED',
+      timestamp: now,
+      note: `Payment verified by ${req.user!.name}.`,
+      actor: req.user!.name
+    });
+
+    const isIndianVP = order.type === 'vp' && !order.title.toLowerCase().includes('php') && !order.title.toLowerCase().includes('region');
+    let codeAssigned: string | null = null;
+    let newFulfillmentStatus = 'PROCESSING';
+    let newOrderStatus = 'processing';
+
+    if (isIndianVP) {
+      // Resolve package ID for code inventory matching
+      let pkgId = 'vp-475';
+      if (order.title.includes('1,000') || order.title.includes('1000')) pkgId = 'vp-1000';
+      else if (order.title.includes('2,050') || order.title.includes('2050')) pkgId = 'vp-2050';
+      else if (order.title.includes('3,650') || order.title.includes('3650')) pkgId = 'vp-3650';
+      else if (order.title.includes('5,350') || order.title.includes('5350')) pkgId = 'vp-5350';
+      else if (order.title.includes('11,000') || order.title.includes('11000')) pkgId = 'vp-11000';
+
+      // Atomic code reservation from inventory
+      const codeRow = db.prepare(`
+        SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
+      `).get(pkgId) as any;
+
+      if (codeRow) {
+        db.prepare(`
+          UPDATE vp_codes SET status = 'issued', order_id = ?, issued_at = ? WHERE id = ?
+        `).run(orderId, now, codeRow.id);
+
+        codeAssigned = codeRow.code;
+        newFulfillmentStatus = 'COMPLETED';
+        newOrderStatus = 'completed';
+
+        timeline.push({
+          status: 'COMPLETED',
+          timestamp: now,
+          note: `Indian VP code issued to customer: ${codeRow.code}`,
+          actor: 'system'
+        });
+
+        // Dispatch code delivery email to customer
+        sendIndianVPCodeIssuedEmail(order, codeRow.code).catch((e) => console.warn(e));
+      } else {
+        // Stock shortage: Do NOT fake a code! Honest fulfillment pending
+        newFulfillmentStatus = 'FULFILLMENT_PENDING';
+        timeline.push({
+          status: 'FULFILLMENT_PENDING',
+          timestamp: now,
+          note: `Payment approved, but code inventory for ${pkgId} is depleted. Order held in fulfillment queue.`,
+          actor: 'system'
+        });
+
+        sendInventoryShortageAlert({ ...order, package_id: pkgId }).catch((e) => console.warn(e));
+      }
+    } else if (order.title.toLowerCase().includes('php') || order.type === 'regional_vp') {
+      // Regional VP: Strictly manual fulfillment via WhatsApp
+      newFulfillmentStatus = 'PROCESSING';
+      timeline.push({
+        status: 'PROCESSING',
+        timestamp: now,
+        note: 'Payment verified. Regional pack dispatch coordinated via WhatsApp support desk.',
+        actor: req.user!.name
+      });
+    } else {
+      // Marketplace Profile / Service
+      newFulfillmentStatus = 'PROCESSING';
+      timeline.push({
+        status: 'PROCESSING',
+        timestamp: now,
+        note: 'Payment verified. Middleman escrow transfer initiated.',
+        actor: req.user!.name
+      });
+    }
+
+    db.prepare(`
+      UPDATE orders SET
+        payment_status = 'PAYMENT_VERIFIED',
+        fulfillment_status = ?,
+        status = ?,
+        verified_by = ?,
+        verified_at = ?,
+        issued_code = COALESCE(?, issued_code),
+        code_issued_at = CASE WHEN ? IS NOT NULL THEN ? ELSE code_issued_at END,
+        admin_notes = ?,
+        timeline_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      newFulfillmentStatus,
+      newOrderStatus,
+      req.user!.name,
+      now,
+      codeAssigned,
+      codeAssigned,
+      now,
+      notes || 'Payment approved',
+      JSON.stringify(timeline),
+      now,
+      orderId
+    );
+
+    // Notify customer dashboard
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'order', 0, ?)
+    `).run(
+      'notif_' + crypto.randomBytes(8).toString('hex'),
+      order.user_id,
+      `Payment Approved: #${order.id}`,
+      codeAssigned
+        ? `Payment verified! Your VP code for order #${order.id} has been issued and sent to your email.`
+        : `Payment verified! Your order #${order.id} is now being fulfilled by our operations team.`,
+      now
+    );
+
+    logAudit(req.user!.id, req.user!.name, 'APPROVE_PAYMENT', 'order', orderId, { codeAssigned, fulfillmentStatus: newFulfillmentStatus }, req.ip || '127.0.0.1');
+
+    const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    res.json({
+      message: codeAssigned
+        ? 'Payment verified and genuine VP code automatically issued to customer!'
+        : 'Payment verified successfully. Order transitioned to fulfillment queue.',
+      order: updated,
+      codeIssued: Boolean(codeAssigned)
+    });
+  }
+});
+
+// ==========================================
+// 18. INDIAN VP CODE INVENTORY MANAGEMENT
+// ==========================================
+
+// List VP Codes & Stock Summary
+app.get('/api/admin/vp-codes', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const { package_id, status } = req.query;
+  let query = 'SELECT * FROM vp_codes WHERE 1=1';
+  const params: any[] = [];
+
+  if (package_id) {
+    query += ' AND package_id = ?';
+    params.push(package_id);
+  }
+  if (status) {
+    query += ' AND status = ?';
+    params.push(status);
+  }
+  query += ' ORDER BY created_at DESC LIMIT 200';
+
+  const codes = db.prepare(query).all(...params);
+
+  // Calculate stock breakdown
+  const summaryRows = db.prepare(`
+    SELECT package_id,
+           COUNT(*) as total,
+           SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available,
+           SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued
+    FROM vp_codes
+    GROUP BY package_id
+  `).all();
+
+  res.json({ codes, summary: summaryRows });
+});
+
+// Add / Import VP Codes in Bulk
+app.post('/api/admin/vp-codes', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const { package_id, codes, batch_no } = req.body;
+
+  if (!package_id || !codes) {
+    res.status(400).json({ error: 'Package ID and code list are required.' });
+    return;
+  }
+
+  let codeList: string[] = [];
+  if (Array.isArray(codes)) {
+    codeList = codes.map((c: string) => String(c).trim()).filter(Boolean);
+  } else if (typeof codes === 'string') {
+    codeList = codes.split(/[\r\n,]+/).map((c) => c.trim()).filter(Boolean);
+  }
+
+  if (codeList.length === 0) {
+    res.status(400).json({ error: 'No valid codes provided in submission.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const batch = batch_no || `BATCH-${Date.now().toString(36).toUpperCase()}`;
+  let addedCount = 0;
+
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO vp_codes (id, package_id, code, status, batch_no, created_at)
+    VALUES (?, ?, ?, 'available', ?, ?)
+  `);
+
+  for (const rawCode of codeList) {
+    const id = 'vpc_' + crypto.randomBytes(6).toString('hex');
+    const result = insertStmt.run(id, package_id, rawCode, batch, now);
+    if (result.changes > 0) addedCount++;
+  }
+
+  logAudit(req.user!.id, req.user!.name, 'IMPORT_VP_CODES', 'vp_codes', package_id, { addedCount, batch }, req.ip || '127.0.0.1');
+
+  res.status(201).json({
+    message: `Successfully imported ${addedCount} VP codes into inventory.`,
+    addedCount,
+    batch
+  });
+});
+
+// Delete or Invalidate Unused VP Code
+app.delete('/api/admin/vp-codes/:id', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const codeId = req.params.id;
+  const code = db.prepare('SELECT * FROM vp_codes WHERE id = ?').get(codeId) as any;
+  if (!code) {
+    res.status(404).json({ error: 'VP code not found.' });
+    return;
+  }
+
+  if (code.status === 'issued') {
+    res.status(400).json({ error: 'Cannot delete an already issued code. Audit integrity preserved.' });
+    return;
+  }
+
+  db.prepare('DELETE FROM vp_codes WHERE id = ?').run(codeId);
+  logAudit(req.user!.id, req.user!.name, 'DELETE_VP_CODE', 'vp_codes', codeId, { code: code.code }, req.ip || '127.0.0.1');
+
+  res.json({ message: 'VP code deleted from inventory.' });
+});
+
+// ==========================================
+// 19. REGIONAL VP ORDERS WORKFLOW (PHP / IDR / MYR)
+// ==========================================
+
+app.get('/api/admin/regional-orders', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const orders = db.prepare(`
+    SELECT o.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone
+    FROM orders o
+    JOIN users u ON o.user_id = u.id
+    WHERE o.type = 'regional_vp'
+       OR o.title LIKE '%PHP%'
+       OR o.title LIKE '%Region%'
+       OR o.details_json LIKE '%PHP%'
+       OR o.details_json LIKE '%regional%'
+    ORDER BY o.created_at DESC
+  `).all();
+
+  res.json({ orders });
+});
+
+app.put('/api/admin/regional-orders/:id/status', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const orderId = req.params.id;
+  const { fulfillment_status, notes } = req.body;
+
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+  if (!order) {
+    res.status(404).json({ error: 'Regional order not found.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let timeline = [];
+  try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
+
+  timeline.push({
+    status: fulfillment_status || order.fulfillment_status,
+    timestamp: now,
+    note: notes || `Regional fulfillment updated to ${fulfillment_status}`,
+    actor: req.user!.name
+  });
+
+  db.prepare(`
+    UPDATE orders SET
+      fulfillment_status = COALESCE(?, fulfillment_status),
+      status = CASE WHEN ? = 'COMPLETED' THEN 'completed' ELSE status END,
+      regional_notes = COALESCE(?, regional_notes),
+      timeline_json = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(fulfillment_status, fulfillment_status, notes, JSON.stringify(timeline), now, orderId);
+
+  res.json({ message: 'Regional order fulfillment status updated.', orderId });
+});
+
+// ==========================================
+// 20. REAL MARKETPLACE LISTINGS & VIP PLANS
+// ==========================================
+
+// Public Listings Feed
+app.get('/api/listings', (req: Request, res: Response): void => {
+  const { search, rank, region, featured, page = 1, limit = 20 } = req.query;
+  let query = "SELECT * FROM listings WHERE status = 'published'";
+  const params: any[] = [];
+
+  if (search) {
+    query += ' AND (title LIKE ? OR description LIKE ? OR skins_json LIKE ?)';
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
+  if (rank) {
+    query += ' AND rank = ?';
+    params.push(rank);
+  }
+  if (region) {
+    query += ' AND region = ?';
+    params.push(region);
+  }
+  if (featured === '1' || featured === 'true') {
+    query += ' AND featured = 1';
+  }
+
+  query += ' ORDER BY featured DESC, created_at DESC';
+  const offset = (Number(page) - 1) * Number(limit);
+  query += ` LIMIT ${Number(limit)} OFFSET ${offset}`;
+
+  const rows = db.prepare(query).all(...params).map((item: any) => ({
+    ...item,
+    images: item.images_json ? JSON.parse(item.images_json) : [],
+    skins: item.skins_json ? JSON.parse(item.skins_json) : []
+  }));
+
+  const totalCount = (db.prepare("SELECT COUNT(*) as count FROM listings WHERE status = 'published'").get() as any).count;
+
+  res.json({ listings: rows, total: totalCount, page: Number(page), limit: Number(limit) });
+});
+
+// Single Listing Detail
+app.get('/api/listings/:id', (req: Request, res: Response): void => {
+  const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id) as any;
+  if (!listing) {
+    res.status(404).json({ error: 'Listing not found.' });
+    return;
+  }
+
+  res.json({
+    listing: {
+      ...listing,
+      images: listing.images_json ? JSON.parse(listing.images_json) : [],
+      skins: listing.skins_json ? JSON.parse(listing.skins_json) : []
+    }
+  });
+});
+
+// User My Listings
+app.get('/api/user/listings', authenticate, (req: AuthRequest, res: Response): void => {
+  const listings = db.prepare('SELECT * FROM listings WHERE user_id = ? ORDER BY created_at DESC').all(req.user!.id).map((item: any) => ({
+    ...item,
+    images: item.images_json ? JSON.parse(item.images_json) : [],
+    skins: item.skins_json ? JSON.parse(item.skins_json) : []
+  }));
+
+  res.json({ listings });
+});
+
+// Create / Submit a Listing
+app.post('/api/user/listings', authenticate, (req: AuthRequest, res: Response): void => {
+  const rank = req.body.rank || req.body.rank_tier;
+  const level = req.body.level || req.body.account_level || 1;
+  const vip_plan = req.body.vip_plan || req.body.vip_plan_id || 'none';
+  const { title, description, price_inr, peak_rank, region, skin_count, knife_count, images, skins, submitForReview, status } = req.body;
+
+  if (!title || !price_inr || !rank) {
+    res.status(400).json({ error: 'Listing title, price, and competitive rank are mandatory.' });
+    return;
+  }
+
+  const listingId = 'lst_' + crypto.randomBytes(6).toString('hex');
+  const now = new Date().toISOString();
+  const initialStatus = (submitForReview || status === 'submitted' || status === 'pending_review') ? 'submitted' : 'draft';
+
+  db.prepare(`
+    INSERT INTO listings (
+      id, user_id, seller_name, seller_role, guarantee_type, title, description,
+      price_inr, rank, peak_rank, level, region, skin_count, knife_count, featured,
+      vip_plan, images_json, skins_json, status, created_at, updated_at
+    ) VALUES (?, ?, ?, 'community', 'escrow_protected', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+  `).run(
+    listingId,
+    req.user!.id,
+    req.user!.name,
+    title,
+    description || '',
+    Number(price_inr),
+    rank,
+    peak_rank || rank,
+    Number(level) || 1,
+    region || 'AP / Mumbai',
+    Number(skin_count) || (Array.isArray(skins) ? skins.length : 0),
+    Number(knife_count) || 0,
+    vip_plan || 'none',
+    JSON.stringify(images || []),
+    JSON.stringify(skins || []),
+    initialStatus,
+    now,
+    now
+  );
+
+  const row = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId);
+
+  res.status(201).json({
+    message: initialStatus === 'submitted'
+      ? 'Listing submitted successfully! Our compliance desk will review and publish it.'
+      : 'Listing draft saved successfully.',
+    listingId,
+    listing: row
+  });
+});
+
+// Admin Listings Review Queue
+app.get('/api/admin/listings', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const { status } = req.query;
+  let query = 'SELECT * FROM listings WHERE 1=1';
+  const params: any[] = [];
+
+  if (status) {
+    if (status === 'submitted' || status === 'pending_review') {
+      query += " AND (status = 'submitted' OR status = 'pending_review')";
+    } else {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+  }
+  query += ' ORDER BY created_at DESC LIMIT 100';
+
+  const listings = db.prepare(query).all(...params).map((item: any) => ({
+    ...item,
+    images: item.images_json ? JSON.parse(item.images_json) : [],
+    skins: item.skins_json ? JSON.parse(item.skins_json) : []
+  }));
+
+  res.json({ listings });
+});
+
+// Admin Approve, Reject, or Publish Listing
+app.put('/api/admin/listings/:id/status', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const listingId = req.params.id;
+  const { status, reason, featured } = req.body;
+
+  const validStatuses = ['approved', 'published', 'rejected', 'archived', 'draft', 'pending_review', 'submitted'];
+  if (!validStatuses.includes(status)) {
+    res.status(400).json({ error: `Invalid listing status: ${status}` });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE listings SET
+      status = ?,
+      rejection_reason = ?,
+      featured = COALESCE(?, featured),
+      updated_at = ?
+    WHERE id = ?
+  `).run(status, reason || null, featured !== undefined ? (featured ? 1 : 0) : null, now, listingId);
+
+  logAudit(req.user!.id, req.user!.name, 'UPDATE_LISTING_STATUS', 'listings', listingId, { status, reason }, req.ip || '127.0.0.1');
+
+  const updated = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId);
+  res.json({ message: `Listing status updated to ${status}.`, listing: updated });
+});
+
+// VIP Plans List
+app.get('/api/vip-plans', (req: Request, res: Response): void => {
+  const plans = db.prepare('SELECT * FROM vip_plans WHERE active = 1').all().map((p: any) => ({
+    ...p,
+    features: JSON.parse(p.features_json)
+  }));
+  res.json({ plans });
+});
+
+// ==========================================
+// 21. VALORANT SKIN CATALOG & MEDIA
+// ==========================================
+
+app.get('/api/skins', (req: Request, res: Response): void => {
+  const { search, weapon, collection } = req.query;
+  let query = 'SELECT * FROM skins WHERE active = 1';
+  const params: any[] = [];
+
+  if (search) {
+    query += ' AND (name LIKE ? OR collection LIKE ?)';
+    const s = `%${search}%`;
+    params.push(s, s);
+  }
+  if (weapon) {
+    query += ' AND weapon = ?';
+    params.push(weapon);
+  }
+  if (collection) {
+    query += ' AND collection = ?';
+    params.push(collection);
+  }
+
+  query += ' ORDER BY collection ASC, name ASC LIMIT 100';
+
+  const skins = db.prepare(query).all(...params).map((s: any) => ({
+    ...s,
+    variants: s.variants_json ? JSON.parse(s.variants_json) : []
+  }));
+
+  res.json({ skins });
+});
+
+app.get('/api/skins/:id', (req: Request, res: Response): void => {
+  const skin = db.prepare('SELECT * FROM skins WHERE id = ?').get(req.params.id) as any;
+  if (!skin) {
+    res.status(404).json({ error: 'Skin not found.' });
+    return;
+  }
+  res.json({
+    skin: {
+      ...skin,
+      variants: skin.variants_json ? JSON.parse(skin.variants_json) : []
+    }
+  });
+});
+
+// ==========================================
+// 22. EMAIL AUTOMATION DIAGNOSTICS & LOGS
+// ==========================================
+
+app.get('/api/admin/email-logs', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const logs = db.prepare('SELECT * FROM email_logs ORDER BY sent_at DESC LIMIT 100').all();
+  res.json({ logs });
+});
+
+app.post('/api/admin/email/test', authenticate, adminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { recipient, email } = req.body;
+  const target = recipient || email || 'thevibofficial@gmail.com';
+
+  const result = await sendEmail({
+    to: target,
+    subject: '[VIB Diagnostic Test] Automated Email Verification',
+    html: `
+      <div style="font-family: Arial; padding: 20px; background: #07070d; color: #fff;">
+        <h2 style="color: #a855f7;">VIB Email Service Test</h2>
+        <p>This is a diagnostic test message dispatched from the VIB Digital Services Platform by ${req.user!.name}.</p>
+        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+      </div>
+    `,
+    templateName: 'diagnostic_test'
+  });
+
+  res.json({ message: 'Diagnostic test executed.', success: result.success, result });
+});
+
+app.post('/api/admin/email-logs/:id/retry', authenticate, adminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const log = db.prepare('SELECT * FROM email_logs WHERE id = ?').get(req.params.id) as any;
+  if (!log) {
+    res.status(404).json({ error: 'Email log not found.' });
+    return;
+  }
+
+  const result = await sendEmail({
+    to: log.recipient,
+    subject: `[RETRY] ${log.subject}`,
+    html: `<p>Retried message: ${log.subject}</p>`,
+    templateName: log.template_name
+  });
+
+  db.prepare('UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = ?').run(req.params.id);
+
+  res.json({ message: 'Email retry dispatched.', result });
 });
 
 // Start Express Server

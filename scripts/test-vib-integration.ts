@@ -727,6 +727,319 @@ async function runTestSuite() {
       'Communication Center', 'Admin modifies and persists transactional email template content');
   }
 
+  // 13. MANUAL QR PAYMENT ARCHITECTURE (VIB 2.0 PART A)
+  {
+    // Test 13.1: Query default payment settings
+    const paySettings = await request('/api/payment/settings');
+    assert(
+      paySettings.status === 200 &&
+      Boolean(paySettings.data?.upi_id || paySettings.data?.settings?.upi_id),
+      'VIB 2.0 Payment',
+      'GET /api/payment/settings returns default manual UPI QR settings'
+    );
+
+    // Test 13.2: Admin updates payment settings
+    const updatePay = await request('/api/admin/payment/settings', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        upi_id: 'thevibofficial@okhdfcbank',
+        payee_name: 'VIB Official Digital Hub',
+        support_phone: '+91 9181801766',
+        instructions: 'Scan with GPay/PhonePe and enter 12-digit UTR below.',
+      }),
+    });
+    assert(
+      updatePay.status === 200 &&
+      updatePay.data?.settings?.payee_name === 'VIB Official Digital Hub',
+      'VIB 2.0 Payment',
+      'Admin successfully updates business UPI ID and instructions'
+    );
+  }
+
+  // 14. ORDER UTR SUBMISSION & PUBLIC TRACKING (VIB 2.0 PART A & MOBILE UX)
+  let indianVpOrderId = '';
+  {
+    // Place Indian VP Pack Order (475 VP Viper Edition)
+    const newOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-475',
+        title: '475 VP (Viper Edition)',
+        amount: 499,
+        currency: 'INR',
+        type: 'vp',
+        paymentMethod: 'UPI Manual QR',
+        details: { riotId: 'TenZ#0001', email: 'testcustomer@vib.gg' },
+      }),
+    });
+    assert(
+      newOrder.status === 201 &&
+      newOrder.data?.order?.id &&
+      newOrder.data?.order?.payment_status === 'AWAITING_PAYMENT',
+      'VIB 2.0 Payment',
+      'Order placed with initial status AWAITING_PAYMENT'
+    );
+    indianVpOrderId = newOrder.data?.order?.id;
+
+    // Test 14.2: Customer submits 12-digit Bank UTR reference
+    const utrRes = await request(`/api/orders/${indianVpOrderId}/payment-evidence`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        ref: '428190184712',
+        screenshot: 'https://cdn.vib.gg/receipts/test-utr.png',
+      }),
+    });
+    assert(
+      utrRes.status === 200 &&
+      utrRes.data?.order?.payment_status === 'SUBMITTED_FOR_VERIFICATION' &&
+      utrRes.data?.order?.payment_evidence_ref === '428190184712',
+      'VIB 2.0 Payment',
+      'Customer submits UTR, order updates to SUBMITTED_FOR_VERIFICATION'
+    );
+
+    // Test 14.3: Public Tracking endpoint returns order timeline and status
+    const trackRes = await request(`/api/orders/track/${indianVpOrderId}`);
+    assert(
+      trackRes.status === 200 &&
+      trackRes.data?.order?.id === indianVpOrderId &&
+      trackRes.data?.order?.payment_status === 'SUBMITTED_FOR_VERIFICATION' &&
+      Array.isArray(trackRes.data?.order?.timeline) &&
+      trackRes.data?.order?.whatsappSupportUrl?.includes('9181801766'),
+      'VIB 2.0 Tracking',
+      'Public tracking endpoint returns order status, audit timeline, and WhatsApp desk link'
+    );
+  }
+
+  // 15. ADMIN PAYMENT VERIFICATION & ATOMIC INDIAN VP CODE DELIVERY (VIB 2.0 PART B)
+  {
+    // Test 15.1: Admin verifies payment -> atomically assigns code from inventory
+    const verifyRes = await request(`/api/admin/orders/${indianVpOrderId}/verify-payment`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ action: 'approve', notes: 'Bank statement confirmed.' }),
+    });
+    assert(
+      verifyRes.status === 200 &&
+      verifyRes.data?.codeIssued === true &&
+      verifyRes.data?.order?.payment_status === 'PAYMENT_VERIFIED' &&
+      verifyRes.data?.order?.fulfillment_status === 'COMPLETED' &&
+      Boolean(verifyRes.data?.order?.issued_code),
+      'VIB 2.0 Indian VP',
+      'Admin approves payment: Atomic VP code assigned from inventory and marked COMPLETED'
+    );
+
+    // Test 15.2: Public tracking now displays the genuine issued code
+    const trackFulfilled = await request(`/api/orders/track/${indianVpOrderId}`);
+    assert(
+      trackFulfilled.status === 200 &&
+      trackFulfilled.data?.order?.issued_code === verifyRes.data?.order?.issued_code,
+      'VIB 2.0 Indian VP',
+      'Fulfilled order exposes genuine Valorant Prepaid PIN code on tracking page'
+    );
+
+    // Test 15.3: Bulk Import & Inventory management of VP Codes
+    const testCodeSuffix = Date.now().toString(36).toUpperCase();
+    const testCodes = [
+      `RA-TEST-${testCodeSuffix}-001`,
+      `RA-TEST-${testCodeSuffix}-002`,
+      `RA-TEST-${testCodeSuffix}-003`,
+    ];
+    const importRes = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-475',
+        batch_no: `TEST-BATCH-${testCodeSuffix}`,
+        codes: testCodes,
+      }),
+    });
+    assert(
+      importRes.status === 201 &&
+      importRes.data?.addedCount === 3,
+      'VIB 2.0 Indian VP',
+      'Admin can bulk import genuine prepaid codes into inventory'
+    );
+
+    // Test 15.4: List VP Codes and verify inventory breakdown
+    const listCodes = await request('/api/admin/vp-codes?package_id=vp-475', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      listCodes.status === 200 &&
+      Array.isArray(listCodes.data?.codes) &&
+      listCodes.data.codes.some((c: any) => c.code === testCodes[0]),
+      'VIB 2.0 Indian VP',
+      'Admin can list and audit prepaid code inventory'
+    );
+  }
+
+  // 16. REGIONAL / PHP VP ORDERS & ZERO CODE DISPATCH GUARANTEE (VIB 2.0 PART C)
+  let regionalOrderId = '';
+  {
+    // Test 16.1: Place Regional PHP VP Order
+    const regOrderRes = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        title: '1,000 VP Regional Pack (PHP/International)',
+        amount: 850,
+        currency: 'INR',
+        type: 'regional_vp',
+        paymentMethod: 'UPI Manual QR',
+        details: { riotId: 'TenZ#0001', email: 'phptester@vib.gg' },
+      }),
+    });
+    assert(
+      regOrderRes.status === 201 &&
+      regOrderRes.data?.order?.id,
+      'VIB 2.0 Regional VP',
+      'Regional PHP VP order created'
+    );
+    regionalOrderId = regOrderRes.data.order.id;
+
+    // Test 16.2: Admin verifies payment for Regional order
+    const regVerifyRes = await request(`/api/admin/orders/${regionalOrderId}/verify-payment`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ action: 'approve', notes: 'Regional payment received.' }),
+    });
+    assert(
+      regVerifyRes.status === 200 &&
+      regVerifyRes.data?.codeIssued === false &&
+      regVerifyRes.data?.order?.issued_code === null,
+      'VIB 2.0 Regional VP',
+      'Strict Rule: Regional VP orders NEVER issue automated codes. Dispatched to WhatsApp desk'
+    );
+
+    // Test 16.3: Query regional orders queue
+    const regQueue = await request('/api/admin/regional-orders', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      regQueue.status === 200 &&
+      Array.isArray(regQueue.data?.orders) &&
+      regQueue.data.orders.some((o: any) => o.id === regionalOrderId),
+      'VIB 2.0 Regional VP',
+      'Admin regional queue contains the PHP/International order for WhatsApp coordination'
+    );
+  }
+
+  // 17. ACCOUNT & PROFILE LISTINGS WORKFLOW (VIB 2.0 PART D)
+  let userListingId = '';
+  {
+    // Test 17.1: Query VIP plans
+    const vipPlans = await request('/api/vip-plans');
+    assert(
+      vipPlans.status === 200 &&
+      Array.isArray(vipPlans.data?.plans) &&
+      vipPlans.data.plans.length >= 3,
+      'VIB 2.0 Listings',
+      'GET /api/vip-plans returns promotional tiers (Silver, Gold, Platinum)'
+    );
+
+    // Test 17.2: User submits account listing for moderation
+    const submitListing = await request('/api/user/listings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        title: 'Ascendant 2 Smurf - Reaver Vandal & Ion Phantom',
+        description: 'Clean Mumbai server account with full email access and no bans.',
+        price_inr: 5499,
+        rank_tier: 'Ascendant 2',
+        peak_rank: 'Immortal 1',
+        account_level: 160,
+        region: 'ap',
+        knife_count: 2,
+        skins: ['Reaver Vandal', 'Ion Phantom', 'Glitchpop Dagger'],
+        vip_plan_id: 'silver',
+        status: 'submitted',
+      }),
+    });
+    assert(
+      submitListing.status === 201 &&
+      submitListing.data?.listing?.id &&
+      submitListing.data?.listing?.status === 'submitted',
+      'VIB 2.0 Listings',
+      'User can submit account listing for admin review'
+    );
+    userListingId = submitListing.data.listing.id;
+
+    // Test 17.3: Admin lists pending listings
+    const adminListings = await request('/api/admin/listings?status=submitted', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      adminListings.status === 200 &&
+      adminListings.data?.listings?.some((l: any) => l.id === userListingId),
+      'VIB 2.0 Listings',
+      'Admin moderation queue contains the newly submitted listing'
+    );
+
+    // Test 17.4: Admin approves and publishes listing
+    const approveListing = await request(`/api/admin/listings/${userListingId}/status`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ status: 'published' }),
+    });
+    assert(
+      approveListing.status === 200 &&
+      approveListing.data?.listing?.status === 'published',
+      'VIB 2.0 Listings',
+      'Admin can approve and publish community listing'
+    );
+
+    // Test 17.5: Public marketplace includes the newly published listing
+    const publicListings = await request('/api/listings');
+    assert(
+      publicListings.status === 200 &&
+      publicListings.data?.listings?.some((l: any) => l.id === userListingId),
+      'VIB 2.0 Listings',
+      'GET /api/listings displays verified published community accounts'
+    );
+  }
+
+  // 18. VALORANT SKIN CATALOG & EMAIL LOGGING SYSTEM (VIB 2.0 PART E & F)
+  {
+    // Test 18.1: Skins catalog returns structured skins with categories
+    const skinsRes = await request('/api/skins');
+    assert(
+      skinsRes.status === 200 &&
+      Array.isArray(skinsRes.data?.skins) &&
+      skinsRes.data.skins.length >= 10 &&
+      skinsRes.data.skins.some((s: any) => s.weapon === 'Vandal'),
+      'VIB 2.0 Skin Catalog',
+      'GET /api/skins returns structured Valorant weapon skin catalog'
+    );
+
+    // Test 18.2: Outbound email delivery logs are queryable by admin
+    const emailLogs = await request('/api/admin/email-logs', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      emailLogs.status === 200 &&
+      Array.isArray(emailLogs.data?.logs) &&
+      emailLogs.data.logs.length > 0,
+      'VIB 2.0 Email Logs',
+      'GET /api/admin/email-logs records outbound transactional messages with delivery status'
+    );
+
+    // Test 18.3: Admin can trigger diagnostic test email
+    const testEmailRes = await request('/api/admin/email/test', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ email: 'thevibofficial@gmail.com' }),
+    });
+    assert(
+      testEmailRes.status === 200 &&
+      Boolean(testEmailRes.data?.success),
+      'VIB 2.0 Email Logs',
+      'POST /api/admin/email/test executes Nodemailer diagnostic dispatch and logs result'
+    );
+  }
+
   console.log('\n====================================================');
   console.log('TEST SUMMARY RESULTS');
   console.log('====================================================');

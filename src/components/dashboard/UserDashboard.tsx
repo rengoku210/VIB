@@ -36,12 +36,14 @@ interface UserDashboardProps {
   currency: Currency;
   onNavigate: (page: string) => void;
   onOpenCheckout?: (title: string, priceINR: number) => void;
+  onOpenTracking?: (orderId: string) => void;
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   currency,
   onNavigate,
   onOpenCheckout,
+  onOpenTracking,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings'>('overview');
@@ -572,6 +574,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                         }`}>
                           {ord.status}
                         </span>
+                        {onOpenTracking && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenTracking(ord.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-rajdhani uppercase cursor-pointer flex items-center gap-1"
+                          >
+                            <Clock className="w-3 h-3" />
+                            <span>Track</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleOpenOrderRoom(ord.id)}
@@ -654,6 +666,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {onOpenTracking && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenTracking(ord.id)}
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/60 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-rajdhani uppercase tracking-wide transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Live Tracking &amp; Code</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleOpenOrderRoom(ord.id)}

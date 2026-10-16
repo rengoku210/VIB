@@ -22,11 +22,13 @@ import {
   Award,
   Search,
   X,
+  Plus,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
 import { ClientPage } from './Header';
 import { soundFx } from '../../utils/audio';
+import { SubmitListingModal } from '../profiles/SubmitListingModal';
 
 interface ClientProfilesPageProps {
   currency: Currency;
@@ -47,9 +49,23 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [publishedListings, setPublishedListings] = useState<any[]>([]);
+  const [showSubmitListingModal, setShowSubmitListingModal] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
+  const fetchPublishedListings = () => {
+    fetch('/api/listings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.listings)) {
+          setPublishedListings(data.listings);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch public listings:', err));
+  };
+
   React.useEffect(() => {
+    fetchPublishedListings();
     fetch('/api/products?category=profile')
       .then((res) => res.json())
       .then((data) => {
@@ -260,7 +276,39 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     },
   ];
 
-  const currentList = selectedMarketplace === 'guaranteed' ? guaranteedProfiles : publicProfiles;
+  // Map real database published community listings
+  const mappedDbListings = publishedListings.map((item) => {
+    let skins: any[] = [];
+    try {
+      skins = item.skins_json ? JSON.parse(item.skins_json) : [];
+    } catch {}
+    const rankFirstWord = (item.rank_tier || 'Diamond').toLowerCase().split(' ')[0];
+    return {
+      id: item.id,
+      badge: item.vip_plan_id ? `${item.vip_plan_id.toUpperCase()} VIP LISTING` : 'COMMUNITY LISTING',
+      title: item.title,
+      sub: `Level ${item.account_level || 1} • ${(item.region || 'AP').toUpperCase()}`,
+      rankName: item.rank_tier || 'Diamond',
+      rankIcon: `/assets/hires/ranks/${rankFirstWord}.png`,
+      slot1RankGlow: 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
+      priceINR: item.price_inr,
+      originalPriceINR: Math.round(item.price_inr * 1.25),
+      avatarImg: item.primary_image || '/assets/hires/profiles/card1_exact.jpg',
+      weapons:
+        skins.length > 0
+          ? skins.slice(0, 3).map((s: any) => ({
+              img: s.image_url || '/assets/items/vandal-prime.png',
+              border: 'border-cyan-500/40',
+            }))
+          : [
+              { img: '/assets/items/vandal-prime.png', border: 'border-cyan-500/40' },
+              { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
+            ],
+    };
+  });
+
+  const combinedPublicList = [...mappedDbListings, ...publicProfiles];
+  const currentList = selectedMarketplace === 'guaranteed' ? guaranteedProfiles : combinedPublicList;
 
   const filteredProfiles = currentList.filter((p) => {
     if (!localSearch.trim()) return true;
@@ -593,6 +641,14 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setShowSubmitListingModal(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-purple-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Sell Your Account</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -951,6 +1007,15 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Seller Account Submission Modal */}
+      <SubmitListingModal
+        isOpen={showSubmitListingModal}
+        onClose={() => setShowSubmitListingModal(false)}
+        onSuccess={() => {
+          fetchPublishedListings();
+        }}
+      />
     </div>
   );
 };

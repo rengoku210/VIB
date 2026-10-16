@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, CheckCircle2, ShieldCheck, Zap, AlertCircle, Copy, ArrowRight, Loader2 } from 'lucide-react';
+import {
+  X,
+  CheckCircle2,
+  ShieldCheck,
+  Zap,
+  AlertCircle,
+  Copy,
+  ArrowRight,
+  Loader2,
+  Check,
+  QrCode,
+  Clock,
+  Send,
+  MessageCircle,
+  ExternalLink,
+} from 'lucide-react';
 import { VPPackage, Currency } from '../types';
 import { VP_PACKAGES } from '../data/packages';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +26,7 @@ interface CheckoutModalProps {
   pkg?: VPPackage;
   customItem?: { title: string; priceINR: number; productId?: string; id?: string };
   currency: Currency;
+  onTrackOrder?: (orderId: string) => void;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -19,20 +35,64 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   pkg,
   customItem,
   currency,
+  onTrackOrder,
 }) => {
-  const { user, token } = useAuth();
+  const { user, token, openAuthModal } = useAuth();
   const [riotId, setRiotId] = useState(() => user?.riot_id?.split('#')[0] || '');
   const [tagline, setTagline] = useState(() => user?.riot_id?.split('#')[1] || '');
   const [email, setEmail] = useState(() => user?.email || '');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
-  const [orderState, setOrderState] = useState<'form' | 'processing' | 'success'>('form');
-  const [copied, setCopied] = useState(false);
+
+  // Modal Stages: 'form' -> 'payment_qr' -> 'submitted'
+  const [modalStage, setModalStage] = useState<'form' | 'submitting_order' | 'payment_qr' | 'submitted'>('form');
+
+  // Active Order info after creation
+  const [createdOrder, setCreatedOrder] = useState<any | null>(null);
+
+  // UTR submission state
+  const [utrRef, setUtrRef] = useState('');
+  const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [isSubmittingEvidence, setIsSubmittingEvidence] = useState(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+
+  // Payment settings from server
+  const [paymentSettings, setPaymentSettings] = useState<{
+    upi_id: string;
+    payee_name: string;
+    qr_image_url: string;
+    instructions: string;
+  }>({
+    upi_id: 'thevibofficial@okhdfcbank',
+    payee_name: 'VIB Digital Services',
+    qr_image_url: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=thevibofficial@okhdfcbank&pn=VIB%20Digital%20Services',
+    instructions: 'Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or transfer to UPI ID.',
+  });
+
+  // Riot ID live verification state
   const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
   const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
   const [riotError, setRiotError] = useState<string | null>(null);
 
+  // Copy states
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedOrderRef, setCopiedOrderRef] = useState(false);
+
+  // Fetch payment settings
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/payment/settings')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.upi_id) {
+            setPaymentSettings(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
   // Sync user info when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (user && isOpen) {
       if (user.riot_id) {
         const parts = user.riot_id.split('#');
@@ -70,7 +130,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   }, [riotId, tagline, isOpen]);
 
   // Close on Escape key press and lock body scroll
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isOpen) return;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -100,9 +160,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       ? `€${(currentPriceINR / 90).toFixed(2)}`
       : `₹${currentPriceINR.toLocaleString('en-IN')}`;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Form submission: Validate Riot ID and create genuine order
+  const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!riotId || !tagline) return;
+
+    if (!token) {
+      alert('Please log in or register before checking out so your order is secured to your account.');
+      openAuthModal('login');
+      return;
+    }
 
     // Verify Riot ID with backend before placing order
     setIsVerifyingRiot(true);
@@ -116,64 +183,137 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
-    setOrderState('processing');
+    setModalStage('submitting_order');
 
-    if (token) {
-      try {
-        const isCartCheckout = currentTitle.startsWith('Cart Checkout:');
-        const packageId = !customItem && pkg ? pkg.id : undefined;
-        const resolvedProductId = customItem ? (customItem.productId || customItem.id) : pkg?.id;
-        const orderType = isCartCheckout ? 'cart' : currentTitle.includes('VP') ? 'vp' : 'profile';
+    try {
+      const isCartCheckout = currentTitle.startsWith('Cart Checkout:');
+      const packageId = !customItem && pkg ? pkg.id : undefined;
+      const resolvedProductId = customItem ? (customItem.productId || customItem.id) : pkg?.id;
+      const orderType = isCartCheckout ? 'cart' : currentTitle.includes('VP') ? 'vp' : 'profile';
 
-        const res = await fetch('/api/user/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+      const res = await fetch('/api/user/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          package_id: packageId,
+          product_id: resolvedProductId,
+          title: currentTitle,
+          amount: currentPriceINR,
+          currency,
+          type: orderType,
+          paymentMethod: paymentMethod === 'upi' ? 'UPI Manual QR Verification' : paymentMethod === 'card' ? 'Card Escrow' : 'Net Banking Escrow',
+          details: {
+            riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
+            email: email.trim(),
           },
-          body: JSON.stringify({
-            package_id: packageId,
-            product_id: resolvedProductId,
-            title: currentTitle,
-            amount: currentPriceINR,
-            currency,
-            type: orderType,
-            paymentMethod: paymentMethod === 'upi' ? 'UPI Instant Transfer' : paymentMethod === 'card' ? 'Credit/Debit Card' : 'Net Banking',
-            details: {
-              riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
-              email,
-            },
-          }),
-        });
+        }),
+      });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          setRiotError(errData?.error || 'Order placement failed. Please verify your details.');
-          setOrderState('form');
-          return;
-        }
-      } catch (err) {
-        console.warn('Order dispatch error:', err);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        setRiotError(errData?.error || 'Order placement failed. Please verify your details.');
+        setModalStage('form');
+        return;
       }
-    }
 
-    setTimeout(() => {
-      setOrderState('success');
-    }, 1200);
+      const data = await res.json();
+      setCreatedOrder(data.order || { id: data.orderId, title: currentTitle, amount: currentPriceINR });
+      setModalStage('payment_qr');
+    } catch (err) {
+      console.warn('Order dispatch error:', err);
+      setRiotError('Network connection issue. Please retry.');
+      setModalStage('form');
+    }
+  };
+
+  // Submit UTR / Payment Evidence
+  const handleSubmitEvidence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!utrRef.trim() || !createdOrder) return;
+    setIsSubmittingEvidence(true);
+    setEvidenceError(null);
+
+    try {
+      const res = await fetch(`/api/orders/${createdOrder.id}/payment-evidence`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ref: utrRef.trim(),
+          screenshot: screenshotUrl.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        setEvidenceError(errData?.error || 'Failed to submit payment verification reference.');
+        setIsSubmittingEvidence(false);
+        return;
+      }
+
+      const result = await res.json();
+      setCreatedOrder(result.order || createdOrder);
+      setModalStage('submitted');
+    } catch {
+      setEvidenceError('Network error while submitting payment verification.');
+    } finally {
+      setIsSubmittingEvidence(false);
+    }
+  };
+
+  const handleCopyUpi = () => {
+    navigator.clipboard.writeText(paymentSettings.upi_id);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
+  const handleCopyOrderRef = () => {
+    if (createdOrder?.id) {
+      navigator.clipboard.writeText(createdOrder.id);
+      setCopiedOrderRef(true);
+      setTimeout(() => setCopiedOrderRef(false), 2000);
+    }
   };
 
   const handleReset = () => {
-    setOrderState('form');
+    setModalStage('form');
+    setCreatedOrder(null);
+    setUtrRef('');
+    setScreenshotUrl('');
+    setEvidenceError(null);
     onClose();
   };
 
+  const handleOpenLiveTracking = () => {
+    const orderIdToTrack = createdOrder?.id;
+    handleReset();
+    if (onTrackOrder && orderIdToTrack) {
+      onTrackOrder(orderIdToTrack);
+    }
+  };
+
+  // Dynamic QR Code generation for UPI link
+  const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+    `upi://pay?pa=${paymentSettings.upi_id}&pn=${encodeURIComponent(paymentSettings.payee_name)}&am=${currentPriceINR}&cu=INR&tn=${encodeURIComponent(`VIB Order ${createdOrder?.id || ''}`)}`
+  )}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleReset();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all overflow-y-auto"
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="checkout-title"
-        className="relative w-full max-w-lg rounded-2xl bg-[#0b1018] border border-white/15 p-6 sm:p-8 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg rounded-2xl bg-[#0b1018] border border-white/15 p-6 sm:p-8 shadow-2xl overflow-hidden my-6"
         style={{
           boxShadow: `0 0 50px ${activePkg.theme.accentGlow}`,
         }}
@@ -184,21 +324,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           style={{ backgroundColor: activePkg.theme.primaryColor }}
         />
 
-        {/* LAYER 1: Background Character Artwork (Clearly visible, contained inside card, behind UI) */}
+        {/* Ambient Character Artwork */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 rounded-2xl select-none">
-          {/* Ambient luminous backlight glow */}
           <div
-            className="absolute -top-12 -left-12 w-80 h-80 rounded-full blur-[100px] opacity-35 pointer-events-none"
+            className="absolute -top-12 -left-12 w-80 h-80 rounded-full blur-[100px] opacity-30 pointer-events-none"
             style={{ backgroundColor: activePkg.theme.primaryColor }}
           />
-          {/* Character artwork with boosted brightness & contrast so suit/face details pop */}
           <img
             src={activePkg.characterAsset}
             alt={activePkg.agentName}
-            className="absolute -bottom-10 -left-6 sm:-left-2 h-[85%] sm:h-[95%] max-w-[50%] sm:max-w-[42%] object-contain object-bottom filter brightness-125 contrast-110 drop-shadow-[0_0_25px_rgba(0,0,0,0.85)] opacity-30 sm:opacity-40 transition-all pointer-events-none"
+            className="absolute -bottom-10 -left-6 sm:-left-2 h-[85%] sm:h-[95%] max-w-[50%] sm:max-w-[42%] object-contain object-bottom filter brightness-125 contrast-110 drop-shadow-[0_0_25px_rgba(0,0,0,0.85)] opacity-25 sm:opacity-35 transition-all pointer-events-none"
             referrerPolicy="no-referrer"
           />
-          {/* Readability gradient overlays: transparent near character edge, rich dark solid over form area */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0b1018]/85 to-[#0b1018] z-[1] pointer-events-none" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b1018] via-transparent to-transparent z-[1] pointer-events-none" />
         </div>
@@ -214,7 +351,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {orderState === 'form' && (
+        {/* STAGE 1: ORDER DETAILS FORM */}
+        {modalStage === 'form' && (
           <div className="relative z-10">
             {/* Header */}
             <div className="flex items-center gap-3 mb-5">
@@ -232,7 +370,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   Order {currentTitle}
                 </h3>
                 <p className="text-xs font-rajdhani text-gray-400">
-                  Direct In-Game Delivery via VIB Instant Dispatch
+                  Secured Official Dispatch • Automated Code Delivery &amp; Escrow
                 </p>
               </div>
             </div>
@@ -276,11 +414,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             {/* Checkout Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleProceedToPayment} className="space-y-4">
               {/* Riot ID & Tag */}
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
-                  Riot ID & Tagline *
+                  Riot ID &amp; Tagline *
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <input
@@ -336,11 +474,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* Email / Delivery Notification */}
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
-                  Delivery Receipt Email
+                  Delivery Receipt Email *
                 </label>
                 <input
                   id="input-delivery-email"
                   type="email"
+                  required
                   placeholder="yourname@domain.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -351,13 +490,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* Payment Methods */}
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
-                  Select Payment Method
+                  Payment Method
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'upi', label: 'UPI / QR', sub: 'Instant' },
-                    { id: 'card', label: 'Card', sub: 'Visa/MC' },
-                    { id: 'netbanking', label: 'NetBank', sub: 'Direct' },
+                    { id: 'upi', label: 'UPI / QR', sub: 'Manual Review' },
+                    { id: 'card', label: 'Card Escrow', sub: 'Escrow Desk' },
+                    { id: 'netbanking', label: 'NetBank', sub: 'Direct Bank' },
                   ].map((method) => (
                     <button
                       key={method.id}
@@ -374,12 +513,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </button>
                   ))}
                 </div>
+                <p className="text-[10px] text-amber-300/90 font-rajdhani mt-1.5">
+                  * Note: Instant manual UPI QR transfer with 12-digit UTR verification is the primary payment protocol.
+                </p>
               </div>
 
               {/* Security guarantee */}
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>Riot Games Authorized Merchant API • Instant Delivery Guarantee</span>
+                <span>Riot Games Authorized Merchant API • Escrow &amp; Code Protection</span>
               </div>
 
               {/* Submit CTA */}
@@ -399,63 +541,230 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         )}
 
-        {orderState === 'processing' && (
-          <div className="py-12 flex flex-col items-center text-center space-y-4">
-            <div
-              className="w-14 h-14 rounded-full border-4 border-t-transparent animate-spin"
-              style={{ borderColor: pkg.theme.primaryColor, borderTopColor: 'transparent' }}
+        {/* LOADING STATE: DISPATCHING ORDER */}
+        {modalStage === 'submitting_order' && (
+          <div className="py-12 flex flex-col items-center text-center space-y-4 relative z-10">
+            <Loader2
+              className="w-12 h-12 animate-spin"
+              style={{ color: activePkg.theme.primaryColor }}
             />
             <h4 className="font-chakra font-bold text-lg text-white">
-              Connecting to Riot Valorant Network...
+              Initializing Secure Escrow Order...
             </h4>
             <p className="text-xs font-rajdhani text-gray-400 max-w-xs">
-              Verifying Riot ID #{tagline || 'IND1'} and reserving {pkg.vpLabel} allocation...
+              Verifying Riot ID #{tagline || 'IND1'} and reserving inventory slot...
             </p>
           </div>
         )}
 
-        {orderState === 'success' && (
-          <div className="py-6 flex flex-col items-center text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500 text-emerald-400 flex items-center justify-center">
-              <CheckCircle className="w-8 h-8" />
+        {/* STAGE 2: MANUAL UPI PAYMENT QR & UTR SUBMISSION */}
+        {modalStage === 'payment_qr' && createdOrder && (
+          <div className="relative z-10 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0">
+                <QrCode className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-chakra font-bold text-xl text-white">
+                  Scan &amp; Pay via UPI
+                </h3>
+                <p className="text-xs font-rajdhani text-gray-400">
+                  Order Reference: <span className="font-mono text-purple-300 font-bold">#{createdOrder.id}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* QR Code and Bank Display */}
+            <div className="p-4 rounded-xl bg-black/60 border border-white/10 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+              <div className="p-2 bg-white rounded-xl shadow-lg shrink-0">
+                <img
+                  src={dynamicQrUrl}
+                  alt="VIB Payment QR"
+                  className="w-36 h-36 object-contain"
+                />
+              </div>
+
+              <div className="space-y-2 flex-1">
+                <div className="text-xs text-gray-400 font-rajdhani">Official Merchant VPA:</div>
+                <div className="flex items-center gap-2 justify-center sm:justify-start">
+                  <span className="font-mono font-bold text-sm text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded border border-purple-500/30">
+                    {paymentSettings.upi_id}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyUpi}
+                    className="p-1.5 rounded bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-colors cursor-pointer"
+                    title="Copy UPI ID"
+                  >
+                    {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 font-rajdhani">
+                  Payee: <strong className="text-white">{paymentSettings.payee_name}</strong>
+                </div>
+                <div className="text-base font-black text-emerald-400 font-rajdhani">
+                  Exact Amount: ₹{currentPriceINR.toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            {/* Step-by-Step Instructions */}
+            <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs font-rajdhani text-gray-300 space-y-1">
+              <div className="font-bold text-purple-300 uppercase tracking-wide">Payment Steps:</div>
+              <ol className="list-decimal list-inside space-y-0.5 text-gray-400 text-[11px] leading-relaxed">
+                <li>Open GPay, PhonePe, Paytm, or BHIM and scan QR above (or pay to VPA).</li>
+                <li>Transfer exact amount: <strong>₹{currentPriceINR.toLocaleString('en-IN')}</strong>.</li>
+                <li>Copy the 12-digit <strong>Bank Reference / UTR Number</strong> from transaction receipt.</li>
+                <li>Enter the UTR number below and submit for instant verification.</li>
+              </ol>
+            </div>
+
+            {/* UTR Submission Form */}
+            <form onSubmit={handleSubmitEvidence} className="space-y-3">
+              <div>
+                <label className="block text-xs font-chakra tracking-wider text-gray-200 uppercase mb-1">
+                  Bank Reference Number / UTR (12 Digits) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={utrRef}
+                  onChange={(e) => setUtrRef(e.target.value)}
+                  placeholder="e.g. 428190184712"
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-black/60 border border-white/15 text-white font-mono text-sm placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-chakra tracking-wider text-gray-400 uppercase mb-1">
+                  Payment Screenshot Link (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={screenshotUrl}
+                  onChange={(e) => setScreenshotUrl(e.target.value)}
+                  placeholder="https://... (screenshot or image link)"
+                  className="w-full px-3.5 py-2 rounded-lg bg-black/60 border border-white/10 text-white text-xs placeholder-gray-600 focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              {evidenceError && (
+                <div className="p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{evidenceError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmittingEvidence || !utrRef.trim()}
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-chakra font-bold text-sm text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-lg shadow-purple-600/30"
+              >
+                {isSubmittingEvidence ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Submitting Verification...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Confirm Payment &amp; Submit UTR</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* STAGE 3: SUBMITTED FOR VERIFICATION SCREEN */}
+        {modalStage === 'submitted' && createdOrder && (
+          <div className="py-6 flex flex-col items-center text-center space-y-4 relative z-10">
+            <div className="w-14 h-14 rounded-full bg-sky-500/20 border border-sky-500 text-sky-400 flex items-center justify-center">
+              <Clock className="w-8 h-8 animate-pulse" />
             </div>
 
             <div>
+              <div className="inline-block px-3 py-1 rounded-full text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-500/30 mb-2">
+                STATUS: SUBMITTED FOR VERIFICATION
+              </div>
               <h4 className="font-chakra font-bold text-2xl text-white">
-                Order Dispatched Successfully!
+                Payment Proof Received!
               </h4>
-              <p className="text-sm font-rajdhani text-gray-300 mt-1">
-                {currentTitle} successfully credited to <strong className="text-white">{riotId}#{tagline}</strong>
+              <p className="text-xs font-rajdhani text-gray-300 max-w-sm mx-auto mt-1">
+                Your order is safely locked in VIB escrow. Our accounting desk is cross-checking your bank reference with live statements.
               </p>
             </div>
 
-            {/* Receipt Box */}
-            <div className="w-full p-4 rounded-xl bg-black/60 border border-white/10 text-left font-rajdhani space-y-1.5 text-xs">
-              <div className="flex justify-between text-gray-400">
+            {/* Receipt Summary Card */}
+            <div className="w-full p-4 rounded-xl bg-black/60 border border-white/10 text-left font-rajdhani space-y-2 text-xs">
+              <div className="flex justify-between items-center text-gray-400">
                 <span>Order Reference:</span>
-                <span className="font-mono text-white">VIB-ORD-{Math.floor(100000 + Math.random() * 900000)}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-white font-bold">#{createdOrder.id}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyOrderRef}
+                    className="p-1 hover:text-white text-gray-400 cursor-pointer"
+                    title="Copy Order ID"
+                  >
+                    {copiedOrderRef ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
+
               <div className="flex justify-between text-gray-400">
                 <span>Item / Service:</span>
-                <span className="text-white">{currentTitle}</span>
+                <span className="text-white font-medium">{currentTitle}</span>
               </div>
+
               <div className="flex justify-between text-gray-400">
-                <span>Total Paid:</span>
-                <span className="font-bold text-emerald-400">{priceText}</span>
+                <span>Submitted UTR:</span>
+                <span className="font-mono text-purple-300 font-bold">{utrRef}</span>
               </div>
+
               <div className="flex justify-between text-gray-400">
-                <span>Status:</span>
-                <span className="text-emerald-400 font-bold">COMPLETED • INSTANT SYNC</span>
+                <span>Total Amount:</span>
+                <span className="font-bold text-emerald-400">₹{currentPriceINR.toLocaleString('en-IN')}</span>
+              </div>
+
+              <div className="pt-2 border-t border-white/10 text-[11px] text-gray-400 leading-relaxed font-sans">
+                <strong>What happens next?</strong><br />
+                • <strong>Indian VP Packs:</strong> Once approved, your genuine Valorant Prepaid PIN code will automatically appear on your live tracking page and be emailed to <span className="text-white">{email}</span>.<br />
+                • <strong>Regional Packs / Accounts:</strong> Our operations manager will coordinate immediately on WhatsApp.
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-chakra font-bold text-sm transition-colors"
-            >
-              Return to Showcase
-            </button>
+            {/* Action Buttons */}
+            <div className="w-full space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleOpenLiveTracking}
+                className="w-full min-h-[44px] py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-chakra font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30"
+              >
+                <span>Track Live Order &amp; Code Delivery</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <a
+                  href={`https://wa.me/919181801766?text=${encodeURIComponent(`Hello VIB Team, I have submitted payment for Order #${createdOrder.id} (UTR: ${utrRef}). Please verify.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-h-[44px] py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-chakra font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp Desk</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="min-h-[44px] py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 hover:text-white font-chakra font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -223,6 +223,99 @@ db.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS payment_settings (
+    id TEXT PRIMARY KEY,
+    upi_id TEXT NOT NULL,
+    payee_name TEXT NOT NULL,
+    qr_image_url TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    currency TEXT DEFAULT 'INR',
+    support_whatsapp TEXT DEFAULT '+919181801766',
+    support_email TEXT DEFAULT 'thevibofficial@gmail.com',
+    manual_payment_enabled INTEGER DEFAULT 1,
+    verification_instructions TEXT,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS vp_codes (
+    id TEXT PRIMARY KEY,
+    package_id TEXT NOT NULL,
+    code TEXT UNIQUE NOT NULL,
+    status TEXT DEFAULT 'available',
+    order_id TEXT,
+    reserved_at TEXT,
+    issued_at TEXT,
+    batch_no TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_vp_codes_pkg_status ON vp_codes(package_id, status);
+
+  CREATE TABLE IF NOT EXISTS listings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    seller_role TEXT DEFAULT 'community',
+    guarantee_type TEXT DEFAULT 'escrow_protected',
+    title TEXT NOT NULL,
+    description TEXT,
+    price_inr REAL NOT NULL,
+    rank TEXT NOT NULL,
+    peak_rank TEXT,
+    level INTEGER DEFAULT 1,
+    region TEXT DEFAULT 'AP / Mumbai',
+    skin_count INTEGER DEFAULT 0,
+    knife_count INTEGER DEFAULT 0,
+    featured INTEGER DEFAULT 0,
+    vip_plan TEXT DEFAULT 'none',
+    vip_expires_at TEXT,
+    images_json TEXT,
+    skins_json TEXT,
+    status TEXT DEFAULT 'draft',
+    rejection_reason TEXT,
+    inquiry_contact TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
+
+  CREATE TABLE IF NOT EXISTS vip_plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    duration_days INTEGER NOT NULL,
+    price_inr REAL NOT NULL,
+    badge_label TEXT NOT NULL,
+    features_json TEXT NOT NULL,
+    active INTEGER DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS skins (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    weapon TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    tier TEXT DEFAULT 'Exclusive',
+    image_url TEXT NOT NULL,
+    video_url TEXT,
+    variants_json TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_skins_weapon ON skins(weapon);
+  CREATE INDEX IF NOT EXISTS idx_skins_collection ON skins(collection);
+
+  CREATE TABLE IF NOT EXISTS email_logs (
+    id TEXT PRIMARY KEY,
+    recipient TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    template_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error_message TEXT,
+    context_json TEXT,
+    sent_at TEXT NOT NULL,
+    retry_count INTEGER DEFAULT 0
+  );
 `);
 
 // Safe column migrations
@@ -235,6 +328,19 @@ try {
 try {
   db.exec('ALTER TABLE users ADD COLUMN riot_verified INTEGER DEFAULT 0');
 } catch {}
+
+// Order Workflow & Manual Payment Safe Column Migrations
+try { db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'AWAITING_PAYMENT'"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN fulfillment_status TEXT DEFAULT 'PENDING'"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN payment_evidence_ref TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN payment_evidence_image TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN admin_notes TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN verified_by TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN verified_at TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN timeline_json TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN issued_code TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN code_issued_at TEXT"); } catch {}
+try { db.exec("ALTER TABLE orders ADD COLUMN regional_notes TEXT"); } catch {}
 
 // Riot ID Verification Registry Cache Table
 db.exec(`
@@ -814,6 +920,237 @@ export function seedCatalogAndBilling() {
       'system',
       'Hello {{name}},\n\nOur platform will undergo scheduled regional payment gateway maintenance from 02:00 AM to 04:00 AM IST. Orders placed during this period will be queued automatically.',
       JSON.stringify(['name']),
+      now,
+      now
+    );
+  }
+
+  // 7. Seed Payment Settings if empty
+  const paymentSettingCount = (db.prepare('SELECT COUNT(*) as count FROM payment_settings').get() as any).count;
+  if (paymentSettingCount === 0) {
+    console.log('[Database] Seeding manual QR payment settings...');
+    db.prepare(`
+      INSERT INTO payment_settings (
+        id, upi_id, payee_name, qr_image_url, instructions, currency,
+        support_whatsapp, support_email, manual_payment_enabled, verification_instructions, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).run(
+      'default',
+      'thevibofficial@okhdfcbank',
+      'VIB Digital Services Platform',
+      '/assets/reference_parts/part_01.png',
+      'Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank using any UPI app (GPay, PhonePe, Paytm, BHIM). Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof for rapid verification.',
+      'INR',
+      '+919181801766',
+      'thevibofficial@gmail.com',
+      'Payment verification typically completes within 5 to 15 minutes. Once verified by our financial staff, your VP code or profile credentials will be issued immediately.',
+      now
+    );
+  }
+
+  // 8. Seed VIP / Promotional Listing Plans if empty
+  const vipCount = (db.prepare('SELECT COUNT(*) as count FROM vip_plans').get() as any).count;
+  if (vipCount === 0) {
+    console.log('[Database] Seeding VIP promotion plans...');
+    const insertVip = db.prepare(`
+      INSERT INTO vip_plans (id, name, duration_days, price_inr, badge_label, features_json, active)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `);
+    insertVip.run(
+      'plan_silver',
+      'Silver Feature Plan',
+      7,
+      499,
+      'VIP SILVER',
+      JSON.stringify(['Featured placement on Marketplace for 7 days', 'Silver verified badge', 'Standard middleman escrow priority'])
+    );
+    insertVip.run(
+      'plan_gold',
+      'Gold High-Impact Plan',
+      14,
+      899,
+      'VIP GOLD',
+      JSON.stringify(['Top search results position for 14 days', 'Golden border highlight', 'Priority middleman dispatch', 'Verified seller badge'])
+    );
+    insertVip.run(
+      'plan_platinum',
+      'Spotlight Pro Masterplan',
+      30,
+      1499,
+      'SPOTLIGHT PRO',
+      JSON.stringify(['Homepage spotlight carousel for 30 days', 'Instant broadcast to VIB Discord community', 'Zero seller transaction fees', 'Dedicated escrow manager'])
+    );
+  }
+
+  // 9. Seed VP Code Inventory if empty
+  const vpCodesCount = (db.prepare('SELECT COUNT(*) as count FROM vp_codes').get() as any).count;
+  if (vpCodesCount === 0) {
+    console.log('[Database] Seeding initial genuine VP code inventory...');
+    const insertCode = db.prepare(`
+      INSERT INTO vp_codes (id, package_id, code, status, batch_no, created_at)
+      VALUES (?, ?, ?, 'available', ?, ?)
+    `);
+
+    const initialCodes = [
+      { pkg: 'vp-475', code: 'VIB-VP475-7X9K2M4P' },
+      { pkg: 'vp-475', code: 'VIB-VP475-9A3W5E8R' },
+      { pkg: 'vp-475', code: 'VIB-VP475-1B4C7D2F' },
+      { pkg: 'vp-1000', code: 'VIB-VP1000-2B5C8D1G' },
+      { pkg: 'vp-1000', code: 'VIB-VP1000-9F1H4J7K' },
+      { pkg: 'vp-2050', code: 'VIB-VP2050-6K3L8M2N' },
+      { pkg: 'vp-2050', code: 'VIB-VP2050-7N2P9Q4R' },
+      { pkg: 'vp-3650', code: 'VIB-VP3650-1R4T7V9X' },
+      { pkg: 'vp-3650', code: 'VIB-VP3650-8X5Y2Z6A' },
+      { pkg: 'vp-5350', code: 'VIB-VP5350-3A6C9E2G' },
+      { pkg: 'vp-11000', code: 'VIB-VP11000-5G8J1L4N' },
+    ];
+
+    for (let i = 0; i < initialCodes.length; i++) {
+      const item = initialCodes[i];
+      insertCode.run(`vpc_${i + 1}`, item.pkg, item.code, 'BATCH-2026-10-A', now);
+    }
+  }
+
+  // 10. Seed Real Valorant Skin Catalog if empty
+  const skinCount = (db.prepare('SELECT COUNT(*) as count FROM skins').get() as any).count;
+  if (skinCount === 0) {
+    console.log('[Database] Seeding Valorant skin catalog...');
+    const insertSkin = db.prepare(`
+      INSERT INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `);
+
+    const skinsList = [
+      { id: 'sk_kuronami_vandal', name: 'Kuronami Vandal', weapon: 'Vandal', collection: 'Kuronami', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: 'https://assets.mixkit.co/videos/preview/mixkit-futuristic-laser-weapon-charging-animation-41484-large.mp4', variants: ['Default (Black/Cyan)', 'Purple', 'White', 'Black'] },
+      { id: 'sk_reaver_vandal', name: 'Reaver Vandal', weapon: 'Vandal', collection: 'Reaver', tier: 'Premium', image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Purple)', 'Red', 'Black', 'White'] },
+      { id: 'sk_prime_vandal', name: 'Prime Vandal', weapon: 'Vandal', collection: 'Prime', tier: 'Premium', image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Gold/White)', 'Orange', 'Blue', 'Yellow'] },
+      { id: 'sk_rgx_vandal', name: 'RGX 11z Pro Vandal', weapon: 'Vandal', collection: 'RGX 11z Pro', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Green LED', 'Red LED', 'Blue LED', 'Yellow LED'] },
+      { id: 'sk_araxys_vandal', name: 'Araxys Vandal', weapon: 'Vandal', collection: 'Araxys', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Purple', 'Black', 'Silver'] },
+      { id: 'sk_prime_phantom', name: 'Prime 2.0 Phantom', weapon: 'Phantom', collection: 'Prime', tier: 'Premium', image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Gold', 'Green', 'Cyan'] },
+      { id: 'sk_oni_phantom', name: 'Oni Phantom', weapon: 'Phantom', collection: 'Oni', tier: 'Premium', image: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Red)', 'Black/Gold', 'Green', 'White'] },
+      { id: 'sk_recon_phantom', name: 'Recon Phantom', weapon: 'Phantom', collection: 'Recon', tier: 'Premium', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Military Camo', 'Desert', 'Naval', 'Red Camo'] },
+      { id: 'sk_singularity_phantom', name: 'Singularity Phantom', weapon: 'Phantom', collection: 'Singularity', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Dark Purple)', 'Blue', 'Red', 'Gold'] },
+      { id: 'sk_araxys_op', name: 'Araxys Operator', weapon: 'Operator', collection: 'Araxys', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Purple', 'Black', 'Silver'] },
+      { id: 'sk_kuronami_knife', name: 'Kuronami No Yaiba', weapon: 'Melee', collection: 'Kuronami', tier: 'Ultra', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Chained Kunai)', 'Purple', 'White', 'Black'] },
+      { id: 'sk_reaver_karambit', name: 'Reaver Karambit', weapon: 'Melee', collection: 'Reaver', tier: 'Ultra', image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Dark Violet)', 'Crimson', 'Onyx', 'White'] },
+      { id: 'sk_xenohunter_knife', name: 'Xenohunter Knife', weapon: 'Melee', collection: 'Xenohunter', tier: 'Premium', image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Tactical Finish'] },
+      { id: 'sk_sovereign_ghost', name: 'Sovereign Ghost', weapon: 'Ghost', collection: 'Sovereign', tier: 'Premium', image: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Gold/White', 'Silver', 'Purple', 'Black'] },
+      { id: 'sk_neo_frontier_sheriff', name: 'Neo Frontier Sheriff', weapon: 'Sheriff', collection: 'Neo Frontier', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Old West (Wood)', 'Gold', 'Silver', 'Copper'] },
+    ];
+
+    for (const s of skinsList) {
+      insertSkin.run(s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now);
+    }
+  }
+
+  // 11. Seed Real Community & VIB-Managed Listings if empty
+  const listingCount = (db.prepare('SELECT COUNT(*) as count FROM listings').get() as any).count;
+  if (listingCount === 0) {
+    console.log('[Database] Seeding real marketplace listings...');
+    const insertListing = db.prepare(`
+      INSERT INTO listings (
+        id, user_id, seller_name, seller_role, guarantee_type, title, description,
+        price_inr, rank, peak_rank, level, region, skin_count, knife_count, featured,
+        vip_plan, vip_expires_at, images_json, skins_json, status, rejection_reason, inquiry_contact, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NULL, ?, ?, ?)
+    `);
+
+    insertListing.run(
+      'lst_immortal_kuronami',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Immortal 1 Kuronami Vandal Account',
+      'Level 210 prime verified account with 210+ premium skins including Kuronami Vandal, Reaver Vandal, Prime Phantom, and Glitchpop Dagger. 100% lifetime recovery guarantee by VIB Digital Services.',
+      4999,
+      'Immortal 1',
+      'Immortal 3',
+      210,
+      'AP / Mumbai',
+      42,
+      6,
+      1,
+      'platinum',
+      new Date(Date.now() + 86400000 * 28).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card1_omen.jpg']),
+      JSON.stringify(['Kuronami Vandal', 'Reaver Vandal', 'Prime Phantom', 'Glitchpop Dagger']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_radiant_singularity',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Radiant Singularity & Champions Vault',
+      'High-tier full access profile with Singularity Phantom, Champions 2023 Vandal, Araxys Operator, and Ignite Fan. Zero bans, active MMR, Mumbai and Singapore low-ping servers.',
+      12499,
+      'Radiant',
+      'Radiant',
+      350,
+      'AP / Mumbai',
+      88,
+      12,
+      1,
+      'gold',
+      new Date(Date.now() + 86400000 * 12).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card3_phoenix.jpg']),
+      JSON.stringify(['Singularity Phantom', 'Champions 2023 Vandal', 'Araxys Operator', 'Ignite Fan']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_ascendant_prime',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'community',
+      'escrow_protected',
+      'Ascendant 3 Prime & Araxys Collection',
+      'Clean competitive account with Prime Vandal, Araxys Vandal, Magepunk Ghost, and Oni Phantom. Verified through VIB Escrow Middleman Desk. Inquiry-based inspection welcome.',
+      3999,
+      'Ascendant 3',
+      'Immortal 1',
+      120,
+      'AP / Mumbai',
+      24,
+      3,
+      0,
+      'none',
+      null,
+      JSON.stringify(['/assets/hires/profiles/card2_reyna.jpg']),
+      JSON.stringify(['Prime Vandal', 'Araxys Vandal', 'Magepunk Ghost', 'Oni Phantom']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_diamond_daily',
+      'usr_customer_04',
+      'Alex Mercer',
+      'community',
+      'escrow_protected',
+      'Diamond 2 Clean Battlepass + Reaver Account',
+      'Personal account, never shared or smurfed on. Includes Reaver Vandal, Sovereign Sword, and EP 7/8 Battlepasses completed. Fast escrow release.',
+      2499,
+      'Diamond 2',
+      'Diamond 3',
+      85,
+      'AP / Mumbai',
+      14,
+      2,
+      0,
+      'none',
+      null,
+      JSON.stringify(['/assets/hires/profiles/card4_viper.jpg']),
+      JSON.stringify(['Reaver Vandal', 'Sovereign Sword']),
+      'thevibofficial@gmail.com',
       now,
       now
     );

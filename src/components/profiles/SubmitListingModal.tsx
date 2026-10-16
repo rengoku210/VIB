@@ -1,0 +1,442 @@
+import React, { useState } from 'react';
+import {
+  X,
+  Upload,
+  Sparkles,
+  ShieldCheck,
+  Check,
+  AlertCircle,
+  Tag,
+  DollarSign,
+  Award,
+  Plus,
+  Loader2,
+  Trash2
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { SkinSelectorModal } from '../skins/SkinSelectorModal';
+
+interface SubmitListingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+}) => {
+  const { user, token } = useAuth();
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priceINR, setPriceINR] = useState<number | ''>('');
+  const [rank, setRank] = useState('Diamond 1');
+  const [peakRank, setPeakRank] = useState('Diamond 3');
+  const [level, setLevel] = useState<number | ''>(120);
+  const [region, setRegion] = useState('AP / Mumbai');
+  const [knifeCount, setKnifeCount] = useState<number | ''>(2);
+  const [selectedSkins, setSelectedSkins] = useState<string[]>([]);
+  const [vipPlan, setVipPlan] = useState<'none' | 'silver' | 'gold' | 'platinum'>('none');
+  const [imageUrl, setImageUrl] = useState('');
+
+  const [showSkinSelector, setShowSkinSelector] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const ranks = [
+    'Radiant',
+    'Immortal 3',
+    'Immortal 2',
+    'Immortal 1',
+    'Ascendant 3',
+    'Ascendant 2',
+    'Ascendant 1',
+    'Diamond 3',
+    'Diamond 2',
+    'Diamond 1',
+    'Platinum 3',
+    'Platinum 2',
+    'Platinum 1',
+    'Gold 3',
+    'Gold 2',
+    'Gold 1',
+    'Silver 3',
+    'Silver 2',
+    'Silver 1',
+    'Bronze 3',
+    'Iron 3'
+  ];
+
+  const regions = [
+    'AP / Mumbai',
+    'Philippines (PHP)',
+    'Indonesia (IDR)',
+    'Malaysia (MYR)',
+    'Europe (EU)',
+    'North America (NA)'
+  ];
+
+  const handleSubmit = async (submitForReview: boolean) => {
+    if (!title.trim()) {
+      setError('Listing title is required.');
+      return;
+    }
+    if (!priceINR || Number(priceINR) <= 0) {
+      setError('Please provide a valid asking price in INR.');
+      return;
+    }
+    if (!token) {
+      setError('You must be signed in to submit an account listing.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/user/listings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          price_inr: Number(priceINR),
+          rank,
+          peak_rank: peakRank,
+          level: Number(level) || 1,
+          region,
+          skin_count: selectedSkins.length,
+          knife_count: Number(knifeCount) || 0,
+          vip_plan: vipPlan,
+          images: imageUrl.trim() ? [imageUrl.trim()] : ['/assets/hires/profiles/card1_omen.jpg'],
+          skins: selectedSkins,
+          submitForReview
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        setError(errData?.error || 'Failed to submit listing.');
+        return;
+      }
+
+      setSuccessMsg(
+        submitForReview
+          ? 'Listing submitted successfully! Our compliance desk will review and publish it.'
+          : 'Listing draft saved successfully.'
+      );
+
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+        onClose();
+      }, 1500);
+    } catch {
+      setError('Network communication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveSkin = (skinName: string) => {
+    setSelectedSkins((prev) => prev.filter((s) => s !== skinName));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="submit-listing-heading"
+        className="relative w-full max-w-2xl rounded-2xl bg-[#0a0c16] border border-purple-500/30 p-6 sm:p-8 shadow-2xl my-8 text-white space-y-6"
+      >
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+              <Tag className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 id="submit-listing-heading" className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
+                Sell Your Valorant Account
+              </h3>
+              <p className="text-xs text-gray-400 font-mono">
+                Official VIB Escrow Middleman Marketplace listing portal
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close submit listing modal"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* Listing Form Fields */}
+        <div className="space-y-4 text-xs font-rajdhani">
+          {/* Title */}
+          <div>
+            <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+              Listing Title *
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Immortal 2 • Kuronami Vandal + Reaver Karambit"
+              className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white font-sans text-xs focus:ring-2 focus:ring-purple-400"
+            />
+          </div>
+
+          {/* Ranks & Level Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Current Rank *
+              </label>
+              <select
+                value={rank}
+                onChange={(e) => setRank(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:ring-2 focus:ring-purple-400"
+              >
+                {ranks.map((r) => (
+                  <option key={r} value={r} className="bg-[#0b1018]">{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Peak Rank
+              </label>
+              <select
+                value={peakRank}
+                onChange={(e) => setPeakRank(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:ring-2 focus:ring-purple-400"
+              >
+                {ranks.map((r) => (
+                  <option key={r} value={r} className="bg-[#0b1018]">{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Account Level
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={level}
+                onChange={(e) => setLevel(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="120"
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+          </div>
+
+          {/* Region, Price & Knives Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Server Region *
+              </label>
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:ring-2 focus:ring-purple-400"
+              >
+                {regions.map((reg) => (
+                  <option key={reg} value={reg} className="bg-[#0b1018]">{reg}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Asking Price (INR) *
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={priceINR}
+                onChange={(e) => setPriceINR(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="4999"
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+                Knife / Melee Count
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={knifeCount}
+                onChange={(e) => setKnifeCount(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="2"
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+          </div>
+
+          {/* Skin Inventory Selection Section */}
+          <div className="p-4 rounded-xl bg-black/30 border border-white/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-bold text-white text-xs uppercase tracking-wide">
+                  Skin Inventory ({selectedSkins.length} Included)
+                </div>
+                <div className="text-[11px] text-gray-400 font-sans">
+                  Select premium Valorant weapon skins from our official verified catalog.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSkinSelector(true)}
+                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 border border-purple-500/40 text-purple-200 text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Select Skins</span>
+              </button>
+            </div>
+
+            {selectedSkins.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 pt-2">
+                {selectedSkins.map((skin) => (
+                  <span
+                    key={skin}
+                    className="px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 text-[11px] font-mono text-purple-200 flex items-center gap-1.5"
+                  >
+                    <span>{skin}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkin(skin)}
+                      className="text-gray-400 hover:text-rose-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-gray-500 italic py-1 font-sans">
+                No skins added yet. Click &quot;Select Skins&quot; to pick from catalog.
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
+              Account Description / Features
+            </label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Battlepass completed EP 7 & 8, all agents unlocked, prime match verified, low ping AP servers."
+              className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-sans text-xs focus:ring-2 focus:ring-purple-400"
+            />
+          </div>
+
+          {/* Promotional VIP Plan Choice */}
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+            <div className="font-bold text-white text-xs uppercase tracking-wide flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Promotional VIP Plan (Optional)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+              <label className={`p-2.5 rounded-lg border cursor-pointer flex flex-col justify-between ${vipPlan === 'none' ? 'bg-purple-950/40 border-purple-500' : 'bg-black/30 border-white/5'}`}>
+                <input type="radio" name="vipPlan" checked={vipPlan === 'none'} onChange={() => setVipPlan('none')} className="sr-only" />
+                <span className="font-bold text-gray-200">Standard</span>
+                <span className="text-[10px] text-gray-400 font-mono">Free • Normal Queue</span>
+              </label>
+
+              <label className={`p-2.5 rounded-lg border cursor-pointer flex flex-col justify-between ${vipPlan === 'silver' ? 'bg-purple-950/40 border-purple-500' : 'bg-black/30 border-white/5'}`}>
+                <input type="radio" name="vipPlan" checked={vipPlan === 'silver'} onChange={() => setVipPlan('silver')} className="sr-only" />
+                <span className="font-bold text-gray-200">Silver VIP</span>
+                <span className="text-[10px] text-amber-300 font-mono">₹499 • 7 Days Featured</span>
+              </label>
+
+              <label className={`p-2.5 rounded-lg border cursor-pointer flex flex-col justify-between ${vipPlan === 'gold' ? 'bg-purple-950/40 border-purple-500' : 'bg-black/30 border-white/5'}`}>
+                <input type="radio" name="vipPlan" checked={vipPlan === 'gold'} onChange={() => setVipPlan('gold')} className="sr-only" />
+                <span className="font-bold text-gray-200">Gold High-Impact</span>
+                <span className="text-[10px] text-amber-300 font-mono">₹899 • 14 Days Top</span>
+              </label>
+
+              <label className={`p-2.5 rounded-lg border cursor-pointer flex flex-col justify-between ${vipPlan === 'platinum' ? 'bg-purple-950/40 border-purple-500' : 'bg-black/30 border-white/5'}`}>
+                <input type="radio" name="vipPlan" checked={vipPlan === 'platinum'} onChange={() => setVipPlan('platinum')} className="sr-only" />
+                <span className="font-bold text-gray-200">Spotlight Pro</span>
+                <span className="text-[10px] text-amber-300 font-mono">₹1,499 • 30 Days Home</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Actions */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10">
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            <ShieldCheck className="w-4 h-4 text-purple-400" />
+            <span>Escrow middleman protection included</span>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleSubmit(false)}
+              className="flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-rajdhani uppercase text-xs transition-colors cursor-pointer"
+            >
+              Save Draft
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleSubmit(true)}
+              className="flex-1 sm:flex-none min-h-[44px] px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold font-rajdhani uppercase text-sm shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              <span>Submit for Verification</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Embedded Skin Selector Modal */}
+      <SkinSelectorModal
+        isOpen={showSkinSelector}
+        onClose={() => setShowSkinSelector(false)}
+        selectedSkins={selectedSkins}
+        onConfirmSelection={(skins) => setSelectedSkins(skins)}
+      />
+    </div>
+  );
+};

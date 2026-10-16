@@ -29,8 +29,14 @@ import {
   Flag,
   DollarSign,
   Eye,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { AdminPaymentSettings } from './AdminPaymentSettings';
+import { AdminIndianVPInventory } from './AdminIndianVPInventory';
+import { AdminRegionalOrders } from './AdminRegionalOrders';
+import { AdminListingsModeration } from './AdminListingsModeration';
+import { AdminEmailLogs } from './AdminEmailLogs';
 
 interface AdminDashboardProps {
   onNavigate: (page: string) => void;
@@ -38,6 +44,11 @@ interface AdminDashboardProps {
 
 type AdminTab =
   | 'metrics'
+  | 'payment_verification'
+  | 'indian_vp'
+  | 'regional_orders'
+  | 'listings_review'
+  | 'email_logs'
   | 'users'
   | 'orders'
   | 'transactions'
@@ -518,6 +529,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
           <button
             type="button"
+            onClick={() => setActiveTab('payment_verification')}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'payment_verification'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Payment Verifications &amp; QR</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('indian_vp')}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'indian_vp'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>Indian VP Vault</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('regional_orders')}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'regional_orders'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Regional Orders (WhatsApp)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('listings_review')}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'listings_review'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Listings Review</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('email_logs')}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'email_logs'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Mail className="w-4 h-4" />
+            <span>Email Logs</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('users')}
             className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'users'
@@ -680,6 +756,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
         )}
+
+        {/* ============================================================== */}
+        {/* PAYMENT VERIFICATION & MANUAL QR SETTINGS                     */}
+        {/* ============================================================== */}
+        {activeTab === 'payment_verification' && <AdminPaymentSettings />}
+
+        {/* ============================================================== */}
+        {/* INDIAN VP VAULT & AUTOMATED CODE INVENTORY                    */}
+        {/* ============================================================== */}
+        {activeTab === 'indian_vp' && <AdminIndianVPInventory />}
+
+        {/* ============================================================== */}
+        {/* REGIONAL / PHP ORDERS (MANUAL WHATSAPP FULFILLMENT)           */}
+        {/* ============================================================== */}
+        {activeTab === 'regional_orders' && <AdminRegionalOrders />}
+
+        {/* ============================================================== */}
+        {/* COMMUNITY ACCOUNT LISTINGS MODERATION QUEUE                   */}
+        {/* ============================================================== */}
+        {activeTab === 'listings_review' && <AdminListingsModeration />}
+
+        {/* ============================================================== */}
+        {/* AUTOMATED EMAIL LOGS & OUTBOUND DISPATCH AUDIT               */}
+        {/* ============================================================== */}
+        {activeTab === 'email_logs' && <AdminEmailLogs />}
 
         {/* ============================================================== */}
         {/* TAB 2: USERS MANAGEMENT & CRM INSPECTION                       */}

@@ -15,10 +15,11 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
+import { OrderTrackingModal } from './components/orders/OrderTrackingModal';
 import { DiscordModal } from './components/home/DiscordModal';
 import { EscrowModal } from './components/home/EscrowModal';
 import { VP_PACKAGES } from './data/packages';
-import { Currency, CartItem } from './types';
+import { Currency, CartItem, VPPackage } from './types';
 import { soundFx } from './utils/audio';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -80,8 +81,25 @@ function AppContent() {
       } else {
         setCurrentPage('home');
       }
+
+      const trackId = params.get('orderId') || params.get('track');
+      if (trackId) {
+        setTrackingOrderId(trackId);
+        setIsTrackingOpen(true);
+      }
     };
     window.addEventListener('popstate', onPopState);
+
+    // Initial query check for tracking
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const trackId = params.get('orderId') || params.get('track');
+      if (trackId) {
+        setTrackingOrderId(trackId);
+        setIsTrackingOpen(true);
+      }
+    } catch {}
+
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
@@ -108,6 +126,14 @@ function AppContent() {
   >(undefined);
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  const [trackingOrderId, setTrackingOrderId] = useState('');
+
+  const handleOpenTracking = (orderId?: string) => {
+    soundFx.playClickSound();
+    setTrackingOrderId(orderId || '');
+    setIsTrackingOpen(true);
+  };
 
   const handleAddToCart = (item: CartItem) => {
     soundFx.playClickSound();
@@ -214,6 +240,7 @@ function AppContent() {
           setSearchQuery(q);
           handleNavigate('profiles');
         }}
+        onOpenTracking={handleOpenTracking}
       />
 
       {/* Main Page Content */}
@@ -301,6 +328,7 @@ function AppContent() {
             currency={currency}
             onNavigate={(p) => handleNavigate(p as ClientPage)}
             onOpenCheckout={handleOpenCustomCheckout}
+            onOpenTracking={handleOpenTracking}
           />
         )}
 
@@ -312,7 +340,7 @@ function AppContent() {
       </main>
 
       {/* Client Footer */}
-      <Footer onNavigate={handleNavigate} />
+      <Footer onNavigate={handleNavigate} onOpenTracking={handleOpenTracking} />
 
       {/* Slide-over Shopping Cart Drawer */}
       <CartDrawer
@@ -336,6 +364,17 @@ function AppContent() {
         pkg={checkoutPackage || undefined}
         customItem={checkoutCustomItem}
         currency={currency}
+        onTrackOrder={handleOpenTracking}
+      />
+
+      {/* Live Order Tracking Modal (Persistent Escrow & Genuine VP Delivery) */}
+      <OrderTrackingModal
+        isOpen={isTrackingOpen}
+        onClose={() => {
+          setIsTrackingOpen(false);
+          setTrackingOrderId('');
+        }}
+        orderId={trackingOrderId}
       />
 
       {/* Authentication Modal (Login / Sign Up / Forgot Password) */}
