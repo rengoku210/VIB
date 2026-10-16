@@ -418,6 +418,133 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
   }
 });
 
+// 2b. Firebase Authentication & Google Login Bridge
+app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
+  try {
+    const { email, name, photoURL, avatar, uid, idToken } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: 'Valid email is required from Firebase authentication.' });
+      return;
+    }
+
+    const emailTrimmed = String(email).trim().toLowerCase();
+    const displayName = String(name || emailTrimmed.split('@')[0]).trim();
+    const resolvedAvatar = photoURL || avatar || null;
+    const now = new Date().toISOString();
+
+    // Check if user already exists
+    let userRow = db.prepare(`
+      SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified, u.auth_provider,
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      WHERE u.email = ?
+    `).get(emailTrimmed) as any;
+
+    let userId: string;
+
+    if (userRow) {
+      userId = userRow.id;
+
+      if (userRow.status === 'banned') {
+        res.status(403).json({ error: 'This account has been banned due to policy violation.' });
+        return;
+      }
+      if (userRow.status === 'suspended') {
+        res.status(403).json({ error: 'This account is currently suspended. Please contact customer support.' });
+        return;
+      }
+
+      // Update firebase_uid and avatar if available
+      try {
+        db.prepare('UPDATE users SET firebase_uid = COALESCE(?, firebase_uid), email_verified = 1, updated_at = ? WHERE id = ?')
+          .run(uid || null, now, userId);
+      } catch {}
+
+      if (resolvedAvatar) {
+        try {
+          db.prepare('UPDATE profiles SET avatar = ? WHERE user_id = ?').run(resolvedAvatar, userId);
+          userRow.avatar = resolvedAvatar;
+        } catch {}
+      }
+    } else {
+      // Provision new user from Google/Firebase
+      userId = 'usr_' + crypto.randomBytes(8).toString('hex');
+      const randomPassword = crypto.randomBytes(32).toString('hex');
+      const { hash, salt } = hashPassword(randomPassword);
+
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, salt, name, role, status, email_verified, firebase_uid, auth_provider, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'user', 'active', 1, ?, 'google', ?, ?)
+      `).run(
+        userId,
+        emailTrimmed,
+        hash,
+        salt,
+        displayName,
+        uid || null,
+        now,
+        now
+      );
+
+      db.prepare(`
+        INSERT INTO profiles (user_id, bio, avatar, discord_tag, wallet_balance, kyc_status, total_orders, created_at)
+        VALUES (?, 'Competitive Valorant Enthusiast', ?, NULL, 0.0, 'unverified', 0, ?)
+      `).run(
+        userId,
+        resolvedAvatar || null,
+        now
+      );
+
+      // Re-query newly created user by ID
+      userRow = db.prepare(`
+        SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified, u.auth_provider,
+               p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+        FROM users u
+        LEFT JOIN profiles p ON u.id = p.user_id
+        WHERE u.id = ?
+      `).get(userId) as any;
+    }
+
+    // Generate Session Token
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO sessions (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, userId, expiresAt, now);
+
+    logAudit(userId, userRow.name, 'FIREBASE_GOOGLE_LOGIN', 'session', token, { email: emailTrimmed, provider: 'google' }, req.ip || '127.0.0.1');
+
+    res.json({
+      message: 'Firebase Google authentication successful.',
+      token,
+      user: {
+        id: userRow.id,
+        email: userRow.email,
+        name: userRow.name,
+        phone: userRow.phone,
+        riot_id: userRow.riot_id,
+        role: userRow.role,
+        status: userRow.status,
+        email_verified: userRow.email_verified,
+        auth_provider: userRow.auth_provider || 'google',
+        bio: userRow.bio,
+        avatar: userRow.avatar || resolvedAvatar,
+        discord_tag: userRow.discord_tag,
+        wallet_balance: userRow.wallet_balance || 0,
+        kyc_status: userRow.kyc_status || 'unverified',
+        total_orders: userRow.total_orders || 0
+      }
+    });
+  } catch (err: any) {
+    console.error('Firebase login error:', err);
+    res.status(500).json({ error: 'Server error during Firebase authentication.' });
+  }
+});
+
 // 3. Logout
 app.post('/api/auth/logout', authenticate, (req: AuthRequest, res: Response): void => {
   try {

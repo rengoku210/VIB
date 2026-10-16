@@ -129,6 +129,67 @@ async function runTestSuite() {
     assert(noAuthMe.status === 401, 'Phase 3: Session Management', 'Unauthenticated request to /api/auth/me rejected with 401');
   }
 
+  // 3.5 FIREBASE GOOGLE AUTHENTICATION INTEGRATION
+  {
+    // Test 3.5.1: Missing email rejected
+    const badFirebase = await request('/api/auth/firebase-login', {
+      method: 'POST',
+      body: JSON.stringify({ uid: 'firebase_test_123' }),
+    });
+    assert(badFirebase.status === 400, 'Phase 3.5: Firebase Google Auth', 'Missing email in Firebase login rejected with 400 Bad Request');
+
+    // Test 3.5.2: Existing user Google Auth linking
+    const existingGoogle = await request('/api/auth/firebase-login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: testEmail,
+        name: 'Alex Phantom Google Linked',
+        uid: 'firebase_test_uid_999',
+        avatar: 'https://lh3.googleusercontent.com/a/test-avatar-999',
+      }),
+    });
+    assert(
+      existingGoogle.status === 200 &&
+      existingGoogle.data?.token &&
+      existingGoogle.data?.user?.email === testEmail &&
+      existingGoogle.data?.user?.avatar?.includes('googleusercontent.com'),
+      'Phase 3.5: Firebase Google Auth',
+      'Firebase Google Sign-In links existing user, updates avatar, and returns valid session token'
+    );
+
+    // Test 3.5.3: New user Google Auth auto-provisioning
+    const newGoogleEmail = `new_google_${Date.now()}@gmail.com`;
+    const newGoogle = await request('/api/auth/firebase-login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: newGoogleEmail,
+        name: 'Google Newcomer',
+        uid: `firebase_uid_${Date.now()}`,
+        avatar: 'https://lh3.googleusercontent.com/a/newcomer-photo',
+      }),
+    });
+    assert(
+      newGoogle.status === 200 &&
+      newGoogle.data?.token &&
+      newGoogle.data?.user?.email === newGoogleEmail &&
+      newGoogle.data?.user?.role === 'user' &&
+      newGoogle.data?.user?.auth_provider === 'google',
+      'Phase 3.5: Firebase Google Auth',
+      'Firebase Google Sign-In provisions new user with google provider, role user, and valid session token'
+    );
+
+    // Test 3.5.4: Me endpoint validates session issued by Firebase login
+    const firebaseMeRes = await request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${newGoogle.data?.token}` },
+    });
+    assert(
+      firebaseMeRes.status === 200 &&
+      firebaseMeRes.data?.user?.email === newGoogleEmail,
+      'Phase 3.5: Firebase Google Auth',
+      'Session token from Firebase login authenticates through /api/auth/me RBAC'
+    );
+  }
+
   // 4. USER DASHBOARD & CUSTOMER WORKFLOWS (Phase 4 & 5)
   let testOrderId = '';
   {

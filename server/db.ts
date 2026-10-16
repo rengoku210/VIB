@@ -225,6 +225,14 @@ db.exec(`
   );
 `);
 
+// Safe column migrations
+try {
+  db.exec('ALTER TABLE users ADD COLUMN firebase_uid TEXT');
+} catch {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'");
+} catch {}
+
 // Password hashing utility using scrypt
 export function hashPassword(password: string): { hash: string; salt: string } {
   const salt = crypto.randomBytes(16).toString('hex');

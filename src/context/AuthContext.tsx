@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  signInWithGooglePopup,
+  sendFirebasePasswordReset,
+  firebaseSignOut,
+} from '../lib/firebase';
 
 export interface User {
   id: string;
@@ -31,7 +36,9 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   refreshUser: () => Promise<void>;
@@ -165,8 +172,92 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Firebase Google Login handler
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    setError(null);
+    try {
+      const googleResult = await signInWithGooglePopup();
+      if (!googleResult.email) {
+        throw new Error('Google account did not return a valid email address.');
+      }
+
+      const res = await fetch('/api/auth/firebase-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: googleResult.email,
+          name: googleResult.displayName,
+          photoURL: googleResult.photoURL,
+          uid: googleResult.uid,
+          idToken: googleResult.idToken,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errMessage = data.error || 'Google login failed.';
+        setError(errMessage);
+        return { success: false, error: errMessage };
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setToken(data.token);
+      setUser(data.user);
+      closeAuthModal();
+      return { success: true };
+    } catch (err: any) {
+      console.error('[Google Login Error]:', err);
+      let errMessage = err?.message || 'Google authentication was cancelled or failed.';
+      if (err?.code === 'auth/popup-closed-by-user') {
+        errMessage = 'Google Sign-In popup was closed before completion.';
+      } else if (err?.code === 'auth/popup-blocked') {
+        errMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site.';
+      } else if (err?.code === 'auth/cancelled-popup-request') {
+        errMessage = 'Previous sign-in request was cancelled.';
+      }
+      setError(errMessage);
+      return { success: false, error: errMessage };
+    }
+  };
+
+  // Password Reset handler (Firebase + Local fallback)
+  const resetPassword = async (resetEmail: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    setError(null);
+    try {
+      // 1. Try Firebase password reset email
+      try {
+        await sendFirebasePasswordReset(resetEmail);
+      } catch (fbErr) {
+        console.warn('[Firebase Reset Warning]:', fbErr);
+      }
+
+      // 2. Also register reset token on backend
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await res.json();
+      return {
+        success: true,
+        message: data.message || 'Password reset instructions have been dispatched.',
+      };
+    } catch (err: any) {
+      const errMessage = err?.message || 'Failed to dispatch password reset.';
+      setError(errMessage);
+      return { success: false, error: errMessage };
+    }
+  };
+
   // Logout handler
   const logout = async (): Promise<void> => {
+    try {
+      await firebaseSignOut();
+    } catch (fbErr) {
+      console.warn('Firebase signout warning:', fbErr);
+    }
+
     if (token) {
       try {
         await fetch('/api/auth/logout', {
@@ -215,7 +306,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loading,
         error,
         login,
+        loginWithGoogle,
         register,
+        resetPassword,
         logout,
         updateProfile,
         refreshUser,
