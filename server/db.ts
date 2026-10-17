@@ -1011,36 +1011,202 @@ export function seedCatalogAndBilling() {
     }
   }
 
-  // 10. Seed Real Valorant Skin Catalog if empty
-  const skinCount = (db.prepare('SELECT COUNT(*) as count FROM skins').get() as any).count;
-  if (skinCount === 0) {
-    console.log('[Database] Seeding Valorant skin catalog...');
-    const insertSkin = db.prepare(`
-      INSERT INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-    `);
+  // 10. Seed Authentic Valorant Skin Catalog with Official Riot Assets
+  console.log('[Database] Checking & Updating Valorant skin catalog with official Riot API assets...');
+  const insertOrUpdateSkin = db.prepare(`
+    INSERT INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      image_url = excluded.image_url,
+      video_url = excluded.video_url,
+      variants_json = excluded.variants_json
+  `);
 
-    const skinsList = [
-      { id: 'sk_kuronami_vandal', name: 'Kuronami Vandal', weapon: 'Vandal', collection: 'Kuronami', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: 'https://assets.mixkit.co/videos/preview/mixkit-futuristic-laser-weapon-charging-animation-41484-large.mp4', variants: ['Default (Black/Cyan)', 'Purple', 'White', 'Black'] },
-      { id: 'sk_reaver_vandal', name: 'Reaver Vandal', weapon: 'Vandal', collection: 'Reaver', tier: 'Premium', image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Purple)', 'Red', 'Black', 'White'] },
-      { id: 'sk_prime_vandal', name: 'Prime Vandal', weapon: 'Vandal', collection: 'Prime', tier: 'Premium', image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Gold/White)', 'Orange', 'Blue', 'Yellow'] },
-      { id: 'sk_rgx_vandal', name: 'RGX 11z Pro Vandal', weapon: 'Vandal', collection: 'RGX 11z Pro', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Green LED', 'Red LED', 'Blue LED', 'Yellow LED'] },
-      { id: 'sk_araxys_vandal', name: 'Araxys Vandal', weapon: 'Vandal', collection: 'Araxys', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Purple', 'Black', 'Silver'] },
-      { id: 'sk_prime_phantom', name: 'Prime 2.0 Phantom', weapon: 'Phantom', collection: 'Prime', tier: 'Premium', image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Gold', 'Green', 'Cyan'] },
-      { id: 'sk_oni_phantom', name: 'Oni Phantom', weapon: 'Phantom', collection: 'Oni', tier: 'Premium', image: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Red)', 'Black/Gold', 'Green', 'White'] },
-      { id: 'sk_recon_phantom', name: 'Recon Phantom', weapon: 'Phantom', collection: 'Recon', tier: 'Premium', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Military Camo', 'Desert', 'Naval', 'Red Camo'] },
-      { id: 'sk_singularity_phantom', name: 'Singularity Phantom', weapon: 'Phantom', collection: 'Singularity', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Dark Purple)', 'Blue', 'Red', 'Gold'] },
-      { id: 'sk_araxys_op', name: 'Araxys Operator', weapon: 'Operator', collection: 'Araxys', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default', 'Purple', 'Black', 'Silver'] },
-      { id: 'sk_kuronami_knife', name: 'Kuronami No Yaiba', weapon: 'Melee', collection: 'Kuronami', tier: 'Ultra', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Chained Kunai)', 'Purple', 'White', 'Black'] },
-      { id: 'sk_reaver_karambit', name: 'Reaver Karambit', weapon: 'Melee', collection: 'Reaver', tier: 'Ultra', image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Default (Dark Violet)', 'Crimson', 'Onyx', 'White'] },
-      { id: 'sk_xenohunter_knife', name: 'Xenohunter Knife', weapon: 'Melee', collection: 'Xenohunter', tier: 'Premium', image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Tactical Finish'] },
-      { id: 'sk_sovereign_ghost', name: 'Sovereign Ghost', weapon: 'Ghost', collection: 'Sovereign', tier: 'Premium', image: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Gold/White', 'Silver', 'Purple', 'Black'] },
-      { id: 'sk_neo_frontier_sheriff', name: 'Neo Frontier Sheriff', weapon: 'Sheriff', collection: 'Neo Frontier', tier: 'Exclusive', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80', video: '', variants: ['Old West (Wood)', 'Gold', 'Silver', 'Copper'] },
-    ];
-
-    for (const s of skinsList) {
-      insertSkin.run(s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now);
+  const skinsList = [
+    {
+      id: 'sk_kuronami_vandal',
+      name: 'Kuronami Vandal',
+      weapon: 'Vandal',
+      collection: 'Kuronami',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/d8d5d7a1-4d81-8560-54bc-0692ab40f69b/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/f31888a6-470e-5d91-eff2-5ba6cd4ea087_default_universal.mp4',
+      variants: ['Default (Black/Cyan)', 'Purple', 'White', 'Black']
+    },
+    {
+      id: 'sk_reaver_vandal',
+      name: 'Reaver Vandal',
+      weapon: 'Vandal',
+      collection: 'Reaver',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/30388628-42f0-606c-82c0-73ad43de997f/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/d262fccc-465a-2da6-74ac-049ef3b3f759_default_universal.mp4',
+      variants: ['Default (Purple)', 'Red', 'Black', 'White']
+    },
+    {
+      id: 'sk_prime_vandal',
+      name: 'Prime Vandal',
+      weapon: 'Vandal',
+      collection: 'Prime',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/b9ee2457-481c-6776-3f5b-0ca8e8f90c89/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/97f7aa62-ede2-4e34-b5f8-efa798be6e86_default_universal.mp4',
+      variants: ['Default (Gold/White)', 'Orange', 'Blue', 'Yellow']
+    },
+    {
+      id: 'sk_rgx_vandal',
+      name: 'RGX 11z Pro Vandal',
+      weapon: 'Vandal',
+      collection: 'RGX 11z Pro',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/60b64d4c-4735-a6e5-eb65-4f81512dbb8b/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/fcfafe72-4d0a-6668-cb07-169f44fa738f_default_universal.mp4',
+      variants: ['Green LED', 'Red LED', 'Blue LED', 'Yellow LED']
+    },
+    {
+      id: 'sk_araxys_vandal',
+      name: 'Araxys Vandal',
+      weapon: 'Vandal',
+      collection: 'Araxys',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/4c926aa9-4f26-bc80-c486-9b888333373f/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/fd6d375d-49a9-4b51-9f2a-ef8a30585b54_default_universal.mp4',
+      variants: ['Default', 'Purple', 'Black', 'Silver']
+    },
+    {
+      id: 'sk_prime_phantom',
+      name: 'Prime 2.0 Phantom',
+      weapon: 'Phantom',
+      collection: 'Prime',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/dbff6420-4357-36e2-fc06-53a57e3f8a00/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/cdbb49ff-410a-37e4-23be-91bc7f893e49_default_universal.mp4',
+      variants: ['Default', 'Gold', 'Green', 'Cyan']
+    },
+    {
+      id: 'sk_oni_phantom',
+      name: 'Oni Phantom',
+      weapon: 'Phantom',
+      collection: 'Oni',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/36791b03-452d-8dad-0091-898cc28d2196/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/23694a4e-4f34-1ba5-d649-dc9a09880d18_default_universal.mp4',
+      variants: ['Default (Red)', 'Black/Gold', 'Green', 'White']
+    },
+    {
+      id: 'sk_recon_phantom',
+      name: 'Recon Phantom',
+      weapon: 'Phantom',
+      collection: 'Recon',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/75949175-4007-aa31-158a-f5bb736ce156/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/6c85779c-497d-66e8-2321-7fa8814777c5_default_universal.mp4',
+      variants: ['Military Camo', 'Desert', 'Naval', 'Red Camo']
+    },
+    {
+      id: 'sk_singularity_phantom',
+      name: 'Singularity Phantom',
+      weapon: 'Phantom',
+      collection: 'Singularity',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/5eec4ce6-443d-e9b5-4c5b-2b967d426bd3/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/477a5c0e-4f50-1eac-ea13-ef85fd1b77d1_default_universal.mp4',
+      variants: ['Default (Dark Purple)', 'Blue', 'Red', 'Gold']
+    },
+    {
+      id: 'sk_araxys_op',
+      name: 'Araxys Operator',
+      weapon: 'Operator',
+      collection: 'Araxys',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/f4a0c841-477b-6893-6b3a-8b8a5369680d/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/d5ba7310-410e-a61d-6161-0aa02525167f_default_universal.mp4',
+      variants: ['Default', 'Purple', 'Black', 'Silver']
+    },
+    {
+      id: 'sk_kuronami_knife',
+      name: 'Kuronami No Yaiba',
+      weapon: 'Melee',
+      collection: 'Kuronami',
+      tier: 'Ultra',
+      image: 'https://media.valorant-api.com/weaponskins/ec5cae00-47b2-039c-722a-f1bc6dc2d8a2/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/40a0c4f8-4339-bb76-261d-389f53e6b7fc_default_universal.mp4',
+      variants: ['Default (Chained Kunai)', 'Purple', 'White', 'Black']
+    },
+    {
+      id: 'sk_reaver_karambit',
+      name: 'Reaver Karambit',
+      weapon: 'Melee',
+      collection: 'Reaver',
+      tier: 'Ultra',
+      image: 'https://media.valorant-api.com/weaponskins/5fa8669c-4ec7-b8db-dc53-c98dbfa83313/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/40a0c4f8-4339-bb76-261d-389f53e6b7fc_default_universal.mp4',
+      variants: ['Default (Dark Violet)', 'Crimson', 'Onyx', 'White']
+    },
+    {
+      id: 'sk_xenohunter_knife',
+      name: 'Xenohunter Knife',
+      weapon: 'Melee',
+      collection: 'Xenohunter',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/c3295966-4191-c91d-0453-298fefdb1ffb/displayicon.png',
+      video: null,
+      variants: ['Tactical Finish']
+    },
+    {
+      id: 'sk_sovereign_ghost',
+      name: 'Sovereign Ghost',
+      weapon: 'Ghost',
+      collection: 'Sovereign',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/18ea862e-4b67-d648-5c1a-ee835b866c1f/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/0cf74ecf-4bf1-6d75-5381-eeb7a5e88439_default_universal.mp4',
+      variants: ['Gold/White', 'Silver', 'Purple', 'Black']
+    },
+    {
+      id: 'sk_neo_frontier_sheriff',
+      name: 'Neo Frontier Sheriff',
+      weapon: 'Sheriff',
+      collection: 'Neo Frontier',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/875080e2-45e3-a602-5c02-e88383e74b5c/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/e758dae2-41ba-73f1-28fe-bfaf64205562_default_universal.mp4',
+      variants: ['Old West (Wood)', 'Gold', 'Silver', 'Copper']
+    },
+    {
+      id: 'sk_glitchpop_dagger',
+      name: 'Glitchpop Dagger',
+      weapon: 'Melee',
+      collection: 'Glitchpop',
+      tier: 'Exclusive',
+      image: 'https://media.valorant-api.com/weaponskins/eeadba94-4d6b-5ef6-d4f1-6782ff77ce9d/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/38a0f2b3-4674-8859-9943-7f9cb8f9d0c6_default_universal.mp4',
+      variants: ['Cyberpunk Original']
+    },
+    {
+      id: 'sk_champions_2023_vandal',
+      name: 'Champions 2023 Vandal',
+      weapon: 'Vandal',
+      collection: 'Champions',
+      tier: 'Ultra',
+      image: 'https://media.valorant-api.com/weaponskins/d2f623ea-44a5-be23-3b2a-14ad7a35e7df/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/23fa2d7d-41a4-9e8c-eec4-d698184f47dc_default_universal.mp4',
+      variants: ['Gold Glow']
+    },
+    {
+      id: 'sk_magepunk_ghost',
+      name: 'Magepunk Ghost',
+      weapon: 'Ghost',
+      collection: 'Magepunk',
+      tier: 'Premium',
+      image: 'https://media.valorant-api.com/weaponskins/a14589d8-4f05-0219-c6e7-138383a15234/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/bb9a8e0f-48d0-e14b-252a-9ca86810a9cf_default_universal.mp4',
+      variants: ['Default (Blue Arc)', 'Green', 'Purple', 'Orange']
     }
+  ];
+
+  for (const s of skinsList) {
+    insertOrUpdateSkin.run(s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now);
   }
 
   // 11. Seed Real Community & VIB-Managed Listings if empty
@@ -1302,4 +1468,95 @@ export function seedCatalogAndBilling() {
       now,
       now
     );
+}
+
+/**
+ * Sync Official Valorant Skins from official API
+ * Upserts custom skins, sets lightweight official images and streamed videos
+ */
+export async function syncOfficialValorantSkins(): Promise<number> {
+  try {
+    const res = await fetch('https://valorant-api.com/v1/weapons/skins');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.data || !Array.isArray(json.data)) return 0;
+
+    const weaponsList = [
+      'Vandal', 'Phantom', 'Operator', 'Sheriff', 'Ghost', 'Spectre',
+      'Odin', 'Ares', 'Judge', 'Bucky', 'Frenzy', 'Classic',
+      'Shorty', 'Stinger', 'Bulldog', 'Guardian', 'Marshal', 'Outlaw'
+    ];
+
+    function getWeapon(displayName: string, assetPath?: string): string {
+      for (const w of weaponsList) {
+        if (displayName.includes(w)) return w;
+      }
+      if (assetPath && assetPath.includes('Equippables/Melee')) return 'Melee';
+      if (/Karambit|Blade|Dagger|Sword|Axe|Kunai|Katana|Bat|Hammer|Wand|Gauntlet|Fan|Knife|Claw|Scythe|Cane|Relic|Yaiba/i.test(displayName)) {
+        return 'Melee';
+      }
+      return 'Weapon';
+    }
+
+    function getCollection(displayName: string, weapon: string): string {
+      let col = displayName;
+      if (weapon !== 'Weapon' && col.includes(weapon)) {
+        col = col.replace(weapon, '').trim();
+      }
+      return col || 'Standard';
+    }
+
+    const insertOrReplace = db.prepare(`
+      INSERT OR REPLACE INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `);
+
+    const now = new Date().toISOString();
+    let count = 0;
+
+    db.exec('BEGIN TRANSACTION;');
+    try {
+      for (const s of (json.data || [])) {
+        if (!s.displayName || s.displayName.startsWith('Standard') || s.displayName.startsWith('Random') || !s.displayIcon) {
+          continue;
+        }
+
+        const weapon = getWeapon(s.displayName, s.assetPath);
+        const collection = getCollection(s.displayName, weapon);
+        const video = (s.levels && Array.isArray(s.levels))
+          ? (s.levels.filter((l: any) => l.streamedVideo).pop()?.streamedVideo || null)
+          : null;
+
+        const variants = (s.chromas && Array.isArray(s.chromas))
+          ? s.chromas.map((c: any) => ({
+              name: c.displayName,
+              icon: c.displayIcon || c.fullRender || null,
+              video: c.streamedVideo || null
+            }))
+          : [];
+
+        insertOrReplace.run(
+          s.uuid,
+          s.displayName,
+          weapon,
+          collection,
+          s.contentTierUuid ? 'Premium' : 'Standard',
+          s.displayIcon,
+          video,
+          JSON.stringify(variants),
+          now
+        );
+        count++;
+      }
+      db.exec('COMMIT;');
+    } catch (txErr) {
+      try { db.exec('ROLLBACK;'); } catch {}
+      throw txErr;
+    }
+    console.log(`[Database] Synced ${count} official Valorant skins with real API images and upgrade clips.`);
+    return count;
+  } catch (err: any) {
+    console.warn('[Database] Could not sync skins from valorant-api.com:', err.message);
+    return 0;
+  }
 }

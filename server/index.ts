@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import { db, hashPassword, verifyPassword, generateToken, seedDatabase } from './db.js';
+import { db, hashPassword, verifyPassword, generateToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
 import { verifyRiotId, seedRiotAccounts } from './riot.js';
 import {
   sendOrderPendingVerificationEmail,
@@ -13,6 +13,7 @@ import {
 // Initialize and seed database
 seedDatabase();
 seedRiotAccounts();
+syncOfficialValorantSkins().catch((e) => console.warn('[Skins Sync] Initial sync deferred:', e.message));
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -2502,11 +2503,34 @@ app.get('/api/listings/:id', (req: Request, res: Response): void => {
     return;
   }
 
+  const rawSkins = listing.skins_json ? JSON.parse(listing.skins_json) : [];
+  const hydratedSkins = rawSkins.map((item: any) => {
+    const skinName = typeof item === 'string' ? item : item?.name;
+    if (skinName) {
+      const match = db.prepare(
+        'SELECT id, name, weapon, collection, tier, image_url, video_url FROM skins WHERE name = ? OR name LIKE ? LIMIT 1'
+      ).get(skinName, `%${skinName}%`) as any;
+      if (match) {
+        return {
+          name: match.name,
+          weapon: match.weapon,
+          collection: match.collection,
+          tier: match.tier,
+          image_url: match.image_url,
+          video_url: match.video_url
+        };
+      }
+    }
+    return typeof item === 'object' && item !== null
+      ? item
+      : { name: item, weapon: 'Weapon Skin', collection: 'Official Collection', tier: 'Exclusive', image_url: null, video_url: null };
+  });
+
   res.json({
     listing: {
       ...listing,
       images: listing.images_json ? JSON.parse(listing.images_json) : [],
-      skins: listing.skins_json ? JSON.parse(listing.skins_json) : []
+      skins: hydratedSkins
     }
   });
 });
@@ -2707,7 +2731,7 @@ app.get('/api/vip-plans', (req: Request, res: Response): void => {
 // ==========================================
 
 app.get('/api/skins', (req: Request, res: Response): void => {
-  const { search, weapon, collection } = req.query;
+  const { search, weapon, collection, limit } = req.query;
   let query = 'SELECT * FROM skins WHERE active = 1';
   const params: any[] = [];
 
@@ -2725,7 +2749,8 @@ app.get('/api/skins', (req: Request, res: Response): void => {
     params.push(collection);
   }
 
-  query += ' ORDER BY collection ASC, name ASC LIMIT 100';
+  const maxLimit = limit ? Math.min(Number(limit) || 100, 2500) : 2000;
+  query += ` ORDER BY collection ASC, name ASC LIMIT ${maxLimit}`;
 
   const skins = db.prepare(query).all(...params).map((s: any) => ({
     ...s,
@@ -2747,6 +2772,12 @@ app.get('/api/skins/:id', (req: Request, res: Response): void => {
       variants: skin.variants_json ? JSON.parse(skin.variants_json) : []
     }
   });
+});
+
+// Admin Sync Official Valorant Skins from API
+app.post('/api/admin/skins/sync', authenticate, adminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const count = await syncOfficialValorantSkins();
+  res.json({ message: `Successfully synced ${count} official Valorant skins from API.`, count });
 });
 
 // ==========================================

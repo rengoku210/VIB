@@ -27,6 +27,7 @@ import {
   Send,
   ShieldAlert,
   Loader2,
+  Edit3,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Currency } from '../../types';
@@ -57,6 +58,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [notifications, setNotifications] = useState<any[]>([]);
   const [userListings, setUserListings] = useState<any[]>([]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [editingListing, setEditingListing] = useState<any | null>(null);
   const [listingActionLoading, setListingActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -1165,7 +1167,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowSubmitModal(true)}
+                onClick={() => {
+                  setEditingListing(null);
+                  setShowSubmitModal(true);
+                }}
                 className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.4)] cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -1182,7 +1187,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() => setShowSubmitModal(true)}
+                  onClick={() => {
+                    setEditingListing(null);
+                    setShowSubmitModal(true);
+                  }}
                   className="mt-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase transition-all cursor-pointer"
                 >
                   Create Your First Listing
@@ -1263,6 +1271,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                               <span>Submit for Review</span>
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingListing(l);
+                              setShowSubmitModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-purple-950/50 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            title="Edit Listing Details & Skins"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
 
                           <button
                             type="button"
@@ -1643,9 +1664,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       {/* ============================================================== */}
       <SubmitListingModal
         isOpen={showSubmitModal}
-        onClose={() => setShowSubmitModal(false)}
+        initialListing={editingListing}
+        onClose={() => {
+          setShowSubmitModal(false);
+          setEditingListing(null);
+        }}
         onSuccess={() => {
           setShowSubmitModal(false);
+          setEditingListing(null);
           fetchDashboardData();
         }}
       />

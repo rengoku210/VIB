@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Upload,
@@ -11,21 +11,66 @@ import {
   Award,
   Plus,
   Loader2,
-  Trash2
+  Trash2,
+  Search,
+  CheckCircle2,
+  Edit3
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { SkinSelectorModal } from '../skins/SkinSelectorModal';
+import { verifyRiotIdOnServer } from '../../lib/riot';
+
+const ranks = [
+  'Radiant',
+  'Immortal 3',
+  'Immortal 2',
+  'Immortal 1',
+  'Ascendant 3',
+  'Ascendant 2',
+  'Ascendant 1',
+  'Diamond 3',
+  'Diamond 2',
+  'Diamond 1',
+  'Platinum 3',
+  'Platinum 2',
+  'Platinum 1',
+  'Gold 3',
+  'Gold 2',
+  'Gold 1',
+  'Silver 3',
+  'Silver 2',
+  'Silver 1',
+  'Bronze 3',
+  'Bronze 2',
+  'Bronze 1',
+  'Iron 3',
+  'Iron 2',
+  'Iron 1',
+  'Unranked',
+];
+
+const regions = [
+  'AP / Mumbai',
+  'AP / Singapore',
+  'North America (NA)',
+  'Europe (EU)',
+  'Brazil (BR)',
+  'Latin America (LATAM)',
+  'Korea (KR)',
+];
 
 interface SubmitListingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialListing?: any;
 }
 
 export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  initialListing,
 }) => {
   const { user, token } = useAuth();
 
@@ -41,45 +86,97 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
   const [vipPlan, setVipPlan] = useState<'none' | 'silver' | 'gold' | 'platinum'>('none');
   const [imageUrl, setImageUrl] = useState('');
 
+  // Riot ID In-Game Account Information Autofill
+  const [riotIdInput, setRiotIdInput] = useState('');
+  const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
+  const [riotVerifiedAccount, setRiotVerifiedAccount] = useState<any | null>(null);
+
   const [showSkinSelector, setShowSkinSelector] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Initialize or reset form state on open / initialListing change
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (initialListing) {
+      setTitle(initialListing.title || '');
+      setDescription(initialListing.description || '');
+      setPriceINR(initialListing.price_inr !== undefined ? Number(initialListing.price_inr) : '');
+      setRank(initialListing.rank || 'Diamond 1');
+      setPeakRank(initialListing.peak_rank || initialListing.rank || 'Diamond 3');
+      setLevel(initialListing.level !== undefined ? initialListing.level : 120);
+      setRegion(initialListing.region || 'AP / Mumbai');
+      setKnifeCount(initialListing.knife_count !== undefined ? initialListing.knife_count : 0);
+
+      let parsedSkins: string[] = [];
+      try {
+        parsedSkins = Array.isArray(initialListing.skins)
+          ? initialListing.skins
+          : (initialListing.skins_json ? JSON.parse(initialListing.skins_json) : []);
+      } catch {}
+      setSelectedSkins(parsedSkins);
+
+      setVipPlan(initialListing.vip_plan || 'none');
+      let parsedImages: string[] = [];
+      try {
+        parsedImages = Array.isArray(initialListing.images)
+          ? initialListing.images
+          : (initialListing.images_json ? JSON.parse(initialListing.images_json) : []);
+      } catch {}
+      setImageUrl(parsedImages[0] || '');
+      setRiotIdInput('');
+      setRiotVerifiedAccount(null);
+    } else {
+      setTitle('');
+      setDescription('');
+      setPriceINR('');
+      setRank('Diamond 1');
+      setPeakRank('Diamond 3');
+      setLevel(120);
+      setRegion('AP / Mumbai');
+      setKnifeCount(2);
+      setSelectedSkins([]);
+      setVipPlan('none');
+      setImageUrl('');
+      setRiotIdInput(user?.riot_id || '');
+      setRiotVerifiedAccount(null);
+    }
+    setError(null);
+    setSuccessMsg(null);
+  }, [isOpen, initialListing, user]);
+
   if (!isOpen) return null;
 
-  const ranks = [
-    'Radiant',
-    'Immortal 3',
-    'Immortal 2',
-    'Immortal 1',
-    'Ascendant 3',
-    'Ascendant 2',
-    'Ascendant 1',
-    'Diamond 3',
-    'Diamond 2',
-    'Diamond 1',
-    'Platinum 3',
-    'Platinum 2',
-    'Platinum 1',
-    'Gold 3',
-    'Gold 2',
-    'Gold 1',
-    'Silver 3',
-    'Silver 2',
-    'Silver 1',
-    'Bronze 3',
-    'Iron 3'
-  ];
-
-  const regions = [
-    'AP / Mumbai',
-    'Philippines (PHP)',
-    'Indonesia (IDR)',
-    'Malaysia (MYR)',
-    'Europe (EU)',
-    'North America (NA)'
-  ];
+  // Handle Riot ID Account Verification & Auto-fill
+  const handleVerifyRiotAccount = async () => {
+    if (!riotIdInput.trim()) return;
+    setIsVerifyingRiot(true);
+    setError(null);
+    try {
+      const res = await verifyRiotIdOnServer(riotIdInput.trim());
+      if (res.exists) {
+        setRiotVerifiedAccount(res);
+        if (res.accountLevel) setLevel(res.accountLevel);
+        if (res.region) {
+          const r = res.region.toLowerCase();
+          if (r === 'ap') setRegion('AP / Mumbai');
+          else if (r === 'na') setRegion('North America (NA)');
+          else if (r === 'eu') setRegion('Europe (EU)');
+        }
+        if (res.cardSmall && !imageUrl) {
+          setImageUrl(res.cardSmall);
+        }
+      } else {
+        setError(res.error || 'Valorant account not found on official Riot servers.');
+      }
+    } catch {
+      setError('Failed to query Valorant verification service.');
+    } finally {
+      setIsVerifyingRiot(false);
+    }
+  };
 
   const handleSubmit = async (submitForReview: boolean) => {
     if (!title.trim()) {
@@ -98,9 +195,13 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
     setIsSubmitting(true);
     setError(null);
 
+    const isEditing = Boolean(initialListing?.id);
+    const url = isEditing ? `/api/user/listings/${initialListing.id}` : '/api/user/listings';
+    const method = isEditing ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch('/api/user/listings', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -116,7 +217,11 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
           skin_count: selectedSkins.length,
           knife_count: Number(knifeCount) || 0,
           vip_plan: vipPlan,
-          images: imageUrl.trim() ? [imageUrl.trim()] : ['/assets/hires/profiles/card1_omen.jpg'],
+          images: imageUrl.trim()
+            ? [imageUrl.trim()]
+            : (initialListing?.images && initialListing.images.length > 0
+                ? initialListing.images
+                : ['/assets/hires/profiles/card1_omen.jpg']),
           skins: selectedSkins,
           submitForReview
         })
@@ -129,15 +234,17 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
       }
 
       setSuccessMsg(
-        submitForReview
-          ? 'Listing submitted successfully! Our compliance desk will review and publish it.'
-          : 'Listing draft saved successfully.'
+        isEditing
+          ? (submitForReview ? 'Listing updated and submitted for review!' : 'Listing changes saved successfully!')
+          : (submitForReview
+              ? 'Listing submitted successfully! Our compliance desk will review and publish it.'
+              : 'Listing draft saved successfully.')
       );
 
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
-      }, 1500);
+      }, 1200);
     } catch {
       setError('Network communication failed.');
     } finally {
@@ -161,14 +268,14 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
-              <Tag className="w-5 h-5" />
+              {initialListing ? <Edit3 className="w-5 h-5" /> : <Tag className="w-5 h-5" />}
             </div>
             <div>
               <h3 id="submit-listing-heading" className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-                Sell Your Valorant Account
+                {initialListing ? 'Edit Valorant Account Listing' : 'Sell Your Valorant Account'}
               </h3>
               <p className="text-xs text-gray-400 font-mono">
-                Official VIB Escrow Middleman Marketplace listing portal
+                {initialListing ? `Updating Listing #${initialListing.id}` : 'Official VIB Escrow Middleman Marketplace listing portal'}
               </p>
             </div>
           </div>
@@ -195,6 +302,43 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
             <span>{successMsg}</span>
           </div>
         )}
+
+        {/* Optional Riot ID In-Game Profile Auto-Sync */}
+        <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-mono uppercase text-purple-300 font-bold flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>Auto-Fill from Valorant In-Game Profile (Optional)</span>
+            </label>
+            {riotVerifiedAccount?.exists && (
+              <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>Verified ({riotVerifiedAccount.riotId})</span>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={riotIdInput}
+              onChange={(e) => setRiotIdInput(e.target.value)}
+              placeholder="Enter Riot ID (e.g. TenZ#0001 or Player#IND1)..."
+              className="flex-1 min-h-[40px] px-3.5 py-2 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs focus:ring-2 focus:ring-purple-400"
+            />
+            <button
+              type="button"
+              disabled={isVerifyingRiot || !riotIdInput.trim()}
+              onClick={handleVerifyRiotAccount}
+              className="min-h-[40px] px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isVerifyingRiot ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+              <span>Sync Info</span>
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 font-rajdhani">
+            * Automatically fetches official account level, region, and official banner card directly from the Valorant API.
+          </p>
+        </div>
 
         {/* Listing Form Fields */}
         <div className="space-y-4 text-xs font-rajdhani">

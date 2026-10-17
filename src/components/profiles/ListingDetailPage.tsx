@@ -47,6 +47,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [isFav, setIsFav] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [inspectingSkin, setInspectingSkin] = useState<any | null>(null);
   const [availableSkins, setAvailableSkins] = useState<any[]>([]);
 
   useEffect(() => {
@@ -98,13 +99,16 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   };
 
   const getRankBadgeUrl = (rank: string) => {
-    const cleanRank = String(rank).toLowerCase();
+    const cleanRank = String(rank || '').toLowerCase();
     if (cleanRank.includes('radiant')) return '/assets/hires/ranks/radiant.png';
     if (cleanRank.includes('immortal')) return '/assets/hires/ranks/immortal.png';
     if (cleanRank.includes('ascendant')) return '/assets/hires/ranks/ascendant.png';
-    if (cleanRank.includes('diamond')) return 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/20.png';
-    if (cleanRank.includes('platinum')) return 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/17.png';
-    if (cleanRank.includes('gold')) return 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/14.png';
+    if (cleanRank.includes('diamond')) return '/assets/hires/ranks/diamond.png';
+    if (cleanRank.includes('platinum')) return 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/17/largeIcon.png';
+    if (cleanRank.includes('gold')) return 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/14/largeIcon.png';
+    if (cleanRank.includes('silver')) return 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/11/largeIcon.png';
+    if (cleanRank.includes('bronze')) return 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/8/largeIcon.png';
+    if (cleanRank.includes('iron')) return 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/5/largeIcon.png';
     return '/assets/hires/ranks/immortal.png';
   };
 
@@ -144,7 +148,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     ? listing.images
     : ['/assets/hires/profiles/card1_exact.jpg', '/assets/hires/profiles/card2_exact.jpg'];
   const activeImage = images[activeImageIndex] || images[0];
-  const skins: string[] = Array.isArray(listing.skins) ? listing.skins : [];
+  const skins: any[] = Array.isArray(listing.skins) ? listing.skins : [];
   const isGuaranteed = listing.guarantee_type === 'lifetime_guaranteed';
   const originalPrice = listing.price_inr ? Math.round(listing.price_inr * 1.35) : 0;
 
@@ -275,9 +279,11 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </div>
 
               <div className="p-4 rounded-xl bg-[#0c0d1c] border border-white/10 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                  <Award className="w-5 h-5" />
-                </div>
+                <img
+                  src={getRankBadgeUrl(listing.peak_rank || listing.rank)}
+                  alt={listing.peak_rank || listing.rank}
+                  className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+                />
                 <div>
                   <div className="text-[10px] text-gray-400 font-mono uppercase">Peak Rank</div>
                   <div className="text-sm sm:text-base font-black text-white font-rajdhani">{listing.peak_rank || listing.rank}</div>
@@ -357,40 +363,81 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <p className="text-xs text-gray-500 italic">No specific skins listed for this account.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {skins.map((skinName, i) => {
+                  {skins.map((skinItem: any, i) => {
+                    const skinName: string = typeof skinItem === 'string' ? skinItem : skinItem?.name || 'Weapon Skin';
+                    const skinObj: any = typeof skinItem === 'object' && skinItem !== null ? skinItem : null;
                     const matched = availableSkins.find(
-                      (s) => s.name.toLowerCase() === skinName.toLowerCase() || s.name.toLowerCase().includes(skinName.toLowerCase())
+                      (s) =>
+                        s.name.toLowerCase() === skinName.toLowerCase() ||
+                        s.name.toLowerCase().includes(skinName.toLowerCase()) ||
+                        skinName.toLowerCase().includes(s.name.toLowerCase())
                     );
-                    const hasVideo = matched && Boolean(matched.video_url);
+                    const resolvedSkin = {
+                      name: skinName,
+                      image_url: (skinObj?.image_url as string | undefined) || matched?.image_url || null,
+                      video_url: (skinObj?.video_url as string | undefined) || matched?.video_url || null,
+                      weapon: (skinObj?.weapon as string | undefined) || matched?.weapon || 'Weapon Skin',
+                      collection: (skinObj?.collection as string | undefined) || matched?.collection || 'Official Collection',
+                      tier: (skinObj?.tier as string | undefined) || matched?.tier || 'Exclusive',
+                    };
+                    const hasVideo = Boolean(resolvedSkin.video_url);
 
                     return (
                       <div
                         key={i}
-                        className="p-3 rounded-xl bg-[#121324] border border-white/10 hover:border-purple-500/40 transition-all flex items-center justify-between gap-3 group"
+                        onClick={() => setInspectingSkin(resolvedSkin)}
+                        className="p-3 rounded-xl bg-[#121324] border border-white/10 hover:border-purple-500/50 hover:bg-[#181930] transition-all flex items-center justify-between gap-3 group cursor-pointer"
+                        title={
+                          hasVideo
+                            ? `Click to view details & play upgrade animation for ${skinName}`
+                            : `Click to view official artwork for ${skinName}`
+                        }
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center shrink-0">
-                            <Sparkles className="w-4 h-4 text-purple-400" />
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-12 h-10 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center p-1 shrink-0 overflow-hidden group-hover:border-purple-500/40 transition-colors">
+                            {resolvedSkin.image_url ? (
+                              <img
+                                src={resolvedSkin.image_url}
+                                alt={skinName}
+                                className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <Sparkles className="w-4 h-4 text-purple-400" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors truncate">
                               {skinName}
                             </div>
-                            <div className="text-[10px] text-gray-400 font-mono">
-                              {matched?.weapon || 'Exclusive Skin'}
+                            <div className="text-[10px] text-gray-400 font-mono flex items-center gap-1.5">
+                              <span>{resolvedSkin.weapon}</span>
+                              {hasVideo && (
+                                <span className="text-purple-400 text-[9px] font-semibold flex items-center gap-0.5">
+                                  <Play className="w-2.5 h-2.5 fill-current" />
+                                  Video
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
 
-                        {hasVideo && (
+                        {hasVideo ? (
                           <button
                             type="button"
-                            onClick={() => setActiveVideoUrl(matched.video_url)}
-                            className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white transition-all cursor-pointer shrink-0"
-                            title="Play Skin Upgrade Video"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInspectingSkin(resolvedSkin);
+                            }}
+                            className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white transition-all cursor-pointer shrink-0 shadow-sm"
+                            title="Play Official Upgrade Video"
                           >
                             <Play className="w-3.5 h-3.5 fill-current" />
                           </button>
+                        ) : (
+                          <div className="text-[10px] text-gray-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            Inspect
+                          </div>
                         )}
                       </div>
                     );
@@ -515,32 +562,111 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Video Modal (Strictly loop={false} as required by VIB 2.0 specifications) */}
-      {activeVideoUrl && (
+      {/* Skin Detail & Video Inspection Modal (Play once, loop={false}, strictly no placeholders) */}
+      {(inspectingSkin || activeVideoUrl) && (
         <div
-          onClick={() => setActiveVideoUrl(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            setInspectingSkin(null);
+            setActiveVideoUrl(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-3xl rounded-2xl bg-[#0c0d1c] border border-purple-500/40 p-4 shadow-2xl overflow-hidden space-y-3"
+            className="relative w-full max-w-3xl rounded-2xl bg-[#0c0d1c] border border-purple-500/40 p-5 shadow-2xl overflow-hidden space-y-4"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-purple-300">Skin Showcase Upgrade Animation</span>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-3">
+                {inspectingSkin?.image_url && (
+                  <div className="w-10 h-10 rounded-lg bg-black/60 border border-white/10 p-1 flex items-center justify-center shrink-0">
+                    <img
+                      src={inspectingSkin.image_url}
+                      alt={inspectingSkin.name}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+                <div>
+                  <h4 className="text-base sm:text-lg font-bold font-rajdhani text-white uppercase tracking-wider">
+                    {inspectingSkin ? inspectingSkin.name : 'Skin Showcase Preview'}
+                  </h4>
+                  <div className="flex items-center gap-2 text-xs font-mono text-purple-300">
+                    <span>{inspectingSkin?.weapon || 'Cosmetic Skin'}</span>
+                    {inspectingSkin?.collection && (
+                      <>
+                        <span>•</span>
+                        <span>{inspectingSkin.collection}</span>
+                      </>
+                    )}
+                    {inspectingSkin?.tier && (
+                      <>
+                        <span>•</span>
+                        <span className="text-amber-400 font-semibold">{inspectingSkin.tier} Tier</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <button
-                onClick={() => setActiveVideoUrl(null)}
-                className="text-gray-400 hover:text-white text-xs font-bold uppercase p-1 cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setInspectingSkin(null);
+                  setActiveVideoUrl(null);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono font-bold uppercase transition-colors cursor-pointer"
               >
                 Close (ESC)
               </button>
             </div>
-            <video
-              src={activeVideoUrl}
-              controls
-              autoPlay
-              loop={false}
-              className="w-full rounded-xl aspect-video bg-black object-contain"
-            />
+
+            {/* Media Presentation: Official Riot Upgrade Video if available (loop={false}), else official image */}
+            {(inspectingSkin?.video_url || activeVideoUrl) ? (
+              <div className="space-y-2">
+                <div className="relative w-full aspect-video rounded-xl bg-black overflow-hidden border border-white/10 shadow-inner">
+                  <video
+                    src={inspectingSkin?.video_url || activeVideoUrl || ''}
+                    controls
+                    autoPlay
+                    loop={false}
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 px-1">
+                  <span className="flex items-center gap-1.5 text-purple-300">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Official Riot In-Game Upgrade Animation
+                  </span>
+                  <span className="text-gray-400">Plays once (no loop)</span>
+                </div>
+              </div>
+            ) : inspectingSkin?.image_url ? (
+              <div className="space-y-2">
+                <div className="relative w-full aspect-video rounded-xl bg-gradient-to-b from-[#14152b] to-[#080914] border border-white/10 flex items-center justify-center p-8 overflow-hidden shadow-inner">
+                  <img
+                    src={inspectingSkin.image_url}
+                    alt={inspectingSkin.name}
+                    className="max-h-full max-w-full object-contain filter drop-shadow-[0_15px_30px_rgba(168,85,247,0.35)] hover:scale-105 transition-transform duration-300"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 px-1">
+                  <span className="flex items-center gap-1.5 text-emerald-300">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Official Riot Games Artwork
+                  </span>
+                  <span>No standalone upgrade video available for this cosmetic tier</span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 rounded-xl bg-black/40 border border-white/10 text-center space-y-2">
+                <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
+                <p className="text-xs text-gray-300">Cosmetic weapon confirmed in account inventory.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
