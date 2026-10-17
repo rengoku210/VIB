@@ -75,7 +75,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
   };
 
-  // Restore session from token on initial render
+async function parseJsonResponse(res: Response, defaultError: string): Promise<any> {
+  const text = await res.text();
+  if (!text) {
+    if (!res.ok) {
+      throw new Error(
+        res.status === 504 || res.status === 502
+          ? 'Backend server is unreachable. Please ensure the backend server is running on port 5000.'
+          : `Server returned HTTP ${res.status}. ${defaultError}`
+      );
+    }
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(
+        res.status === 504 || res.status === 502
+          ? 'Backend server is unreachable. Please ensure the backend server is running on port 5000.'
+          : `Server returned HTTP ${res.status}. ${defaultError}`
+      );
+    }
+    throw new Error(defaultError);
+  }
+}
+
+// Restore session from token on initial render
   const refreshUser = async () => {
     const savedToken = localStorage.getItem(TOKEN_KEY);
     if (!savedToken) {
@@ -93,7 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data = await parseJsonResponse(res, 'Session restore failed.');
         setUser(data.user);
         setToken(savedToken);
       } else {
@@ -123,7 +149,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonResponse(res, 'Login failed. Please check your credentials.');
 
       if (!res.ok) {
         const errMessage = data.error || 'Login failed. Please check your credentials.';
@@ -137,7 +163,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       closeAuthModal();
       return { success: true };
     } catch (err: any) {
-      const errMessage = 'Network connection failed. Please ensure the backend server is reachable.';
+      let errMessage = err?.message || 'Network connection failed.';
+      if (errMessage.includes('JSON') || errMessage.includes('Failed to fetch') || errMessage.includes('NetworkError')) {
+        errMessage = 'Backend server is unreachable. Please ensure the backend server is running on port 5000.';
+      }
       setError(errMessage);
       return { success: false, error: errMessage };
     }
@@ -153,7 +182,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         body: JSON.stringify(data),
       });
 
-      const resData = await res.json();
+      const resData = await parseJsonResponse(res, 'Registration failed.');
 
       if (!res.ok) {
         const errMessage = resData.error || 'Registration failed.';
@@ -167,7 +196,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       closeAuthModal();
       return { success: true };
     } catch (err: any) {
-      const errMessage = 'Registration network error. Please try again.';
+      let errMessage = err?.message || 'Registration network error.';
+      if (errMessage.includes('JSON') || errMessage.includes('Failed to fetch') || errMessage.includes('NetworkError')) {
+        errMessage = 'Backend server is unreachable. Please ensure the backend server is running on port 5000.';
+      }
       setError(errMessage);
       return { success: false, error: errMessage };
     }
@@ -194,7 +226,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonResponse(res, 'Google login failed on backend server.');
 
       if (!res.ok) {
         const errMessage = data.error || 'Google login failed.';
@@ -216,6 +248,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         errMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site.';
       } else if (err?.code === 'auth/cancelled-popup-request') {
         errMessage = 'Previous sign-in request was cancelled.';
+      } else if (errMessage.includes('JSON') || errMessage.includes('Failed to fetch') || errMessage.includes('NetworkError')) {
+        errMessage = 'Backend server is unreachable. Please ensure the backend server is running on port 5000.';
       }
       setError(errMessage);
       return { success: false, error: errMessage };
@@ -239,13 +273,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res, 'Password reset request failed.');
       return {
         success: true,
         message: data.message || 'Password reset instructions have been dispatched.',
       };
     } catch (err: any) {
-      const errMessage = err?.message || 'Failed to dispatch password reset.';
+      let errMessage = err?.message || 'Failed to dispatch password reset.';
+      if (errMessage.includes('JSON') || errMessage.includes('Failed to fetch') || errMessage.includes('NetworkError')) {
+        errMessage = 'Backend server is unreachable. Please ensure the backend server is running on port 5000.';
+      }
       setError(errMessage);
       return { success: false, error: errMessage };
     }
