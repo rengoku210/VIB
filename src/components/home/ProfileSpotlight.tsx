@@ -7,7 +7,7 @@ interface ProfileSpotlightProps {
   currency: Currency;
   onAddToCart: (item: CartItem) => void;
   onBuyNow: (title: string, priceINR: number) => void;
-  onInspect: () => void;
+  onInspect: (id?: string) => void;
 }
 
 export const ProfileSpotlight: React.FC<ProfileSpotlightProps> = ({
@@ -205,7 +205,7 @@ export const ProfileSpotlight: React.FC<ProfileSpotlightProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={onInspect}
+                  onClick={() => onInspect(spotlightProfile.id)}
                   className="px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-chakra font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />

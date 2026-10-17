@@ -35,6 +35,7 @@ export type Currency = 'INR' | 'USD' | 'EUR';
 export type AppPage =
   | 'home'
   | 'profiles'
+  | 'listing'
   | 'vp'
   | 'rankup'
   | 'services'

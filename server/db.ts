@@ -1044,16 +1044,14 @@ export function seedCatalogAndBilling() {
   }
 
   // 11. Seed Real Community & VIB-Managed Listings if empty
-  const listingCount = (db.prepare('SELECT COUNT(*) as count FROM listings').get() as any).count;
-  if (listingCount === 0) {
-    console.log('[Database] Seeding real marketplace listings...');
-    const insertListing = db.prepare(`
-      INSERT INTO listings (
-        id, user_id, seller_name, seller_role, guarantee_type, title, description,
-        price_inr, rank, peak_rank, level, region, skin_count, knife_count, featured,
-        vip_plan, vip_expires_at, images_json, skins_json, status, rejection_reason, inquiry_contact, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NULL, ?, ?, ?)
-    `);
+  // 11. Seed Real Community & VIB-Managed Listings
+  const insertListing = db.prepare(`
+    INSERT OR IGNORE INTO listings (
+      id, user_id, seller_name, seller_role, guarantee_type, title, description,
+      price_inr, rank, peak_rank, level, region, skin_count, knife_count, featured,
+      vip_plan, vip_expires_at, images_json, skins_json, status, rejection_reason, inquiry_contact, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NULL, ?, ?, ?)
+  `);
 
     insertListing.run(
       'lst_immortal_kuronami',
@@ -1154,5 +1152,154 @@ export function seedCatalogAndBilling() {
       now,
       now
     );
-  }
+
+    insertListing.run(
+      'lst_immortal_310',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Immortal Profile - Kuronami & Reaver Collection',
+      'Level 310 competitive account with 20+ premium skins. 100% lifetime recovery guarantee by VIB Digital Services. Full access with original email credentials.',
+      24999,
+      'Immortal 2',
+      'Immortal 3',
+      310,
+      'AP / Mumbai',
+      45,
+      6,
+      1,
+      'platinum',
+      new Date(Date.now() + 86400000 * 30).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card1_exact.jpg']),
+      JSON.stringify(['Kuronami Vandal', 'Reaver Vandal', 'Prime 2.0 Phantom', 'Glitchpop Dagger']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_ascendant_205',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Ascendant Profile - Prime Collection',
+      'Level 205 verified profile featuring Prime Vandal, RGX Phantom, and Araxys Vandal. Verified and covered by VIB Lifetime Guarantee.',
+      14999,
+      'Ascendant 2',
+      'Ascendant 3',
+      205,
+      'AP / Mumbai',
+      32,
+      4,
+      1,
+      'gold',
+      new Date(Date.now() + 86400000 * 20).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card2_exact.jpg']),
+      JSON.stringify(['Prime Vandal', 'RGX 11z Pro Phantom', 'Araxys Vandal']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_radiant_420',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Radiant Profile - Champions Vault & Full Access',
+      'Level 420 premier account. Complete Champions 2023 set, Kuronami Vandal, Singularity Phantom, and Ignite Fan. Zero penalties, peak competitive MMR.',
+      59999,
+      'Radiant',
+      'Radiant',
+      420,
+      'AP / Mumbai',
+      110,
+      15,
+      1,
+      'platinum',
+      new Date(Date.now() + 86400000 * 30).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card3_exact.jpg']),
+      JSON.stringify(['Champions 2023 Vandal', 'Kuronami Vandal', 'Singularity Phantom', 'Ignite Fan']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_diamond_180',
+      'usr_seller_03',
+      'Radiant Market Seller',
+      'vib_managed',
+      'lifetime_guaranteed',
+      'Diamond Profile - Multiple High-Tier Skins',
+      'Level 180 account with multiple skin bundles including Prime, Reaver, and RGX Blade. Safe transfer with VIB Lifetime Warranty.',
+      8999,
+      'Diamond 3',
+      'Ascendant 1',
+      180,
+      'AP / Mumbai',
+      28,
+      3,
+      1,
+      'silver',
+      new Date(Date.now() + 86400000 * 14).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card4_exact.jpg']),
+      JSON.stringify(['Prime Vandal', 'Reaver Operator', 'RGX 11z Pro Blade']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_platinum_145',
+      'usr_customer_04',
+      'Alex Mercer',
+      'community',
+      'escrow_protected',
+      'Platinum 3 Profile - Glitchpop & Prime',
+      'Clean personal account with Glitchpop Vandal and Prime Phantom. Escrow protected with instant middleman coordination.',
+      6499,
+      'Platinum 3',
+      'Diamond 1',
+      145,
+      'AP / Mumbai',
+      19,
+      2,
+      0,
+      'silver',
+      new Date(Date.now() + 86400000 * 7).toISOString(),
+      JSON.stringify(['/assets/hires/profiles/card5_exact.jpg']),
+      JSON.stringify(['Glitchpop Vandal', 'Prime Phantom', 'Ion Operator']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
+
+    insertListing.run(
+      'lst_gold_90',
+      'usr_customer_04',
+      'Alex Mercer',
+      'community',
+      'escrow_protected',
+      'Gold 2 Profile - Oni Phantom Collection',
+      'Great smurf or main account with Oni Phantom and Xenohunter Knife. Low competitive queue delay and clean MMR.',
+      4299,
+      'Gold 2',
+      'Gold 3',
+      90,
+      'AP / Mumbai',
+      12,
+      1,
+      0,
+      'none',
+      null,
+      JSON.stringify(['/assets/hires/profiles/card2_exact.jpg']),
+      JSON.stringify(['Oni Phantom', 'Prime Vandal', 'Xenohunter Knife']),
+      'thevibofficial@gmail.com',
+      now,
+      now
+    );
 }

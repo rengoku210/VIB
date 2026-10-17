@@ -750,6 +750,11 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
         fade: 'vp-3650',
         jett: 'vp-5350',
         iso: 'vp-11000',
+        'p-a1023': 'lst_immortal_kuronami',
+        'p-a1024': 'lst_radiant_singularity',
+        'p-a1025': 'lst_ascendant_prime',
+        'p-a1026': 'lst_diamond_daily',
+        'spotlight-reyna': 'lst_immortal_kuronami',
       };
       const resolvedId = aliasMap[productId] || productId;
       const catalogItem = db.prepare('SELECT * FROM products WHERE id = ?').get(resolvedId) as any;
@@ -772,6 +777,28 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
               error: `Price verification failed. Cart total cannot be less than catalog item price ₹${catalogItem.price_inr}.`
             });
             return;
+          }
+        }
+      } else {
+        // Fallback: Check if this productId belongs to an account listing
+        const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(resolvedId) as any;
+        if (listing) {
+          if (!title) title = listing.title;
+          if (!isCartOrder) {
+            if (amount !== undefined && Math.abs(Number(amount) - listing.price_inr) > 0.01) {
+              res.status(400).json({
+                error: `Price verification failed. Server listing price is ₹${listing.price_inr}, but received ₹${amount}.`
+              });
+              return;
+            }
+            amount = listing.price_inr;
+          } else {
+            if (amount !== undefined && Number(amount) < listing.price_inr - 0.01) {
+              res.status(400).json({
+                error: `Price verification failed. Cart total cannot be less than listing price ₹${listing.price_inr}.`
+              });
+              return;
+            }
           }
         }
       }
@@ -2410,7 +2437,7 @@ app.put('/api/admin/regional-orders/:id/status', authenticate, adminOnly, (req: 
 
 // Public Listings Feed
 app.get('/api/listings', (req: Request, res: Response): void => {
-  const { search, rank, region, featured, page = 1, limit = 20 } = req.query;
+  const { search, rank, region, featured, guarantee_type, page = 1, limit = 20 } = req.query;
   let query = "SELECT * FROM listings WHERE status = 'published'";
   const params: any[] = [];
 
@@ -2427,6 +2454,10 @@ app.get('/api/listings', (req: Request, res: Response): void => {
     query += ' AND region = ?';
     params.push(region);
   }
+  if (guarantee_type) {
+    query += ' AND guarantee_type = ?';
+    params.push(guarantee_type);
+  }
   if (featured === '1' || featured === 'true') {
     query += ' AND featured = 1';
   }
@@ -2441,14 +2472,31 @@ app.get('/api/listings', (req: Request, res: Response): void => {
     skins: item.skins_json ? JSON.parse(item.skins_json) : []
   }));
 
-  const totalCount = (db.prepare("SELECT COUNT(*) as count FROM listings WHERE status = 'published'").get() as any).count;
+  let countQuery = "SELECT COUNT(*) as count FROM listings WHERE status = 'published'";
+  const countParams: any[] = [];
+  if (guarantee_type) {
+    countQuery += ' AND guarantee_type = ?';
+    countParams.push(guarantee_type);
+  }
+  if (featured === '1' || featured === 'true') {
+    countQuery += ' AND featured = 1';
+  }
+  const totalCount = (db.prepare(countQuery).get(...countParams) as any).count;
 
   res.json({ listings: rows, total: totalCount, page: Number(page), limit: Number(limit) });
 });
 
 // Single Listing Detail
 app.get('/api/listings/:id', (req: Request, res: Response): void => {
-  const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id) as any;
+  const aliasMap: Record<string, string> = {
+    'p-a1023': 'lst_immortal_kuronami',
+    'p-a1024': 'lst_radiant_singularity',
+    'p-a1025': 'lst_ascendant_prime',
+    'p-a1026': 'lst_diamond_daily',
+    'spotlight-reyna': 'lst_immortal_kuronami',
+  };
+  const targetId = aliasMap[req.params.id] || req.params.id;
+  const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(targetId) as any;
   if (!listing) {
     res.status(404).json({ error: 'Listing not found.' });
     return;
@@ -2526,6 +2574,71 @@ app.post('/api/user/listings', authenticate, (req: AuthRequest, res: Response): 
     listingId,
     listing: row
   });
+});
+
+// User Edit Listing
+app.put('/api/user/listings/:id', authenticate, (req: AuthRequest, res: Response): void => {
+  const listingId = req.params.id;
+  const existing = db.prepare('SELECT * FROM listings WHERE id = ? AND user_id = ?').get(listingId, req.user!.id) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Listing not found or you do not have permission to edit it.' });
+    return;
+  }
+
+  const { title, description, price_inr, rank, peak_rank, level, region, skin_count, knife_count, images, skins, submitForReview } = req.body;
+  const updatedTitle = title !== undefined ? title : existing.title;
+  const updatedDesc = description !== undefined ? description : existing.description;
+  const updatedPrice = price_inr !== undefined ? Number(price_inr) : existing.price_inr;
+  const updatedRank = rank !== undefined ? rank : existing.rank;
+  const updatedPeakRank = peak_rank !== undefined ? peak_rank : existing.peak_rank;
+  const updatedLevel = level !== undefined ? Number(level) : existing.level;
+  const updatedRegion = region !== undefined ? region : existing.region;
+  const updatedSkinCount = skin_count !== undefined ? Number(skin_count) : existing.skin_count;
+  const updatedKnifeCount = knife_count !== undefined ? Number(knife_count) : existing.knife_count;
+  const updatedImages = images !== undefined ? JSON.stringify(images) : existing.images_json;
+  const updatedSkins = skins !== undefined ? JSON.stringify(skins) : existing.skins_json;
+
+  let newStatus = existing.status;
+  if (submitForReview) {
+    newStatus = 'submitted';
+  }
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE listings
+    SET title = ?, description = ?, price_inr = ?, rank = ?, peak_rank = ?,
+        level = ?, region = ?, skin_count = ?, knife_count = ?,
+        images_json = ?, skins_json = ?, status = ?, updated_at = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    updatedTitle, updatedDesc, updatedPrice, updatedRank, updatedPeakRank,
+    updatedLevel, updatedRegion, updatedSkinCount, updatedKnifeCount,
+    updatedImages, updatedSkins, newStatus, now,
+    listingId, req.user!.id
+  );
+
+  const updated = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
+  res.json({
+    message: submitForReview ? 'Listing updated and submitted for review.' : 'Listing updated successfully.',
+    listing: {
+      ...updated,
+      images: updated.images_json ? JSON.parse(updated.images_json) : [],
+      skins: updated.skins_json ? JSON.parse(updated.skins_json) : []
+    }
+  });
+});
+
+// User Delete/Withdraw Listing
+app.delete('/api/user/listings/:id', authenticate, (req: AuthRequest, res: Response): void => {
+  const listingId = req.params.id;
+  const existing = db.prepare('SELECT * FROM listings WHERE id = ? AND user_id = ?').get(listingId, req.user!.id) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Listing not found or you do not have permission to delete it.' });
+    return;
+  }
+
+  db.prepare('DELETE FROM listings WHERE id = ? AND user_id = ?').run(listingId, req.user!.id);
+  res.json({ message: 'Listing withdrawn successfully.', listingId });
 });
 
 // Admin Listings Review Queue

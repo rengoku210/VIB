@@ -1038,6 +1038,85 @@ async function runTestSuite() {
       'VIB 2.0 Email Logs',
       'POST /api/admin/email/test executes Nodemailer diagnostic dispatch and logs result'
     );
+
+    // ==========================================
+    // PHASE 19: ADVANCED LISTINGS & ESCROW ORDER VERIFICATION
+    // ==========================================
+    console.log('\n--- Phase 19: Listings Lifecycle & Account Checkout ---');
+
+    // Test 19.1: Guarantee Type Filter (Lifetime Guaranteed)
+    const guaranteedRes = await request('/api/listings?guarantee_type=lifetime_guaranteed');
+    assert(
+      guaranteedRes.status === 200 &&
+      Array.isArray(guaranteedRes.data?.listings) &&
+      guaranteedRes.data.listings.every((l: any) => l.guarantee_type === 'lifetime_guaranteed'),
+      'VIB 2.0 Listings',
+      'GET /api/listings?guarantee_type=lifetime_guaranteed returns only lifetime guaranteed accounts'
+    );
+
+    // Test 19.2: Guarantee Type Filter (Escrow Protected)
+    const escrowRes = await request('/api/listings?guarantee_type=escrow_protected');
+    assert(
+      escrowRes.status === 200 &&
+      Array.isArray(escrowRes.data?.listings) &&
+      escrowRes.data.listings.every((l: any) => l.guarantee_type === 'escrow_protected'),
+      'VIB 2.0 Listings',
+      'GET /api/listings?guarantee_type=escrow_protected returns only escrow protected accounts'
+    );
+
+    // Test 19.3: User can edit listing draft
+    const editDraftRes = await request(`/api/user/listings/${userListingId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        title: 'Updated Ascendant 2 - Kuronami & Reaver Edition',
+        price_inr: 5999,
+      }),
+    });
+    assert(
+      editDraftRes.status === 200 &&
+      editDraftRes.data?.listing?.price_inr === 5999,
+      'VIB 2.0 Listings',
+      'User can edit and update existing account listing via PUT /api/user/listings/:id'
+    );
+
+    // Test 19.4: Account Listing Purchase with Server Price Verification
+    const listingOrderRes = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        product_id: 'lst_ascendant_205',
+        title: 'Ascendant Profile - Prime Collection',
+        amount: 14999,
+        type: 'profile',
+        paymentMethod: 'UPI Instant',
+      }),
+    });
+    assert(
+      listingOrderRes.status === 201 &&
+      listingOrderRes.data?.order?.id &&
+      listingOrderRes.data.order.payment_status === 'AWAITING_PAYMENT',
+      'VIB 2.0 Listings',
+      'User can purchase account listing with server price verification against listings table'
+    );
+
+    // Test 19.5: Tampered Listing Price Rejection
+    const tamperedListingOrder = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        product_id: 'lst_ascendant_205',
+        title: 'Ascendant Profile - Prime Collection',
+        amount: 999, // Tampered price
+        type: 'profile',
+      }),
+    });
+    assert(
+      tamperedListingOrder.status === 400 &&
+      String(tamperedListingOrder.data?.error).includes('Price verification failed'),
+      'VIB 2.0 Listings',
+      'Server strictly rejects tampered account listing order with 400 Bad Request'
+    );
   }
 
   console.log('\n====================================================');

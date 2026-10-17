@@ -44,9 +44,9 @@ import { useRankBadges, getRankBadgeUrl } from '../../utils/valorantRanks';
 
 interface ClientHomePageProps {
   currency: Currency;
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, id?: string) => void;
   onAddToCart: (item: CartItem) => void;
-  onOpenCheckout: (title: string, priceINR: number) => void;
+  onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
 }
 
 const RANK_TIERS = [
@@ -127,93 +127,95 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     );
   };
 
-  const profiles = [
-    {
-      id: 'p-immortal-310',
-      badge: 'FEATURED',
-      title: 'Immortal Profile',
-      sub: 'Level 310 • 20+ Skins',
-      rankName: 'Immortal',
-      rankIcon: '/assets/hires/ranks/immortal.png',
-      slot1RankGlow: 'border-[#f43f5e]/40 shadow-[0_0_8px_rgba(244,63,94,0.3)]',
-      priceINR: 24999,
-      originalPriceINR: 32999,
-      avatarImg: '/assets/hires/profiles/card1_exact.jpg',
-      weapons: [
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
-        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
-        { img: '/assets/items/vandal-reaper.png', border: 'border-purple-500/40' },
-      ],
-    },
-    {
-      id: 'p-ascendant-205',
-      badge: 'FEATURED',
-      title: 'Ascendant Profile',
-      sub: 'Level 205 • Prime Collection',
-      rankName: 'Ascendant',
-      rankIcon: '/assets/hires/ranks/ascendant.png',
-      slot1RankGlow: 'border-[#10b981]/40 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
-      priceINR: 14999,
-      originalPriceINR: 19999,
-      avatarImg: '/assets/hires/profiles/card2_exact.jpg',
-      weapons: [
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
-        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
-        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
-      ],
-    },
-    {
-      id: 'p-radiant-420',
-      badge: 'FEATURED',
-      title: 'Radiant Profile',
-      sub: 'Level 420 • Full Access',
-      rankName: 'Radiant',
-      rankIcon: '/assets/hires/ranks/radiant.png',
-      slot1RankGlow: 'border-[#fbbf24]/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
-      priceINR: 59999,
-      originalPriceINR: 89999,
-      avatarImg: '/assets/hires/profiles/card3_exact.jpg',
-      weapons: [
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/50' },
-        { img: '/assets/items/vandal-reaper.png', border: 'border-purple-500/50' },
-        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/50' },
-      ],
-    },
-    {
-      id: 'p-diamond-180',
-      badge: 'FEATURED',
-      title: 'Diamond Profile',
-      sub: 'Level 180 • Multiple Skins',
-      rankName: 'Diamond',
-      rankIcon: '/assets/hires/ranks/diamond.png',
-      slot1RankGlow: 'border-[#38bdf8]/40 shadow-[0_0_8px_rgba(56,189,248,0.3)]',
-      priceINR: 8999,
-      originalPriceINR: 14999,
-      avatarImg: '/assets/hires/profiles/card4_exact.jpg',
-      weapons: [
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
-        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
-        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
-      ],
-    },
-    {
-      id: 'p-ascendant-250',
-      badge: 'FEATURED',
-      title: 'Ascendant Profile',
-      sub: 'Level 250 • Rare Skins',
-      rankName: 'Ascendant',
-      rankIcon: '/assets/hires/ranks/ascendant.png',
-      slot1RankGlow: 'border-[#10b981]/40 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
-      priceINR: 16999,
-      originalPriceINR: 24999,
-      avatarImg: '/assets/hires/profiles/card5_exact.jpg',
-      weapons: [
+  const [dbListings, setDbListings] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/listings?limit=20')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.listings) && data.listings.length > 0) {
+          setDbListings(data.listings);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch home listings:', err));
+  }, []);
+
+  const mapHomeListing = (item: any) => {
+    let images: string[] = [];
+    try {
+      images = Array.isArray(item.images) ? item.images : (item.images_json ? JSON.parse(item.images_json) : []);
+    } catch {}
+    let skins: any[] = [];
+    try {
+      skins = Array.isArray(item.skins) ? item.skins : (item.skins_json ? JSON.parse(item.skins_json) : []);
+    } catch {}
+
+    const rankStr = item.rank || 'Diamond';
+    const rankFirstWord = rankStr.toLowerCase().split(' ')[0];
+
+    const rankGlowMap: Record<string, string> = {
+      radiant: 'border-[#fbbf24]/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
+      immortal: 'border-[#f43f5e]/40 shadow-[0_0_8px_rgba(244,63,94,0.3)]',
+      ascendant: 'border-[#10b981]/40 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
+      diamond: 'border-[#38bdf8]/40 shadow-[0_0_8px_rgba(56,189,248,0.3)]',
+      platinum: 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
+      gold: 'border-amber-400/40 shadow-[0_0_8px_rgba(245,158,11,0.3)]',
+      silver: 'border-slate-400/40 shadow-[0_0_8px_rgba(148,163,184,0.3)]',
+      bronze: 'border-amber-700/40 shadow-[0_0_8px_rgba(180,83,9,0.3)]',
+      iron: 'border-zinc-500/40 shadow-[0_0_8px_rgba(113,113,122,0.3)]',
+    };
+
+    const avatarImg = images.length > 0 && images[0]
+      ? images[0]
+      : (rankFirstWord === 'immortal'
+          ? '/assets/hires/profiles/card1_exact.jpg'
+          : rankFirstWord === 'ascendant'
+          ? '/assets/hires/profiles/card2_exact.jpg'
+          : rankFirstWord === 'radiant'
+          ? '/assets/hires/profiles/card3_exact.jpg'
+          : '/assets/hires/profiles/card4_exact.jpg');
+
+    const weaponPreviews = skins.slice(0, 3).map((skinName: any) => {
+      const sName = typeof skinName === 'string' ? skinName.toLowerCase() : (skinName?.name?.toLowerCase() || '');
+      let img = '/assets/items/vandal-prime.png';
+      let border = 'border-amber-500/40';
+      if (sName.includes('rgx') || sName.includes('blade')) {
+        img = '/assets/items/vandal-rgx.png';
+        border = 'border-emerald-500/40';
+      } else if (sName.includes('reap') || sName.includes('reaver') || sName.includes('singularity') || sName.includes('kuronami')) {
+        img = '/assets/items/vandal-reaper.png';
+        border = 'border-purple-500/40';
+      } else if (sName.includes('phantom') || sName.includes('oni') || sName.includes('ion')) {
+        img = '/assets/items/phantom-rgx.png';
+        border = 'border-cyan-500/40';
+      }
+      return { img, border };
+    });
+
+    if (weaponPreviews.length === 0) {
+      weaponPreviews.push(
         { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
         { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
         { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
-      ],
-    },
-  ];
+      );
+    }
+
+    return {
+      id: item.id,
+      badge: item.featured ? 'FEATURED' : 'VERIFIED',
+      title: item.title,
+      sub: `Level ${item.level || 1} • ${item.skin_count || (skins.length > 0 ? skins.length : 20)}+ Skins`,
+      rankName: rankStr,
+      rankIcon: `/assets/hires/ranks/${rankFirstWord}.png`,
+      slot1RankGlow: rankGlowMap[rankFirstWord] || 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
+      priceINR: Number(item.price_inr),
+      originalPriceINR: Math.round(Number(item.price_inr) * 1.3),
+      avatarImg,
+      weapons: weaponPreviews,
+    };
+  };
+
+  const profiles = dbListings.map(mapHomeListing);
 
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white space-y-8 sm:space-y-10 pb-16">
@@ -539,13 +541,19 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                 key={p.id}
                 className="min-w-[240px] sm:min-w-[260px] lg:min-w-0 snap-start rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
               >
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#100c1e]">
+                <div
+                  onClick={() => onNavigate('listing', p.id)}
+                  className="relative aspect-[4/3] w-full overflow-hidden bg-[#100c1e] cursor-pointer"
+                >
                   <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-[#f59e0b] text-black font-black text-[9px] tracking-wider uppercase shadow-md pointer-events-none select-none">
-                    FEATURED
+                    {p.badge}
                   </div>
                   <button
                     type="button"
-                    onClick={() => toggleFav(p.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFav(p.id);
+                    }}
                     aria-label={isFav ? `Remove ${p.title} from favorites` : `Add ${p.title} to favorites`}
                     className="absolute top-2 right-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg cursor-pointer bg-black/50 hover:bg-black/75 border border-white/15 transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 backdrop-blur-sm"
                   >
@@ -597,7 +605,10 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                 </div>
 
                 <div className="p-3 space-y-1">
-                  <h3 className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors font-rajdhani">
+                  <h3
+                    onClick={() => onNavigate('listing', p.id)}
+                    className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors font-rajdhani cursor-pointer"
+                  >
                     {p.title}
                   </h3>
                   <div className="text-[11px] text-gray-300 leading-snug">
@@ -628,7 +639,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onOpenCheckout(p.title, p.priceINR)}
+                      onClick={() => onNavigate('listing', p.id)}
                       className="flex-1 min-h-[44px] px-3 py-2 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-xs font-bold transition-all cursor-pointer text-center border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.3)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                     >
                       View Details

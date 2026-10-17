@@ -18,6 +18,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { OrderTrackingModal } from './components/orders/OrderTrackingModal';
 import { DiscordModal } from './components/home/DiscordModal';
 import { EscrowModal } from './components/home/EscrowModal';
+import { ListingDetailPage } from './components/profiles/ListingDetailPage';
 import { VP_PACKAGES } from './data/packages';
 import { Currency, CartItem, VPPackage } from './types';
 import { soundFx } from './utils/audio';
@@ -35,6 +36,7 @@ function AppContent() {
         [
           'home',
           'profiles',
+          'listing',
           'vp',
           'vp-catalog',
           'services',
@@ -52,7 +54,16 @@ function AppContent() {
     return 'home';
   };
 
+  const getInitialListingId = (): string => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('id') || '';
+    } catch {}
+    return '';
+  };
+
   const [currentPage, setCurrentPage] = useState<ClientPage>(getInitialPage);
+  const [selectedListingId, setSelectedListingId] = useState<string>(getInitialListingId);
   const [currency, setCurrency] = useState<Currency>('INR');
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,6 +77,7 @@ function AppContent() {
         [
           'home',
           'profiles',
+          'listing',
           'vp',
           'vp-catalog',
           'services',
@@ -78,6 +90,9 @@ function AppContent() {
         ].includes(p)
       ) {
         setCurrentPage(p);
+        if (p === 'listing') {
+          setSelectedListingId(params.get('id') || '');
+        }
       } else {
         setCurrentPage('home');
       }
@@ -176,7 +191,7 @@ function AppContent() {
     handleOpenCustomCheckout(`Cart Checkout: ${itemNames}`, totalINR, singleProductId);
   };
 
-  const handleNavigate = (page: ClientPage) => {
+  const handleNavigate = (page: ClientPage, id?: string) => {
     soundFx.playClickSound();
 
     if (page === 'community' || page === 'support') {
@@ -202,15 +217,25 @@ function AppContent() {
       }
     }
 
+    if (page === 'listing' && id) {
+      setSelectedListingId(id);
+    }
+
     setCurrentPage(page);
     try {
       const url = new URL(window.location.href);
       if (page === 'home') {
         url.searchParams.delete('page');
+        url.searchParams.delete('id');
       } else {
         url.searchParams.set('page', page);
+        if (page === 'listing' && id) {
+          url.searchParams.set('id', id);
+        } else if (page !== 'listing') {
+          url.searchParams.delete('id');
+        }
       }
-      window.history.pushState({ page }, '', url.toString());
+      window.history.pushState({ page, id }, '', url.toString());
     } catch {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -261,6 +286,16 @@ function AppContent() {
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
             searchQuery={searchQuery}
+          />
+        )}
+
+        {currentPage === 'listing' && (
+          <ListingDetailPage
+            listingId={selectedListingId}
+            currency={currency}
+            onNavigate={handleNavigate}
+            onAddToCart={handleAddToCart}
+            onOpenCheckout={handleOpenCustomCheckout}
           />
         )}
 

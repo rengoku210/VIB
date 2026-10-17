@@ -31,11 +31,12 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { Currency } from '../../types';
 import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
+import { SubmitListingModal } from '../profiles/SubmitListingModal';
 
 interface UserDashboardProps {
   currency: Currency;
-  onNavigate: (page: string) => void;
-  onOpenCheckout?: (title: string, priceINR: number) => void;
+  onNavigate: (page: string, id?: string) => void;
+  onOpenCheckout?: (title: string, priceINR: number, productId?: string) => void;
   onOpenTracking?: (orderId: string) => void;
 }
 
@@ -46,7 +47,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenTracking,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings' | 'listings'>('overview');
 
   // Live state from backend
   const [orders, setOrders] = useState<any[]>([]);
@@ -54,6 +55,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [invoices, setInvoices] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [userListings, setUserListings] = useState<any[]>([]);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [listingActionLoading, setListingActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Settings form state
@@ -108,13 +112,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     if (!token) return;
     setLoading(true);
     try {
-      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes] = await Promise.all([
+      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes] = await Promise.all([
         fetch('/api/user/overview', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/orders', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/transactions', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/invoices', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/tickets', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/notifications', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/listings', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       if (ordRes.ok) {
@@ -136,6 +141,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (notifRes.ok) {
         const d = await notifRes.json();
         setNotifications(d.notifications || []);
+      }
+      if (lstRes && lstRes.ok) {
+        const d = await lstRes.json();
+        setUserListings(d.listings || []);
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -293,6 +302,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   };
 
+  const handleDeleteListing = async (listingId: string) => {
+    if (!token || !confirm('Are you sure you want to withdraw and delete this listing?')) return;
+    setListingActionLoading(true);
+    try {
+      const res = await fetch(`/api/user/listings/${listingId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setUserListings(prev => prev.filter(l => l.id !== listingId));
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to withdraw listing.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setListingActionLoading(false);
+    }
+  };
+
+  const handleSubmitListingForReview = async (listingId: string) => {
+    if (!token) return;
+    setListingActionLoading(true);
+    try {
+      const res = await fetch(`/api/user/listings/${listingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ submitForReview: true })
+      });
+      if (res.ok) {
+        fetchDashboardData();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setListingActionLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
@@ -420,6 +472,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           >
             <Package className="w-4 h-4" />
             <span>Orders ({orders.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('listings')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+              activeTab === 'listings'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>My Listings ({userListings.length})</span>
           </button>
 
           <button
@@ -1084,6 +1149,140 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </form>
           </div>
         )}
+
+        {/* Listings Tab */}
+        {activeTab === 'listings' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[#0c0d1b] border border-white/10">
+              <div>
+                <h3 className="text-xl font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-purple-400" />
+                  <span>My Account Listings &amp; Escrow</span>
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Manage your submitted Valorant account listings, view moderation statuses, and track payouts.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.4)] cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Submit New Listing</span>
+              </button>
+            </div>
+
+            {userListings.length === 0 ? (
+              <div className="p-12 rounded-2xl bg-[#0c0d1b] border border-white/10 text-center flex flex-col items-center justify-center space-y-3">
+                <ShieldCheck className="w-12 h-12 text-gray-500" />
+                <h4 className="text-lg font-bold font-rajdhani text-white uppercase">No Active Account Listings</h4>
+                <p className="text-xs text-gray-400 max-w-md">
+                  You haven't listed any Valorant accounts yet. Sell securely through VIB Escrow with automated payouts and anti-fraud verification.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitModal(true)}
+                  className="mt-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase transition-all cursor-pointer"
+                >
+                  Create Your First Listing
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {userListings.map((l) => {
+                  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                    published: { bg: 'bg-emerald-950/80 border-emerald-500/40', text: 'text-emerald-300', label: 'PUBLISHED & ACTIVE' },
+                    submitted: { bg: 'bg-amber-950/80 border-amber-500/40', text: 'text-amber-300', label: 'UNDER REVIEW' },
+                    pending_review: { bg: 'bg-amber-950/80 border-amber-500/40', text: 'text-amber-300', label: 'UNDER REVIEW' },
+                    draft: { bg: 'bg-zinc-900 border-zinc-700', text: 'text-zinc-400', label: 'DRAFT' },
+                    rejected: { bg: 'bg-rose-950/80 border-rose-500/40', text: 'text-rose-300', label: 'NEEDS REVISION' },
+                  };
+                  const sInfo = statusColors[l.status] || { bg: 'bg-zinc-900 border-zinc-700', text: 'text-zinc-400', label: l.status.toUpperCase() };
+
+                  return (
+                    <div
+                      key={l.id}
+                      className="rounded-2xl bg-[#0c0d1b] border border-white/10 overflow-hidden flex flex-col justify-between group hover:border-purple-500/50 transition-all shadow-lg"
+                    >
+                      <div className="relative aspect-video w-full overflow-hidden bg-black/50">
+                        <img
+                          src={l.images && l.images[0] ? l.images[0] : '/assets/hires/profiles/card1_exact.jpg'}
+                          alt={l.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-2 left-2">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${sInfo.bg} ${sInfo.text}`}>
+                            {sInfo.label}
+                          </span>
+                        </div>
+                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-white text-xs font-mono font-bold">
+                          ₹{Number(l.price_inr).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 text-xs text-purple-300 font-mono">
+                            <span>{l.rank}</span>
+                            <span>•</span>
+                            <span>Level {l.level}</span>
+                            <span>•</span>
+                            <span>{l.region}</span>
+                          </div>
+                          <h4 className="font-bold text-white text-sm line-clamp-1 mt-1 font-rajdhani">
+                            {l.title}
+                          </h4>
+                          {l.rejection_reason && (
+                            <div className="mt-2 p-2 rounded bg-rose-950/40 border border-rose-500/30 text-[11px] text-rose-300">
+                              <strong>Moderation Feedback:</strong> {l.rejection_reason}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-white/5 flex items-center gap-2 flex-wrap">
+                          {l.status === 'published' && (
+                            <button
+                              type="button"
+                              onClick={() => onNavigate('listing', l.id)}
+                              className="flex-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>View Listing</span>
+                            </button>
+                          )}
+
+                          {(l.status === 'draft' || l.status === 'rejected') && (
+                            <button
+                              type="button"
+                              onClick={() => handleSubmitListingForReview(l.id)}
+                              disabled={listingActionLoading}
+                              className="flex-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-rajdhani uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Submit for Review</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteListing(l.id)}
+                            disabled={listingActionLoading}
+                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-rose-950/50 border border-white/10 hover:border-rose-500/40 text-gray-300 hover:text-rose-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            title="Withdraw Listing"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Withdraw</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ============================================================== */}
@@ -1438,6 +1637,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* MODAL 4: SUBMIT NEW ACCOUNT LISTING                             */}
+      {/* ============================================================== */}
+      <SubmitListingModal
+        isOpen={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        onSuccess={() => {
+          setShowSubmitModal(false);
+          fetchDashboardData();
+        }}
+      />
     </div>
   );
 };

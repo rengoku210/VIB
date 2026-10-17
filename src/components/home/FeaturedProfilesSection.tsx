@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, ShoppingBag, Zap, ShieldCheck } from 'lucide-react';
-import { Currency, CartItem, DigitalProfile } from '../../types';
+import { Currency, CartItem, DigitalProfile, AppPage } from '../../types';
 import { FEATURED_PROFILES_IMAGE_3 } from '../../data/mockData';
 import { formatCurrencyPrice } from '../../utils/format';
 
@@ -9,6 +9,7 @@ interface FeaturedProfilesSectionProps {
   onViewAllProfiles: () => void;
   onAddToCart: (item: CartItem) => void;
   onBuyNow: (title: string, priceINR: number) => void;
+  onNavigate?: (page: AppPage, id?: string) => void;
 }
 
 export const FeaturedProfilesSection: React.FC<FeaturedProfilesSectionProps> = ({
@@ -16,6 +17,7 @@ export const FeaturedProfilesSection: React.FC<FeaturedProfilesSectionProps> = (
   onViewAllProfiles,
   onAddToCart,
   onBuyNow,
+  onNavigate,
 }) => {
   const [activeTab, setActiveTab] = useState<'featured' | 'our' | 'community'>('featured');
 
@@ -90,7 +92,10 @@ export const FeaturedProfilesSection: React.FC<FeaturedProfilesSectionProps> = (
             className="rounded-2xl bg-[#0c101d] border border-white/10 hover:border-fuchsia-500/50 transition-all duration-300 flex flex-col justify-between overflow-hidden group shadow-xl hover:shadow-[0_0_25px_rgba(192,38,211,0.2)]"
           >
             {/* Skin Showcase Banner Image */}
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/50">
+            <div
+              onClick={() => onNavigate ? onNavigate('listing', p.id) : onViewAllProfiles()}
+              className="relative aspect-[16/9] w-full overflow-hidden bg-black/50 cursor-pointer"
+            >
               <img
                 src={p.bannerAsset}
                 alt={p.title}
@@ -121,7 +126,10 @@ export const FeaturedProfilesSection: React.FC<FeaturedProfilesSectionProps> = (
             {/* Content Details */}
             <div className="p-4 flex-1 space-y-2.5">
               <div className="text-[10px] font-mono text-gray-400">{p.code}</div>
-              <h3 className="font-chakra font-bold text-base text-white group-hover:text-fuchsia-300 transition-colors line-clamp-1">
+              <h3
+                onClick={() => onNavigate ? onNavigate('listing', p.id) : onViewAllProfiles()}
+                className="font-chakra font-bold text-base text-white group-hover:text-fuchsia-300 transition-colors line-clamp-1 cursor-pointer"
+              >
                 {p.title}
               </h3>
 

@@ -46,6 +46,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         onViewAllProfiles={() => onNavigate('profiles')}
         onAddToCart={onAddToCart}
         onBuyNow={(title, price) => onOpenCheckout(title, price)}
+        onNavigate={onNavigate}
       />
 
       {/* 4. Premium Digital Profiles Spotlight with Reyna & Inspection Tabs (Matching Image 3) */}
@@ -53,7 +54,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         currency={currency}
         onAddToCart={onAddToCart}
         onBuyNow={(title, price) => onOpenCheckout(title, price)}
-        onInspect={() => onNavigate('profiles')}
+        onInspect={(id) => onNavigate('listing', id || 'lst_immortal_kuronami')}
       />
 
       {/* 5. How VIB Works with 3D Monolith & 4-Step Stepper (Matching Image 2) */}

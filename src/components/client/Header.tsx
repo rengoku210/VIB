@@ -27,6 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 export type ClientPage =
   | 'home'
   | 'profiles'
+  | 'listing'
   | 'vp'
   | 'vp-catalog'
   | 'services'
