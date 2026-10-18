@@ -23,6 +23,7 @@ import { ClientPage } from './Header';
 import { RankProgressionCalculator } from '../home/RankProgressionCalculator';
 import { FlagIcon } from '../common/FlagIcon';
 import { useRankBadges, getRankBadgeUrl } from '../../utils/valorantRanks';
+import { EscrowModal } from '../home/EscrowModal';
 
 interface ClientRankupPageProps {
   currency: Currency;
@@ -48,6 +49,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
   onOpenCheckout,
 }) => {
   const [journeyType, setJourneyType] = useState<'rankup' | 'derank'>('rankup');
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const rankBadges = useRankBadges();
 
   return (
@@ -420,7 +422,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
                 Browse Available Skins
               </button>
               <button
-                onClick={() => onOpenCheckout('Valorant Skin Exchange Escrow', 499)}
+                onClick={() => setIsTradeModalOpen(true)}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <span>List Skin For Trade</span>
@@ -560,10 +562,10 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
             </div>
 
             <button
-              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 999)}
+              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
             >
-              <span>Order Region Switch (₹999)</span>
+              <span>Order Region Switch (₹1,299)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -615,6 +617,12 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Dedicated P2P Trade Escrow Modal */}
+      <EscrowModal
+        isOpen={isTradeModalOpen}
+        onClose={() => setIsTradeModalOpen(false)}
+      />
     </div>
   );
 };

@@ -47,7 +47,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenCheckout,
   onOpenTracking,
 }) => {
-  const { user, token, logout, updateProfile, refreshUser, isAdmin } = useAuth();
+  const { user, token, logout, updateProfile, refreshUser, isAdmin, isStaff } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings' | 'listings'>('overview');
 
   // Live state from backend
@@ -425,7 +425,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             </div>
 
-            {isAdmin && (
+            {isStaff && (
               <button
                 type="button"
                 onClick={() => onNavigate('admin')}

@@ -48,6 +48,7 @@ interface AuthContextType {
   openAuthModal: (mode?: 'login' | 'signup' | 'forgot') => void;
   closeAuthModal: () => void;
   isAdmin: boolean;
+  isStaff: boolean;
   isSeller: boolean;
 }
 
@@ -310,6 +311,11 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
       }
     }
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('vib_checkout_draft');
+    localStorage.removeItem('vib_seller_draft');
+    try {
+      sessionStorage.clear();
+    } catch {}
     setToken(null);
     setUser(null);
   };
@@ -336,7 +342,8 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
     }
   };
 
-  const isAdmin = user ? ['admin', 'superadmin', 'moderator'].includes(user.role) : false;
+  const isAdmin = user ? ['admin', 'superadmin'].includes(user.role) : false;
+  const isStaff = user ? ['admin', 'superadmin', 'moderator'].includes(user.role) : false;
   const isSeller = user ? ['seller', 'admin', 'superadmin'].includes(user.role) : false;
 
   return (
@@ -358,6 +365,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         openAuthModal,
         closeAuthModal,
         isAdmin,
+        isStaff,
         isSeller,
       }}
     >

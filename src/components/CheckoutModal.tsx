@@ -41,6 +41,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [riotId, setRiotId] = useState(() => user?.riot_id?.split('#')[0] || '');
   const [tagline, setTagline] = useState(() => user?.riot_id?.split('#')[1] || '');
   const [email, setEmail] = useState(() => user?.email || '');
+  const [contactPhone, setContactPhone] = useState('');
+  const [discordTag, setDiscordTag] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    riotId?: string;
+    tagline?: string;
+    email?: string;
+    contactPhone?: string;
+    discordTag?: string;
+  }>({});
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
 
   // Modal Stages: 'form' -> 'payment_qr' -> 'submitted'
@@ -91,15 +100,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [isOpen]);
 
-  // Sync user info when modal opens
+  // Sync user info when modal opens (VIB-03: clear seller/prior details on logout/anonymous)
   useEffect(() => {
-    if (user && isOpen) {
-      if (user.riot_id) {
-        const parts = user.riot_id.split('#');
-        if (parts[0]) setRiotId(parts[0]);
-        if (parts[1]) setTagline(parts[1]);
+    if (isOpen) {
+      if (user) {
+        if (user.riot_id) {
+          const parts = user.riot_id.split('#');
+          setRiotId(parts[0] || '');
+          setTagline(parts[1] || '');
+        } else {
+          setRiotId('');
+          setTagline('');
+        }
+        setEmail(user.email || '');
+      } else {
+        // Explicitly clear all private user state for anonymous sessions
+        setRiotId('');
+        setTagline('');
+        setEmail('');
+        setContactPhone('');
+        setDiscordTag('');
+        setRiotVerification(null);
+        setRiotError(null);
       }
-      if (user.email) setEmail(user.email);
+      setFieldErrors({});
     }
   }, [user, isOpen]);
 
@@ -152,6 +176,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const activePkg = pkg || VP_PACKAGES[0];
   const currentPriceINR = customItem ? customItem.priceINR : activePkg.priceINR;
   const currentTitle = customItem ? customItem.title : `${activePkg.vpLabel} (${activePkg.agentName} Edition)`;
+  const lowerTitle = currentTitle.toLowerCase();
+
+  const isValuation = currentPriceINR === 0 || lowerTitle.includes('valuation') || lowerTitle.includes('appraisal');
+  const isRegional = lowerTitle.includes('php') || lowerTitle.includes('regional') || lowerTitle.includes('philippines');
+  const isRental = lowerTitle.includes('rental');
+  const isCoaching = lowerTitle.includes('coaching');
+  const isRankup = lowerTitle.includes('rank') || lowerTitle.includes('derank') || lowerTitle.includes('progression');
 
   const priceText =
     currency === 'USD'
@@ -160,10 +191,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       ? `€${(currentPriceINR / 90).toFixed(2)}`
       : `₹${currentPriceINR.toLocaleString('en-IN')}`;
 
-  // Form submission: Validate Riot ID and create genuine order
+  // Form submission: Validate required fields and create genuine order
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!riotId || !tagline) return;
+    setFieldErrors({});
+    setRiotError(null);
+
+    // Client-side field-level validation (VIB-04 & VIB-05)
+    const errors: typeof fieldErrors = {};
+    if (!riotId.trim()) errors.riotId = 'Valorant Game Name is required (e.g. PhoenixAim)';
+    if (!tagline.trim()) errors.tagline = 'Riot Tagline is required (e.g. IND1)';
+    if (!email.trim() || !email.includes('@')) errors.email = 'A valid receipt email address is required';
+    if (isRegional && !contactPhone.trim()) errors.contactPhone = 'WhatsApp phone number is required for manual regional delivery';
+    if (isCoaching && !discordTag.trim()) errors.discordTag = 'Discord username is required for coaching coordination';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
 
     if (!token) {
       alert('Please log in or register before checking out so your order is secured to your account.');
@@ -189,7 +234,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const isCartCheckout = currentTitle.startsWith('Cart Checkout:');
       const packageId = !customItem && pkg ? pkg.id : undefined;
       const resolvedProductId = customItem ? (customItem.productId || customItem.id) : pkg?.id;
-      const orderType = isCartCheckout ? 'cart' : currentTitle.includes('VP') ? 'vp' : 'profile';
+      const orderType = isValuation
+        ? 'valuation'
+        : isCartCheckout
+        ? 'cart'
+        : isRental
+        ? 'rental'
+        : isCoaching
+        ? 'coaching'
+        : isRegional
+        ? 'regional_vp'
+        : currentTitle.includes('VP')
+        ? 'vp'
+        : 'profile';
 
       const res = await fetch('/api/user/orders', {
         method: 'POST',
@@ -201,13 +258,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           package_id: packageId,
           product_id: resolvedProductId,
           title: currentTitle,
-          amount: currentPriceINR,
+          amount: isValuation ? 0 : currentPriceINR,
           currency,
           type: orderType,
-          paymentMethod: paymentMethod === 'upi' ? 'UPI Manual QR Verification' : paymentMethod === 'card' ? 'Card Escrow' : 'Net Banking Escrow',
+          paymentMethod: isValuation
+            ? 'Free Valuation / Appraisal'
+            : paymentMethod === 'upi'
+            ? 'UPI Manual QR Verification'
+            : paymentMethod === 'card'
+            ? 'Card Escrow'
+            : 'Net Banking Escrow',
           details: {
             riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
             email: email.trim(),
+            contactPhone: contactPhone.trim() || undefined,
+            discordTag: discordTag.trim() || undefined,
+            category: orderType,
           },
         }),
       });
@@ -220,11 +286,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
 
       const data = await res.json();
-      setCreatedOrder(data.order || { id: data.orderId, title: currentTitle, amount: currentPriceINR });
-      setModalStage('payment_qr');
-    } catch (err) {
-      console.warn('Order dispatch error:', err);
-      setRiotError('Network connection issue. Please retry.');
+      setCreatedOrder(data.order);
+
+      if (isValuation) {
+        setModalStage('submitted');
+      } else {
+        setModalStage('payment_qr');
+      }
+    } catch {
+      setRiotError('Network communication failure. Please retry.');
       setModalStage('form');
     }
   };
@@ -370,7 +440,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   Order {currentTitle}
                 </h3>
                 <p className="text-xs font-rajdhani text-gray-400">
-                  Secured Official Dispatch • Automated Code Delivery &amp; Escrow
+                  {isValuation
+                    ? 'Official Account Valuation • Verified Market Appraisal Desk'
+                    : isRegional
+                    ? 'Manual Regional Provisioning • Official WhatsApp Operations Desk (15-30 Mins)'
+                    : isRental
+                    ? 'Escrow Middleman Rental • Security Pledge & Timed Account Access'
+                    : isCoaching
+                    ? '1-on-1 Discord Coaching • Session Scheduling & VOD Review'
+                    : 'Secured Official Dispatch • Automated Code Delivery & Escrow'}
                 </p>
               </div>
             </div>
@@ -401,7 +479,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     {currentTitle}
                   </div>
                   <div className="text-xs font-rajdhani text-gray-400">
-                    Supports Riot Accounts (India / SEA / Global)
+                    {isRegional
+                      ? 'Manual WhatsApp Dispatch (15-30 Mins)'
+                      : isValuation
+                      ? 'Complimentary Appraisal Service'
+                      : 'Supports Riot Accounts (India / SEA / Global)'}
                   </div>
                 </div>
               </div>
@@ -409,7 +491,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 className="font-rajdhani font-bold text-xl shrink-0"
                 style={{ color: activePkg.theme.primaryColor }}
               >
-                {priceText}
+                {isValuation ? 'FREE' : priceText}
               </div>
             </div>
 
@@ -427,8 +509,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     required
                     placeholder="e.g. PhoenixAim"
                     value={riotId}
-                    onChange={(e) => setRiotId(e.target.value)}
-                    className="col-span-2 px-3.5 py-2.5 rounded-lg bg-black/50 border border-white/15 text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                    onChange={(e) => {
+                      setRiotId(e.target.value);
+                      if (fieldErrors.riotId) setFieldErrors((prev) => ({ ...prev, riotId: undefined }));
+                    }}
+                    className={`col-span-2 px-3.5 py-2.5 rounded-lg bg-black/50 border text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:ring-1 ${
+                      fieldErrors.riotId ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400' : 'border-white/15 focus:border-purple-400 focus:ring-purple-400'
+                    }`}
                   />
                   <div className="relative flex items-center">
                     <span className="absolute left-3 text-gray-500 font-mono">#</span>
@@ -438,11 +525,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       required
                       placeholder="IND1"
                       value={tagline}
-                      onChange={(e) => setTagline(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-black/50 border border-white/15 text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                      onChange={(e) => {
+                        setTagline(e.target.value);
+                        if (fieldErrors.tagline) setFieldErrors((prev) => ({ ...prev, tagline: undefined }));
+                      }}
+                      className={`w-full pl-7 pr-3 py-2.5 rounded-lg bg-black/50 border text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:ring-1 ${
+                        fieldErrors.tagline ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400' : 'border-white/15 focus:border-purple-400 focus:ring-purple-400'
+                      }`}
                     />
                   </div>
                 </div>
+
+                {/* Inline Field Errors for Riot ID */}
+                {(fieldErrors.riotId || fieldErrors.tagline) && (
+                  <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{fieldErrors.riotId || fieldErrors.tagline}</span>
+                  </p>
+                )}
 
                 {/* Live Valorant Network Verification Feedback */}
                 <div className="mt-2 min-h-[22px]">
@@ -471,6 +571,81 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
+              {/* Category-Specific Field: Regional VP WhatsApp Number */}
+              {isRegional && (
+                <div>
+                  <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                    WhatsApp Phone Number (For Regional Delivery) *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={contactPhone}
+                    onChange={(e) => {
+                      setContactPhone(e.target.value);
+                      if (fieldErrors.contactPhone) setFieldErrors((prev) => ({ ...prev, contactPhone: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-lg bg-black/50 border text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:ring-1 ${
+                      fieldErrors.contactPhone ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400' : 'border-white/15 focus:border-purple-400 focus:ring-purple-400'
+                    }`}
+                  />
+                  {fieldErrors.contactPhone && (
+                    <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.contactPhone}</span>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-amber-300/90 font-rajdhani mt-1">
+                    * Regional VP packs are provisioned directly on your account via our WhatsApp Desk within 15-30 minutes. Never automated Indian codes.
+                  </p>
+                </div>
+              )}
+
+              {/* Category-Specific Field: Coaching Discord Username */}
+              {isCoaching && (
+                <div>
+                  <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                    Discord Username / Tag *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. phoenix_aim or Phoenix#1234"
+                    value={discordTag}
+                    onChange={(e) => {
+                      setDiscordTag(e.target.value);
+                      if (fieldErrors.discordTag) setFieldErrors((prev) => ({ ...prev, discordTag: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-lg bg-black/50 border text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:ring-1 ${
+                      fieldErrors.discordTag ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400' : 'border-white/15 focus:border-purple-400 focus:ring-purple-400'
+                    }`}
+                  />
+                  {fieldErrors.discordTag && (
+                    <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.discordTag}</span>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-purple-300 font-rajdhani mt-1">
+                    Your assigned Radiant coach will connect via Discord for voice session scheduling and VOD analysis.
+                  </p>
+                </div>
+              )}
+
+              {/* Category-Specific Notice: Rentals */}
+              {isRental && (
+                <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1 text-xs">
+                  <div className="font-bold text-white font-chakra flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Rental Escrow Security Pledge</span>
+                  </div>
+                  <p className="text-[11px] text-gray-300 font-rajdhani leading-relaxed">
+                    By renting, you agree to play fairly without 3rd-party software or toxicity. Account credentials will be revoked automatically when rental duration expires.
+                  </p>
+                </div>
+              )}
+
               {/* Email / Delivery Notification */}
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
@@ -482,46 +657,64 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   required
                   placeholder="yourname@domain.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-black/50 border border-white/15 text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-lg bg-black/50 border text-white placeholder-gray-500 text-base sm:text-sm font-chakra focus:outline-none focus:ring-1 ${
+                    fieldErrors.email ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400' : 'border-white/15 focus:border-purple-400 focus:ring-purple-400'
+                  }`}
                 />
+                {fieldErrors.email && (
+                  <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{fieldErrors.email}</span>
+                  </p>
+                )}
               </div>
 
-              {/* Payment Methods */}
-              <div>
-                <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
-                  Payment Method
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'upi', label: 'UPI / QR', sub: 'Manual Review' },
-                    { id: 'card', label: 'Card Escrow', sub: 'Escrow Desk' },
-                    { id: 'netbanking', label: 'NetBank', sub: 'Direct Bank' },
-                  ].map((method) => (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(method.id as 'upi' | 'card' | 'netbanking')}
-                      className={`min-h-[44px] p-2.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                        paymentMethod === method.id
-                          ? 'bg-white/15 border-white text-white shadow'
-                          : 'bg-black/40 border-white/10 text-gray-400 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="font-chakra font-bold text-xs">{method.label}</div>
-                      <div className="text-[9px] font-rajdhani text-gray-400">{method.sub}</div>
-                    </button>
-                  ))}
+              {/* Payment Methods (Only shown for paid services, bypassed for free valuation) */}
+              {!isValuation ? (
+                <div>
+                  <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'upi', label: 'UPI / QR', sub: 'Manual Review' },
+                      { id: 'card', label: 'Card Escrow', sub: 'Escrow Desk' },
+                      { id: 'netbanking', label: 'NetBank', sub: 'Direct Bank' },
+                    ].map((method) => (
+                      <button
+                        key={method.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(method.id as 'upi' | 'card' | 'netbanking')}
+                        className={`min-h-[44px] p-2.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                          paymentMethod === method.id
+                            ? 'bg-white/15 border-white text-white shadow'
+                            : 'bg-black/40 border-white/10 text-gray-400 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="font-chakra font-bold text-xs">{method.label}</div>
+                        <div className="text-[9px] font-rajdhani text-gray-400">{method.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-amber-300/90 font-rajdhani mt-1.5">
+                    * Note: Instant manual UPI QR transfer with 12-digit UTR verification is the primary payment protocol.
+                  </p>
                 </div>
-                <p className="text-[10px] text-amber-300/90 font-rajdhani mt-1.5">
-                  * Note: Instant manual UPI QR transfer with 12-digit UTR verification is the primary payment protocol.
-                </p>
-              </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>Complimentary Valuation Service • No Payment Required</span>
+                </div>
+              )}
 
               {/* Security guarantee */}
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>Riot Games Authorized Merchant API • Escrow &amp; Code Protection</span>
+                <span>VIB Escrow Desk • Secure Verified Payment &amp; Identity Protection</span>
               </div>
 
               {/* Submit CTA */}
@@ -534,7 +727,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   boxShadow: `0 0 20px ${activePkg.theme.accentGlow}`,
                 }}
               >
-                <span>Proceed to Pay {priceText}</span>
+                <span>{isValuation ? 'Submit Free Valuation Request' : `Proceed to Pay ${priceText}`}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -680,32 +873,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {modalStage === 'submitted' && createdOrder && (
           <div className="py-6 flex flex-col items-center text-center space-y-4 relative z-10">
             <div className="w-14 h-14 rounded-full bg-sky-500/20 border border-sky-500 text-sky-400 flex items-center justify-center">
-              <Clock className="w-8 h-8 animate-pulse" />
+              {isValuation ? <CheckCircle2 className="w-8 h-8 text-emerald-400" /> : <Clock className="w-8 h-8 animate-pulse" />}
             </div>
 
             <div>
-              <div className="inline-block px-3 py-1 rounded-full text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-500/30 mb-2">
-                STATUS: SUBMITTED FOR VERIFICATION
+              <div className={`inline-block px-3 py-1 rounded-full text-xs font-mono font-bold mb-2 border ${
+                isValuation
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-500/30'
+                  : 'bg-sky-950 text-sky-300 border-sky-500/30'
+              }`}>
+                {isValuation ? 'STATUS: APPRAISAL INQUIRY RECEIVED' : 'STATUS: SUBMITTED FOR VERIFICATION'}
               </div>
               <h4 className="font-chakra font-bold text-2xl text-white">
-                Payment Proof Received!
+                {isValuation ? 'Valuation Request Logged!' : 'Payment Proof Received!'}
               </h4>
               <p className="text-xs font-rajdhani text-gray-300 max-w-sm mx-auto mt-1">
-                Your order is safely locked in VIB escrow. Our accounting desk is cross-checking your bank reference with live statements.
+                {isValuation
+                  ? 'Your account appraisal inquiry has been registered. Our valuation desk will analyze your skin inventory and MMR tier.'
+                  : 'Your order is safely locked in VIB escrow. Our accounting desk is cross-checking your bank reference with live statements.'}
               </p>
             </div>
 
             {/* Receipt Summary Card */}
             <div className="w-full p-4 rounded-xl bg-black/60 border border-white/10 text-left font-rajdhani space-y-2 text-xs">
               <div className="flex justify-between items-center text-gray-400">
-                <span>Order Reference:</span>
+                <span>{isValuation ? 'Appraisal Reference:' : 'Order Reference:'}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-white font-bold">#{createdOrder.id}</span>
                   <button
                     type="button"
                     onClick={handleCopyOrderRef}
                     className="p-1 hover:text-white text-gray-400 cursor-pointer"
-                    title="Copy Order ID"
+                    title="Copy Reference ID"
                   >
                     {copiedOrderRef ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
@@ -717,43 +916,57 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span className="text-white font-medium">{currentTitle}</span>
               </div>
 
-              <div className="flex justify-between text-gray-400">
-                <span>Submitted UTR:</span>
-                <span className="font-mono text-purple-300 font-bold">{utrRef}</span>
-              </div>
+              {!isValuation && utrRef && (
+                <div className="flex justify-between text-gray-400">
+                  <span>Submitted UTR:</span>
+                  <span className="font-mono text-purple-300 font-bold">{utrRef}</span>
+                </div>
+              )}
 
               <div className="flex justify-between text-gray-400">
                 <span>Total Amount:</span>
-                <span className="font-bold text-emerald-400">₹{currentPriceINR.toLocaleString('en-IN')}</span>
+                <span className="font-bold text-emerald-400">{isValuation ? 'FREE (₹0)' : `₹${currentPriceINR.toLocaleString('en-IN')}`}</span>
               </div>
 
               <div className="pt-2 border-t border-white/10 text-[11px] text-gray-400 leading-relaxed font-sans">
                 <strong>What happens next?</strong><br />
-                • <strong>Indian VP Packs:</strong> Once approved, your genuine Valorant Prepaid PIN code will automatically appear on your live tracking page and be emailed to <span className="text-white">{email}</span>.<br />
-                • <strong>Regional Packs / Accounts:</strong> Our operations manager will coordinate immediately on WhatsApp.
+                {isValuation ? (
+                  <>• Connect with our appraisal desk on WhatsApp with your reference <strong>#{createdOrder.id}</strong> to receive your valuation report and cashout estimate.</>
+                ) : (
+                  <>
+                    • <strong>Indian VP Packs:</strong> Once approved, your genuine Valorant Prepaid PIN code will automatically appear on your live tracking page and be emailed to <span className="text-white">{email}</span>.<br />
+                    • <strong>Regional Packs / Accounts / Coaching:</strong> Our operations manager will coordinate immediately on WhatsApp/Discord.
+                  </>
+                )}
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="w-full space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={handleOpenLiveTracking}
-                className="w-full min-h-[44px] py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-chakra font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30"
-              >
-                <span>Track Live Order &amp; Code Delivery</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {!isValuation && (
+                <button
+                  type="button"
+                  onClick={handleOpenLiveTracking}
+                  className="w-full min-h-[44px] py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-chakra font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30"
+                >
+                  <span>Track Live Order &amp; Code Delivery</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <a
-                  href={`https://wa.me/919181801766?text=${encodeURIComponent(`Hello VIB Team, I have submitted payment for Order #${createdOrder.id} (UTR: ${utrRef}). Please verify.`)}`}
+                  href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                    isValuation
+                      ? `Hello VIB Valuation Desk, I submitted free appraisal request #${createdOrder.id} for Riot ID ${riotId}#${tagline}. Please review my account value.`
+                      : `Hello VIB Team, I have submitted payment for Order #${createdOrder.id} (UTR: ${utrRef}). Please verify.`
+                  )}`}
                   target="_blank"
                   rel="noreferrer"
                   className="min-h-[44px] py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-chakra font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>WhatsApp Desk</span>
+                  <span>{isValuation ? 'Open Valuation Desk' : 'WhatsApp Desk'}</span>
                 </a>
 
                 <button

@@ -1227,7 +1227,8 @@ app.put('/api/user/notifications/:id/read', authenticate, (req: AuthRequest, res
 // ADMIN DASHBOARD ROUTES
 // ==========================================
 
-const adminOnly = requireRole(['admin', 'superadmin', 'moderator']);
+const staffOnly = requireRole(['admin', 'superadmin', 'moderator']);
+const adminOnly = requireRole(['admin', 'superadmin']);
 const superAdminOnly = requireRole(['superadmin']);
 
 // 1. Admin Stats & Analytics
@@ -1254,8 +1255,8 @@ const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
   });
 };
 
-app.get('/api/admin/stats', authenticate, adminOnly, getAdminStatsHandler);
-app.get('/api/admin/metrics', authenticate, adminOnly, getAdminStatsHandler);
+app.get('/api/admin/stats', authenticate, staffOnly, getAdminStatsHandler);
+app.get('/api/admin/metrics', authenticate, staffOnly, getAdminStatsHandler);
 
 // 2. Admin Users Management
 app.get('/api/admin/users', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
@@ -1343,7 +1344,7 @@ app.put('/api/admin/users/:id/role', authenticate, superAdminOnly, (req: AuthReq
 });
 
 // 5. Admin Orders Management
-app.get('/api/admin/orders', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/orders', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const orders = db.prepare(`
     SELECT o.*, u.email as user_email, u.name as user_name, u.riot_id as user_riot_id
     FROM orders o
@@ -1394,8 +1395,8 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
   });
 };
 
-app.put('/api/admin/orders/:id/status', authenticate, adminOnly, updateOrderStatusHandler);
-app.put('/api/admin/orders/:id', authenticate, adminOnly, updateOrderStatusHandler);
+app.put('/api/admin/orders/:id/status', authenticate, staffOnly, updateOrderStatusHandler);
+app.put('/api/admin/orders/:id', authenticate, staffOnly, updateOrderStatusHandler);
 
 // 6. Admin Transactions & Financial Ledger
 app.get('/api/admin/transactions', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
@@ -1411,7 +1412,7 @@ app.get('/api/admin/transactions', authenticate, adminOnly, (req: AuthRequest, r
 });
 
 // 7. Admin Support Desk & Dispute Resolution
-app.get('/api/admin/tickets', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/tickets', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const tickets = db.prepare(`
     SELECT t.*, u.email as user_email, u.name as user_name
     FROM support_tickets t
@@ -1423,7 +1424,7 @@ app.get('/api/admin/tickets', authenticate, adminOnly, (req: AuthRequest, res: R
   res.json({ tickets });
 });
 
-app.put('/api/admin/tickets/:id', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.put('/api/admin/tickets/:id', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { status, replyText } = req.body;
   const ticketId = req.params.id;
 
@@ -1735,7 +1736,7 @@ app.get('/api/admin/finance/settlements', authenticate, adminOnly, (req: AuthReq
 // 12. EMPLOYEE TASK MANAGEMENT SYSTEM
 // ==========================================
 
-app.get('/api/admin/tasks', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/tasks', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { department, status, priority } = req.query;
   let query = 'SELECT * FROM staff_tasks WHERE 1=1';
   const params: any[] = [];
@@ -1758,7 +1759,7 @@ app.get('/api/admin/tasks', authenticate, adminOnly, (req: AuthRequest, res: Res
   res.json({ tasks });
 });
 
-app.post('/api/admin/tasks', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.post('/api/admin/tasks', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { title, description, department, priority, notes } = req.body;
   const assignedTo = req.body.assignedTo || req.body.assigned_to;
   const dueDate = req.body.dueDate || req.body.due_date;
@@ -1799,7 +1800,7 @@ app.post('/api/admin/tasks', authenticate, adminOnly, (req: AuthRequest, res: Re
   });
 });
 
-app.put('/api/admin/tasks/:id', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.put('/api/admin/tasks/:id', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { status, notes } = req.body;
   const taskId = req.params.id;
 
@@ -2098,7 +2099,7 @@ app.get('/api/orders/track/:orderId', (req: Request, res: Response): void => {
 // 17. ADMIN MANUAL PAYMENT VERIFICATION & FULFILLMENT
 // ==========================================
 
-app.put('/api/admin/orders/:id/verify-payment', authenticate, adminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (req: AuthRequest, res: Response): Promise<void> => {
   const orderId = req.params.id;
   const { action, notes, reason } = req.body;
 
@@ -2170,12 +2171,18 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, adminOnly, async (
       else if (order.title.includes('2,050') || order.title.includes('2050')) pkgId = 'vp-2050';
       else if (order.title.includes('3,650') || order.title.includes('3650')) pkgId = 'vp-3650';
       else if (order.title.includes('5,350') || order.title.includes('5350')) pkgId = 'vp-5350';
+      else if (order.title.includes('7,400') || order.title.includes('7400')) pkgId = 'vp-7400';
       else if (order.title.includes('11,000') || order.title.includes('11000')) pkgId = 'vp-11000';
 
-      // Atomic code reservation from inventory
-      const codeRow = db.prepare(`
+      // Atomic code reservation from inventory (check both vp- and in- prefixes)
+      let codeRow = db.prepare(`
         SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
       `).get(pkgId) as any;
+      if (!codeRow && pkgId.startsWith('vp-')) {
+        codeRow = db.prepare(`
+          SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
+        `).get(pkgId.replace('vp-', 'in-')) as any;
+      }
 
       if (codeRow) {
         db.prepare(`
@@ -2286,7 +2293,7 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, adminOnly, async (
 // ==========================================
 
 // List VP Codes & Stock Summary
-app.get('/api/admin/vp-codes', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { package_id, status } = req.query;
   let query = 'SELECT * FROM vp_codes WHERE 1=1';
   const params: any[] = [];
@@ -2317,7 +2324,7 @@ app.get('/api/admin/vp-codes', authenticate, adminOnly, (req: AuthRequest, res: 
 });
 
 // Add / Import VP Codes in Bulk
-app.post('/api/admin/vp-codes', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.post('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { package_id, codes, batch_no } = req.body;
 
   if (!package_id || !codes) {
@@ -2385,7 +2392,7 @@ app.delete('/api/admin/vp-codes/:id', authenticate, adminOnly, (req: AuthRequest
 // 19. REGIONAL VP ORDERS WORKFLOW (PHP / IDR / MYR)
 // ==========================================
 
-app.get('/api/admin/regional-orders', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/regional-orders', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const orders = db.prepare(`
     SELECT o.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone
     FROM orders o
@@ -2401,7 +2408,7 @@ app.get('/api/admin/regional-orders', authenticate, adminOnly, (req: AuthRequest
   res.json({ orders });
 });
 
-app.put('/api/admin/regional-orders/:id/status', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.put('/api/admin/regional-orders/:id/status', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const orderId = req.params.id;
   const { fulfillment_status, notes } = req.body;
 
@@ -2669,7 +2676,7 @@ app.delete('/api/user/listings/:id', authenticate, (req: AuthRequest, res: Respo
 });
 
 // Admin Listings Review Queue
-app.get('/api/admin/listings', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { status } = req.query;
   let query = 'SELECT * FROM listings WHERE 1=1';
   const params: any[] = [];
@@ -2694,7 +2701,7 @@ app.get('/api/admin/listings', authenticate, adminOnly, (req: AuthRequest, res: 
 });
 
 // Admin Approve, Reject, or Publish Listing
-app.put('/api/admin/listings/:id/status', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.put('/api/admin/listings/:id/status', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const listingId = req.params.id;
   const { status, reason, featured } = req.body;
 
@@ -2787,7 +2794,7 @@ app.post('/api/admin/skins/sync', authenticate, adminOnly, async (req: AuthReque
 // 22. EMAIL AUTOMATION DIAGNOSTICS & LOGS
 // ==========================================
 
-app.get('/api/admin/email-logs', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+app.get('/api/admin/email-logs', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const logs = db.prepare('SELECT * FROM email_logs ORDER BY sent_at DESC LIMIT 100').all();
   res.json({ logs });
 });
@@ -2829,6 +2836,108 @@ app.post('/api/admin/email-logs/:id/retry', authenticate, adminOnly, async (req:
   db.prepare('UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = ?').run(req.params.id);
 
   res.json({ message: 'Email retry dispatched.', result });
+});
+
+// ==========================================
+// 23. LIVE AUCTION HOUSE & BIDDING ENGINE
+// ==========================================
+
+// List Active Auction Lots
+app.get('/api/auctions', (req: Request, res: Response): void => {
+  const lots = db.prepare("SELECT * FROM auction_lots WHERE status = 'active' ORDER BY created_at DESC").all();
+  res.json({ lots });
+});
+
+// Single Auction Lot Details & Bid History
+app.get('/api/auctions/:id', (req: Request, res: Response): void => {
+  const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+  if (!lot) {
+    res.status(404).json({ error: 'Auction lot not found.' });
+    return;
+  }
+  const bids = db.prepare('SELECT * FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 20').all(lot.id);
+  res.json({ lot, bids });
+});
+
+// Place Bid on Auction Lot
+app.post('/api/auctions/:id/bid', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const lotId = req.params.id;
+    const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(lotId, lotId) as any;
+    if (!lot) {
+      res.status(404).json({ error: 'Auction lot not found.' });
+      return;
+    }
+
+    if (lot.status !== 'active') {
+      res.status(400).json({ error: 'This auction lot has concluded or is not accepting bids.' });
+      return;
+    }
+
+    const { amount, bidder_name } = req.body || {};
+    if (amount === undefined || amount === null || String(amount).trim() === '') {
+      res.status(400).json({ error: 'A valid bid amount is required.' });
+      return;
+    }
+
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      res.status(400).json({ error: 'Bid amount must be a positive number.' });
+      return;
+    }
+
+    const currentBid = Number(lot.current_bid);
+    const increment = Number(lot.bid_increment) || 150;
+    const minRequiredBid = currentBid + increment;
+
+    if (numAmount < minRequiredBid) {
+      res.status(400).json({
+        error: `Bid of ₹${numAmount.toLocaleString()} is below the minimum required bid of ₹${minRequiredBid.toLocaleString()} (+₹${increment} increment).`
+      });
+      return;
+    }
+
+    let bidderId: string | null = null;
+    let finalBidderName = bidder_name ? String(bidder_name).trim() : 'Verified Bidder';
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const session = db.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ?').get(token) as any;
+      if (session) {
+        bidderId = session.id;
+        finalBidderName = session.name;
+      }
+    }
+
+    const bidId = 'bid_' + crypto.randomBytes(6).toString('hex');
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO auction_bids (id, lot_id, user_id, bidder_name, amount, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(bidId, lot.id, bidderId, finalBidderName, numAmount, now);
+
+    db.prepare(`
+      UPDATE auction_lots
+      SET current_bid = ?, bid_count = bid_count + 1, highest_bidder_id = ?, highest_bidder_name = ?, updated_at = ?
+      WHERE id = ?
+    `).run(numAmount, bidderId, finalBidderName, now, lot.id);
+
+    const updatedLot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id) as any;
+    const recentBids = db.prepare('SELECT * FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 20').all(lot.id);
+    const newBid = { id: bidId, lot_id: lot.id, user_id: bidderId, bidder_name: finalBidderName, amount: numAmount, created_at: now };
+
+    res.json({
+      message: `Bid of ₹${numAmount.toLocaleString()} placed successfully! You are currently the highest bidder.`,
+      lot: updatedLot,
+      bid: newBid,
+      bids: recentBids
+    });
+  } catch (err: any) {
+    console.error('Auction bid error:', err);
+    res.status(500).json({ error: 'Server error while processing bid.' });
+  }
 });
 
 // Start Express Server

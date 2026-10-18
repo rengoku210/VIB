@@ -48,6 +48,8 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [selectedRankFilter, setSelectedRankFilter] = useState<string>('all');
+  const [selectedSort, setSelectedSort] = useState<'featured' | 'price_asc' | 'price_desc' | 'rank_desc' | 'level_desc'>('featured');
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [publishedListings, setPublishedListings] = useState<any[]>([]);
   const [showSubmitListingModal, setShowSubmitListingModal] = useState(false);
@@ -171,17 +173,60 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       badge,
       isGuaranteed,
       title: item.title,
+      description: item.description || '',
       sub: `Level ${item.level || 1} • ${item.skin_count || (skins.length > 0 ? skins.length : 12)}+ Skins`,
       rankName: rankStr,
+      rankFirstWord,
+      level: Number(item.level) || 1,
       rankIcon: `/assets/hires/ranks/${rankFirstWord}.png`,
       slot1RankGlow: rankGlowMap[rankFirstWord] || 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
       priceINR: Number(item.price_inr),
       originalPriceINR: Math.round(Number(item.price_inr) * 1.3),
       avatarImg,
       weapons: weaponPreviews,
+      allSkins: skins.map((s: any) => typeof s === 'string' ? s.toLowerCase() : (s?.name?.toLowerCase() || '')),
       sellerName: item.seller_name || 'VIB Verified',
     };
   };
+
+  const rankTierOrder: Record<string, number> = {
+    radiant: 9,
+    immortal: 8,
+    ascendant: 7,
+    diamond: 6,
+    platinum: 5,
+    gold: 4,
+    silver: 3,
+    bronze: 2,
+    iron: 1,
+  };
+
+  const allCards = publishedListings.map(mapListingToCard);
+
+  const searchPredicate = (p: any, q: string) => {
+    return (
+      p.title.toLowerCase().includes(q) ||
+      p.sub.toLowerCase().includes(q) ||
+      p.rankName.toLowerCase().includes(q) ||
+      p.badge.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.weapons.some((w: any) => w.name.toLowerCase().includes(q)) ||
+      p.allSkins.some((s: string) => s.includes(q))
+    );
+  };
+
+  const queryTrimmed = localSearch.toLowerCase().trim();
+
+  const otherMarketplace = selectedMarketplace === 'guaranteed' ? 'public' : 'guaranteed';
+  const otherMarketplaceName = selectedMarketplace === 'guaranteed' ? 'Community' : 'Guaranteed';
+
+  const otherTabMatchesCount = queryTrimmed
+    ? allCards.filter(
+        (p) =>
+          (selectedMarketplace === 'guaranteed' ? !p.isGuaranteed : p.isGuaranteed) &&
+          searchPredicate(p, queryTrimmed)
+      ).length
+    : 0;
 
   const currentRawList = publishedListings.filter((item) => {
     if (selectedMarketplace === 'guaranteed') {
@@ -193,14 +238,31 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const mappedList = currentRawList.map(mapListingToCard);
 
   const filteredProfiles = mappedList.filter((p) => {
-    if (!localSearch.trim()) return true;
-    const q = localSearch.toLowerCase().trim();
-    return (
-      p.title.toLowerCase().includes(q) ||
-      p.sub.toLowerCase().includes(q) ||
-      p.rankName.toLowerCase().includes(q) ||
-      p.badge.toLowerCase().includes(q)
-    );
+    // 1. Rank filter
+    if (selectedRankFilter !== 'all') {
+      if (selectedRankFilter === 'gold_plus') {
+        const order = rankTierOrder[p.rankFirstWord] || 0;
+        if (order < 4) return false;
+      } else if (p.rankFirstWord !== selectedRankFilter) {
+        return false;
+      }
+    }
+
+    // 2. Query filter
+    if (!queryTrimmed) return true;
+    return searchPredicate(p, queryTrimmed);
+  });
+
+  const sortedProfiles = [...filteredProfiles].sort((a, b) => {
+    if (selectedSort === 'price_asc') return a.priceINR - b.priceINR;
+    if (selectedSort === 'price_desc') return b.priceINR - a.priceINR;
+    if (selectedSort === 'rank_desc') {
+      const orderA = rankTierOrder[a.rankFirstWord] || 0;
+      const orderB = rankTierOrder[b.rankFirstWord] || 0;
+      return orderB - orderA;
+    }
+    if (selectedSort === 'level_desc') return b.level - a.level;
+    return 0;
   });
 
   return (
@@ -561,52 +623,136 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           </div>
         </div>
 
-        {/* Search Active Notification Pill */}
-        {localSearch && (
-          <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200">
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-purple-400" />
-              <span>
-                Filtering profiles matching &ldquo;<strong className="text-white">{localSearch}</strong>&rdquo; (Found {filteredProfiles.length} result{filteredProfiles.length === 1 ? '' : 's'})
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLocalSearch('')}
-              className="text-purple-400 hover:text-white font-bold underline cursor-pointer p-1"
+        {/* Filter and Sort Toolbar */}
+        <div className="p-3.5 rounded-xl bg-[#0c0a18] border border-white/10 flex flex-wrap items-center justify-between gap-3">
+          {/* Rank Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto">
+            <span className="text-[11px] font-mono text-gray-400 uppercase mr-1 shrink-0">Rank:</span>
+            {[
+              { id: 'all', label: 'All Ranks' },
+              { id: 'radiant', label: 'Radiant' },
+              { id: 'immortal', label: 'Immortal' },
+              { id: 'ascendant', label: 'Ascendant' },
+              { id: 'diamond', label: 'Diamond' },
+              { id: 'platinum', label: 'Platinum' },
+              { id: 'gold_plus', label: 'Gold+' },
+            ].map((chip) => {
+              const active = selectedRankFilter === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setSelectedRankFilter(chip.id)}
+                  className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    active
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sort By Dropdown */}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <label htmlFor="profiles-sort" className="text-[11px] font-mono text-gray-400 uppercase shrink-0">
+              Sort By:
+            </label>
+            <select
+              id="profiles-sort"
+              value={selectedSort}
+              onChange={(e) => setSelectedSort(e.target.value as any)}
+              className="min-h-[34px] px-3 py-1 rounded-lg bg-[#141226] border border-white/15 text-xs text-white focus:outline-none focus:border-purple-400 cursor-pointer"
             >
-              Reset Search
-            </button>
+              <option value="featured">Featured / Default</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="rank_desc">Rank (Highest First)</option>
+              <option value="level_desc">Level (Highest First)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Search Active Notification Pill & Cross-Marketplace Hints */}
+        {localSearch && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>
+                  Filtering profiles matching &ldquo;<strong className="text-white">{localSearch}</strong>&rdquo; (Found {filteredProfiles.length} result{filteredProfiles.length === 1 ? '' : 's'} in {selectedMarketplace === 'guaranteed' ? 'Guaranteed' : 'Community'})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocalSearch('')}
+                className="text-purple-400 hover:text-white font-bold underline cursor-pointer p-1"
+              >
+                Reset Search
+              </button>
+            </div>
+
+            {otherTabMatchesCount > 0 && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>
+                    Found <strong className="text-white">{otherTabMatchesCount}</strong> matching account{otherTabMatchesCount === 1 ? '' : 's'} in the <strong className="text-white">{otherMarketplaceName} Marketplace</strong>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMarketplace(otherMarketplace)}
+                  className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>Switch to {otherMarketplaceName}</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Empty State */}
-        {filteredProfiles.length === 0 ? (
+        {sortedProfiles.length === 0 ? (
           <div className="text-center py-16 px-4 rounded-2xl border border-white/10 bg-[#0c0a18] space-y-4">
             <div className="w-14 h-14 mx-auto rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
               <Search className="w-7 h-7" />
             </div>
             <h3 className="text-xl font-bold text-white font-rajdhani">
-              No profiles found matching &ldquo;{localSearch}&rdquo;
+              No profiles found matching your search or filters
             </h3>
             <p className="text-xs sm:text-sm text-gray-400 max-w-md mx-auto">
-              We couldn&apos;t find any accounts in the {selectedMarketplace === 'guaranteed' ? 'Lifetime Guaranteed' : 'Public'} catalog matching your query. Try searching by rank name (e.g. Immortal, Radiant, Diamond) or clear the filter.
+              We couldn&apos;t find any accounts in the {selectedMarketplace === 'guaranteed' ? 'Lifetime Guaranteed' : 'Community'} catalog matching your query or selected rank tier.
+              {otherTabMatchesCount > 0 && (
+                <span className="block mt-2 text-purple-300 font-semibold">
+                  Good news: {otherTabMatchesCount} matching profile(s) found in the {otherMarketplaceName} Marketplace!
+                </span>
+              )}
             </p>
-            <div className="pt-2 flex items-center justify-center gap-3">
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => setLocalSearch('')}
+                onClick={() => {
+                  setLocalSearch('');
+                  setSelectedRankFilter('all');
+                  setSelectedSort('featured');
+                }}
                 className="min-h-[44px] px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-purple-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               >
-                Clear Search
+                Clear Search & Filters
               </button>
-              <button
-                type="button"
-                onClick={() => setSelectedMarketplace(selectedMarketplace === 'guaranteed' ? 'public' : 'guaranteed')}
-                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-              >
-                Check {selectedMarketplace === 'guaranteed' ? 'Public' : 'Guaranteed'} Catalog
-              </button>
+              {otherTabMatchesCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMarketplace(otherMarketplace)}
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-indigo-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                >
+                  View in {otherMarketplaceName} Catalog
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -615,7 +761,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
             ref={carouselRef}
             className="flex overflow-x-auto lg:grid lg:grid-cols-5 gap-3.5 pb-2 scrollbar-none snap-x scroll-smooth"
           >
-            {filteredProfiles.map((p) => {
+            {sortedProfiles.map((p) => {
               const isFav = favoriteIds.includes(p.id);
               return (
                 <div

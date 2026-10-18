@@ -84,7 +84,8 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
   const [knifeCount, setKnifeCount] = useState<number | ''>(2);
   const [selectedSkins, setSelectedSkins] = useState<string[]>([]);
   const [vipPlan, setVipPlan] = useState<'none' | 'silver' | 'gold' | 'platinum'>('none');
-  const [imageUrl, setImageUrl] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [customImageUrl, setCustomImageUrl] = useState('');
 
   // Riot ID In-Game Account Information Autofill
   const [riotIdInput, setRiotIdInput] = useState('');
@@ -125,7 +126,8 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
           ? initialListing.images
           : (initialListing.images_json ? JSON.parse(initialListing.images_json) : []);
       } catch {}
-      setImageUrl(parsedImages[0] || '');
+      setImages(parsedImages);
+      setCustomImageUrl('');
       setRiotIdInput('');
       setRiotVerifiedAccount(null);
     } else {
@@ -139,7 +141,8 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
       setKnifeCount(2);
       setSelectedSkins([]);
       setVipPlan('none');
-      setImageUrl('');
+      setImages([]);
+      setCustomImageUrl('');
       setRiotIdInput(user?.riot_id || '');
       setRiotVerifiedAccount(null);
     }
@@ -165,8 +168,8 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
           else if (r === 'na') setRegion('North America (NA)');
           else if (r === 'eu') setRegion('Europe (EU)');
         }
-        if (res.cardSmall && !imageUrl) {
-          setImageUrl(res.cardSmall);
+        if (res.cardSmall && images.length === 0) {
+          setImages([res.cardSmall]);
         }
       } else {
         setError(res.error || 'Valorant account not found on official Riot servers.');
@@ -176,6 +179,55 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
     } finally {
       setIsVerifyingRiot(false);
     }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setError(null);
+    const maxFiles = 6;
+    const remainingSlots = maxFiles - images.length;
+
+    if (remainingSlots <= 0) {
+      setError(`Maximum ${maxFiles} screenshots allowed per listing.`);
+      return;
+    }
+
+    const filesToProcess: File[] = (Array.from(files) as File[]).slice(0, remainingSlots);
+
+    for (const file of filesToProcess) {
+      if (!file.type.startsWith('image/')) {
+        setError('Only image files (PNG, JPG, WebP) are supported.');
+        continue;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        setError(`File "${file.name}" exceeds 3MB limit.`);
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setImages((prev) => [...prev, event.target!.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddImageUrl = () => {
+    if (!customImageUrl.trim()) return;
+    if (images.length >= 6) {
+      setError('Maximum 6 screenshots allowed per listing.');
+      return;
+    }
+    setImages((prev) => [...prev, customImageUrl.trim()]);
+    setCustomImageUrl('');
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (submitForReview: boolean) => {
@@ -217,8 +269,8 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
           skin_count: selectedSkins.length,
           knife_count: Number(knifeCount) || 0,
           vip_plan: vipPlan,
-          images: imageUrl.trim()
-            ? [imageUrl.trim()]
+          images: images.length > 0
+            ? images
             : (initialListing?.images && initialListing.images.length > 0
                 ? initialListing.images
                 : ['/assets/hires/profiles/card1_omen.jpg']),
@@ -493,6 +545,93 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
             ) : (
               <div className="text-[11px] text-gray-500 italic py-1 font-sans">
                 No skins added yet. Click &quot;Select Skins&quot; to pick from catalog.
+              </div>
+            )}
+          </div>
+
+          {/* Account Evidence & Screenshots Upload */}
+          <div className="p-4 rounded-xl bg-black/30 border border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-bold text-white text-xs uppercase tracking-wide flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Account Media & Screenshots ({images.length}/6)</span>
+                </div>
+                <div className="text-[11px] text-gray-400 font-sans">
+                  Upload screenshot evidence of rank, skins inventory, and career stats. First image will be used as primary thumbnail.
+                </div>
+              </div>
+            </div>
+
+            {/* Dropzone & File Input */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-900/30 text-purple-200 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <Upload className="w-4 h-4 text-purple-400" />
+                <span>Upload Screenshots (Max 3MB each)</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+
+              {/* Direct URL input alternative */}
+              <div className="flex gap-1.5 sm:w-1/2">
+                <input
+                  type="url"
+                  value={customImageUrl}
+                  onChange={(e) => setCustomImageUrl(e.target.value)}
+                  placeholder="Or paste screenshot URL..."
+                  className="flex-1 min-h-[44px] px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-sans text-xs focus:ring-2 focus:ring-purple-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImageUrl}
+                  disabled={!customImageUrl.trim()}
+                  className="px-3 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white text-xs font-bold transition-all cursor-pointer"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Uploaded Thumbnails Preview Grid */}
+            {images.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1">
+                {images.map((img, idx) => (
+                  <div
+                    key={idx}
+                    className="relative aspect-video rounded-lg overflow-hidden border border-white/15 bg-black/60 group"
+                  >
+                    <img
+                      src={img}
+                      alt={`Uploaded proof ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/hires/profiles/card1_exact.jpg';
+                      }}
+                    />
+                    {idx === 0 && (
+                      <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-black uppercase font-mono">
+                        Primary
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(idx)}
+                      className="absolute top-1 right-1 p-1 rounded-md bg-black/70 hover:bg-rose-600 text-white transition-colors cursor-pointer"
+                      title="Remove image"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-gray-500 italic py-0.5 font-sans">
+                No screenshots attached yet. Attach at least 1 image for faster compliance review.
               </div>
             )}
           </div>

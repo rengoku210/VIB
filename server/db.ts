@@ -321,6 +321,35 @@ db.exec(`
     sent_at TEXT NOT NULL,
     retry_count INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS auction_lots (
+    id TEXT PRIMARY KEY,
+    lot_number TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    starting_bid REAL NOT NULL,
+    current_bid REAL NOT NULL,
+    bid_increment REAL DEFAULT 150,
+    bid_count INTEGER DEFAULT 0,
+    highest_bidder_id TEXT,
+    highest_bidder_name TEXT,
+    ends_at TEXT NOT NULL,
+    image_url TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS auction_bids (
+    id TEXT PRIMARY KEY,
+    lot_id TEXT NOT NULL,
+    user_id TEXT,
+    bidder_name TEXT NOT NULL,
+    amount REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(lot_id) REFERENCES auction_lots(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_auction_bids_lot ON auction_bids(lot_id);
 `);
 
 // Safe column migrations
@@ -689,6 +718,7 @@ export function seedCatalogAndBilling() {
       { id: 'vp-2050', title: '2,050 Valorant Points Pack', category: 'vp', price: 1999, orig: 2399, badge: 'POPULAR', desc: 'Phoenix tier premium skins top-up with bonus VP points.', details: { vp: 2050, agent: 'PHOENIX', delivery: 'Instant PIN' } },
       { id: 'vp-3650', title: '3,650 Valorant Points Pack', category: 'vp', price: 3499, orig: 4199, badge: 'BEST VALUE', desc: 'Jett tier exclusive collection pack for premium weapon skins.', details: { vp: 3650, agent: 'JETT', delivery: 'Instant PIN' } },
       { id: 'vp-5350', title: '5,350 Valorant Points Pack', category: 'vp', price: 4999, orig: 5999, badge: 'EPIC', desc: 'Chamber tier luxury bundle pack for elite collectors.', details: { vp: 5350, agent: 'CHAMBER', delivery: 'Instant Direct Riot Top-Up' } },
+      { id: 'vp-7400', title: '7,400 Valorant Points Pack', category: 'vp', price: 6199, orig: 7199, badge: 'HOT', desc: 'Sova tier reconnaissance master pack with instant Riot PIN redemption.', details: { vp: 7400, agent: 'SOVA', delivery: 'Instant PIN' } },
       { id: 'vp-11000', title: '11,000 Valorant Points Pack', category: 'vp', price: 9499, orig: 11999, badge: 'ULTIMATE', desc: 'Reyna tier master vault collection with maximum savings.', details: { vp: 11000, agent: 'REYNA', delivery: 'VIP Instant Direct' } },
       { id: 'profile-kuronami-immortal', title: 'Immortal 1 Kuronami Vandal Account', category: 'profile', price: 4999, orig: 6999, badge: 'FEATURED', desc: 'Level 210 prime verified account with 210+ skins including Kuronami Vandal, Reaver Vandal, Prime Phantom, Glitchpop Dagger.', details: { rank: 'Immortal 1', level: 210, skins: ['Kuronami Vandal', 'Reaver Vandal', 'Prime Phantom', 'Glitchpop Dagger'], region: 'AP / Mumbai', fullAccess: true } },
       { id: 'profile-radiant-singularity', title: 'Radiant Singularity & Champions Vault', category: 'profile', price: 12499, orig: 16999, badge: 'HOT', desc: 'Level 350 full access account with Singularity Phantom, Champions 2023 Vandal, Araxys Operator, Ignite Fan.', details: { rank: 'Radiant', level: 350, skins: ['Singularity Phantom', 'Champions 2023 Vandal', 'Araxys Operator', 'Ignite Fan'], region: 'AP / Mumbai', fullAccess: true } },
@@ -713,6 +743,26 @@ export function seedCatalogAndBilling() {
     for (const p of products) {
       insertProduct.run(p.id, p.title, p.category, p.price, p.orig, p.badge, p.desc, JSON.stringify(p.details), -1, now);
     }
+  }
+
+  // Ensure vp-7400 is always present in products table
+  const vp7400Exists = db.prepare('SELECT id FROM products WHERE id = ?').get('vp-7400');
+  if (!vp7400Exists) {
+    db.prepare(`
+      INSERT OR REPLACE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `).run(
+      'vp-7400',
+      '7,400 Valorant Points Pack',
+      'vp',
+      6199,
+      7199,
+      'HOT',
+      'Sova tier reconnaissance master pack with instant Riot PIN redemption.',
+      JSON.stringify({ vp: 7400, agent: 'SOVA', delivery: 'Instant PIN' }),
+      -1,
+      now
+    );
   }
 
   // 2. Seed Invoices if empty
@@ -1007,6 +1057,9 @@ export function seedCatalogAndBilling() {
       { pkg: 'vp-3650', code: 'VIB-VP3650-1R4T7V9X' },
       { pkg: 'vp-3650', code: 'VIB-VP3650-8X5Y2Z6A' },
       { pkg: 'vp-5350', code: 'VIB-VP5350-3A6C9E2G' },
+      { pkg: 'vp-7400', code: 'VIB-VP7400-7A9K2M4P' },
+      { pkg: 'vp-7400', code: 'VIB-VP7400-9B3W5E8R' },
+      { pkg: 'in-7400', code: 'VIB-IN7400-3K8M2N5P' },
       { pkg: 'vp-11000', code: 'VIB-VP11000-5G8J1L4N' },
     ];
 
@@ -1204,8 +1257,8 @@ export function seedCatalogAndBilling() {
       weapon: 'Ghost',
       collection: 'Magepunk',
       tier: 'Premium',
-      image: 'https://media.valorant-api.com/weaponskins/a14589d8-4f05-0219-c6e7-138383a15234/displayicon.png',
-      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/bb9a8e0f-48d0-e14b-252a-9ca86810a9cf_default_universal.mp4',
+      image: 'https://media.valorant-api.com/weaponskins/33824a13-453b-0636-4ec4-e19708aa934e/displayicon.png',
+      video: 'https://valorant.dyn.riotcdn.net/x/videos/release-13.08/be0160a8-40c2-4542-e47c-ee9e7461a59c_default_universal.mp4',
       variants: ['Default (Blue Arc)', 'Green', 'Purple', 'Orange']
     }
   ];
@@ -1473,6 +1526,44 @@ export function seedCatalogAndBilling() {
       now,
       now
     );
+
+  // 12. Seed Real Auction Lots if empty
+  const auctionCount = (db.prepare('SELECT COUNT(*) as count FROM auction_lots').get() as any).count;
+  if (auctionCount === 0) {
+    console.log('[Database] Seeding initial auction lots...');
+    const insertAuction = db.prepare(`
+      INSERT INTO auction_lots (
+        id, lot_number, title, description, starting_bid, current_bid, bid_increment,
+        bid_count, highest_bidder_id, highest_bidder_name, ends_at, image_url, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+    `);
+
+    const endsAt = new Date(Date.now() + (2 * 3600 + 14 * 60 + 36) * 1000).toISOString();
+    insertAuction.run(
+      'lot_0881',
+      'LOT #0881',
+      'KURONAMI VANDAL + CHAMPIONS 2024 COMBO',
+      'Includes Kuronami Vandal (Max Level + All Variants), Champions 2024 Vandal & Blade, Reaver 2.0 Karambit, 1,200 VP Balance. Original Owner with First-Email.',
+      3500,
+      4850,
+      150,
+      18,
+      'usr_customer_04',
+      'Alex Mercer',
+      endsAt,
+      '/assets/items/vandal-prime.png',
+      now,
+      now
+    );
+
+    // Initial bid records
+    const insertBid = db.prepare(`
+      INSERT INTO auction_bids (id, lot_id, user_id, bidder_name, amount, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insertBid.run('bid_init_01', 'lot_0881', 'usr_customer_01', 'Kavya Sharma', 4700, new Date(Date.now() - 3600000).toISOString());
+    insertBid.run('bid_init_02', 'lot_0881', 'usr_customer_04', 'Alex Mercer', 4850, new Date(Date.now() - 1200000).toISOString());
+  }
 }
 
 /**

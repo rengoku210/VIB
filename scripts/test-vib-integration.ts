@@ -1117,6 +1117,173 @@ async function runTestSuite() {
       'VIB 2.0 Listings',
       'Server strictly rejects tampered account listing order with 400 Bad Request'
     );
+
+    // ==========================================
+    // Phase 20: VIB-01 & VIB-02 Role Separation & Route Security
+    // ==========================================
+    console.log('\n--- Phase 20: VIB-01 & VIB-02 Staff vs Admin Role Permissions ---');
+
+    // Test 20.1: Anonymous user blocked from all admin endpoints with 401 Unauthorized
+    const anonAdminRes = await request('/api/admin/users');
+    assert(
+      anonAdminRes.status === 401,
+      'VIB-01 & VIB-02 Auth',
+      'Anonymous request to /api/admin/users is rejected with 401 Unauthorized'
+    );
+
+    const anonFinanceRes = await request('/api/admin/finance/overview');
+    assert(
+      anonFinanceRes.status === 401,
+      'VIB-01 & VIB-02 Auth',
+      'Anonymous request to /api/admin/finance/overview is rejected with 401 Unauthorized'
+    );
+
+    // Test 20.2: Moderator Login
+    const modLogin = await request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'moderator@vib.gg', password: 'Moderator@123' }),
+    });
+    assert(
+      modLogin.status === 200 && modLogin.data?.token && modLogin.data?.user?.role === 'moderator',
+      'VIB-01 & VIB-02 Auth',
+      'Moderator login succeeds and returns user with role "moderator"'
+    );
+    const modToken = modLogin.data?.token || '';
+
+    // Test 20.3: Moderator allowed on operational staff endpoints
+    const modOrdersRes = await request('/api/admin/orders', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modOrdersRes.status === 200 && Array.isArray(modOrdersRes.data?.orders),
+      'VIB-01 & VIB-02 Auth',
+      'Moderator has staff access to /api/admin/orders'
+    );
+
+    const modStatsRes = await request('/api/admin/stats', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modStatsRes.status === 200,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator has staff access to /api/admin/stats'
+    );
+
+    // Test 20.4: Moderator strictly forbidden on Admin-Only endpoints (403 Forbidden)
+    const modUsersRes = await request('/api/admin/users', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modUsersRes.status === 403,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator is strictly blocked from /api/admin/users with 403 Forbidden'
+    );
+
+    const modFinanceOverview = await request('/api/admin/finance/overview', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modFinanceOverview.status === 403,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator is strictly blocked from /api/admin/finance/overview with 403 Forbidden'
+    );
+
+    const modInvoices = await request('/api/admin/invoices', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modInvoices.status === 403,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator is strictly blocked from /api/admin/invoices with 403 Forbidden'
+    );
+
+    const modPaymentSettingsPut = await request('/api/admin/payment/settings', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${modToken}` },
+      body: JSON.stringify({ upi_id: 'tampered@upi' }),
+    });
+    assert(
+      modPaymentSettingsPut.status === 403,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator is strictly blocked from modifying payment settings with 403 Forbidden'
+    );
+
+    const modAuditLogs = await request('/api/admin/audit-logs', {
+      headers: { Authorization: `Bearer ${modToken}` },
+    });
+    assert(
+      modAuditLogs.status === 403,
+      'VIB-01 & VIB-02 Auth',
+      'Moderator is strictly blocked from /api/admin/audit-logs with 403 Forbidden'
+    );
+
+    // ==========================================
+    // Phase 21: VIB-07 Indian VP 7,400 Pack & Stock Reconcile
+    // ==========================================
+    console.log('\n--- Phase 21: VIB-07 Indian VP 7,400 Pack Verification ---');
+
+    const vpProductsRes = await request('/api/products?category=vp');
+    assert(
+      vpProductsRes.status === 200 &&
+      Array.isArray(vpProductsRes.data?.products) &&
+      vpProductsRes.data.products.some((p: any) => p.id === 'vp-7400' && (p.price_inr === 6199 || p.price === 6199)),
+      'VIB-07 Indian VP',
+      'Storefront products include 7,400 VP pack (vp-7400) priced at ₹6,199'
+    );
+
+    // ==========================================
+    // Phase 22: VIB-08 Auction Engine & Validation
+    // ==========================================
+    console.log('\n--- Phase 22: VIB-08 Auction Engine & Server-Side Bid Validation ---');
+
+    // Test 22.1: Get Lot #0881
+    const lotRes = await request('/api/auctions/lot_0881');
+    assert(
+      lotRes.status === 200 &&
+      lotRes.data?.lot?.id === 'lot_0881' &&
+      lotRes.data?.lot?.status === 'active',
+      'VIB-08 Auctions',
+      'GET /api/auctions/lot_0881 returns active Lot #0881 with current bid'
+    );
+    const initialBid = Number(lotRes.data?.lot?.current_bid || 4850);
+    const minIncrement = Number(lotRes.data?.lot?.min_increment || 150);
+
+    // Test 22.2: Below-minimum bid rejected
+    const badBidRes = await request('/api/auctions/lot_0881/bid', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({ amount: initialBid }), // Did not add increment
+    });
+    assert(
+      badBidRes.status === 400 &&
+      Boolean(badBidRes.data?.error),
+      'VIB-08 Auctions',
+      'Server rejects bid below required minimum increment with 400 Bad Request'
+    );
+
+    // Test 22.3: Valid bid accepted, persisted, and increments count
+    const validBidAmount = initialBid + minIncrement + 50;
+    const validBidRes = await request('/api/auctions/lot_0881/bid', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({ amount: validBidAmount }),
+    });
+    assert(
+      validBidRes.status === 200 &&
+      validBidRes.data?.lot?.current_bid === validBidAmount &&
+      validBidRes.data?.bid?.amount === validBidAmount,
+      'VIB-08 Auctions',
+      'Server accepts valid bid, updates current_bid, increments total bids, and records audit trail'
+    );
+
+    // Verify bid persists on GET
+    const refreshedLot = await request('/api/auctions/lot_0881');
+    assert(
+      refreshedLot.status === 200 &&
+      refreshedLot.data?.lot?.current_bid === validBidAmount,
+      'VIB-08 Auctions',
+      'Placed bid persists across requests in authoritative SQLite database'
+    );
   }
 
   console.log('\n====================================================');

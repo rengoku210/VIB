@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { ClientPage } from './Header';
+import { useAuth } from '../../context/AuthContext';
 
 interface ClientAuctionsPageProps {
   currency: Currency;
@@ -28,6 +29,7 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
   onNavigate,
   onOpenCheckout,
 }) => {
+  const { user, token } = useAuth();
   const [timeLeft, setTimeLeft] = useState({
     hours: 2,
     minutes: 14,
@@ -36,9 +38,30 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
 
   const [currentBid, setCurrentBid] = useState(4850);
   const [bidCount, setBidCount] = useState(18);
-  const [userBidInput, setUserBidInput] = useState('5000');
+  const [userBidInput, setUserBidInput] = useState('');
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
   const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
+
+  // Fetch persistent real auction lot data from server
+  const fetchLotData = async () => {
+    try {
+      const res = await fetch('/api/auctions/lot_0881');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.lot) {
+          setCurrentBid(Number(data.lot.current_bid));
+          setBidCount(Number(data.lot.bid_count));
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch auction lot:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLotData();
+  }, []);
 
   // Live ticking countdown timer
   useEffect(() => {
@@ -58,19 +81,54 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const handlePlaceBid = (e: React.FormEvent) => {
+  const handlePlaceBid = async (e: React.FormEvent) => {
     e.preventDefault();
     setBidErrorMessage(null);
-    const bidVal = parseInt(userBidInput, 10);
-    if (isNaN(bidVal) || bidVal <= currentBid) {
-      setBidErrorMessage(`Bid must be greater than current bid of ₹${currentBid.toLocaleString()}`);
+    setBidSuccessMessage(null);
+
+    const cleanInput = userBidInput.trim();
+    if (!cleanInput) {
+      setBidErrorMessage('Please enter a valid bid amount before submitting.');
       return;
     }
-    setCurrentBid(bidVal);
-    setBidCount((c) => c + 1);
-    setUserBidInput(String(bidVal + 250));
-    setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully! You are currently the highest bidder.`);
-    setTimeout(() => setBidSuccessMessage(null), 5000);
+
+    const bidVal = parseInt(cleanInput, 10);
+    const minRequired = currentBid + 150;
+    if (isNaN(bidVal) || bidVal < minRequired) {
+      setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()} (+₹150 increment over current bid of ₹${currentBid.toLocaleString()}).`);
+      return;
+    }
+
+    setIsPlacingBid(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/auctions/lot_0881/bid', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          amount: bidVal,
+          bidder_name: user?.name || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setBidErrorMessage(data.error || 'Failed to place bid. Please retry.');
+      } else {
+        setCurrentBid(Number(data.current_bid));
+        setBidCount(Number(data.bid_count));
+        setUserBidInput('');
+        setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully! You are currently the highest bidder.`);
+        fetchLotData();
+        setTimeout(() => setBidSuccessMessage(null), 6000);
+      }
+    } catch {
+      setBidErrorMessage('Network error while placing bid. Please try again.');
+    } finally {
+      setIsPlacingBid(false);
+    }
   };
 
   const flashAuctions = [
@@ -281,9 +339,17 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                     </div>
                     <button
                       type="submit"
-                      className="min-h-[44px] px-8 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+                      disabled={isPlacingBid}
+                      className="min-h-[44px] px-8 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:opacity-50"
                     >
-                      PLACE BID
+                      {isPlacingBid ? (
+                        <>
+                          <Clock className="w-4 h-4 animate-spin" />
+                          <span>VERIFYING...</span>
+                        </>
+                      ) : (
+                        <span>PLACE BID</span>
+                      )}
                     </button>
                   </div>
                 </div>

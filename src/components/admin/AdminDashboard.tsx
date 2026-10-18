@@ -60,8 +60,16 @@ type AdminTab =
   | 'audit';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
-  const { user, token, logout, isAdmin } = useAuth();
+  const { user, token, logout, isAdmin, isStaff } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('metrics');
+  const isModerator = user?.role === 'moderator';
+
+  // Least-privilege role policy: moderators cannot access finance/CRM/invoices/audit/communication
+  useEffect(() => {
+    if (isModerator && ['users', 'finance', 'invoices', 'transactions', 'communication', 'audit'].includes(activeTab)) {
+      setActiveTab('metrics');
+    }
+  }, [isModerator, activeTab]);
 
   // Metrics state
   const [metrics, setMetrics] = useState({
@@ -140,55 +148,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [taskPriority, setTaskPriority] = useState('medium');
   const [taskAssignee, setTaskAssignee] = useState('');
 
-  // Fetch admin data
+  // Fetch admin data with role-based least privilege enforcement
   const fetchAdminData = async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [statsRes, usersRes, ordRes, txnRes, invRes, finRes, expRes, tskRes, tktRes, tplRes, audRes] =
-        await Promise.all([
-          fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`/api/admin/users?search=${encodeURIComponent(userSearch)}&role=${roleFilter}&status=${statusFilter}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch('/api/admin/orders', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/transactions', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/invoices', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/finance/overview', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/finance/expenses', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/tasks', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/tickets', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/communication/templates', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/admin/audit-logs', { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
+      // 1. Staff-accessible endpoints (allowed for moderator, admin, superadmin)
+      const [statsRes, ordRes, tskRes, tktRes] = await Promise.all([
+        fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/orders', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/tasks', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/tickets', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
 
       if (statsRes.ok) {
         const d = await statsRes.json();
         setMetrics(d.metrics || d);
       }
-      if (usersRes.ok) {
-        const d = await usersRes.json();
-        setUsersList(d.users || []);
-      }
       if (ordRes.ok) {
         const d = await ordRes.json();
         setOrdersList(d.orders || []);
-      }
-      if (txnRes.ok) {
-        const d = await txnRes.json();
-        setTransactionsList(d.transactions || []);
-      }
-      if (invRes.ok) {
-        const d = await invRes.json();
-        setInvoicesList(d.invoices || []);
-      }
-      if (finRes.ok) {
-        const d = await finRes.json();
-        setFinanceOverview(d.financeOverview);
-      }
-      if (expRes.ok) {
-        const d = await expRes.json();
-        setExpensesList(d.expenses || []);
       }
       if (tskRes.ok) {
         const d = await tskRes.json();
@@ -198,13 +177,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         const d = await tktRes.json();
         setTicketsList(d.tickets || []);
       }
-      if (tplRes.ok) {
-        const d = await tplRes.json();
-        setTemplatesList(d.templates || []);
-      }
-      if (audRes.ok) {
-        const d = await audRes.json();
-        setAuditLogs(d.logs || []);
+
+      // 2. Sensitive admin-only endpoints (strictly blocked for moderators)
+      if (!isModerator) {
+        const [usersRes, txnRes, invRes, finRes, expRes, tplRes, audRes] = await Promise.all([
+          fetch(`/api/admin/users?search=${encodeURIComponent(userSearch)}&role=${roleFilter}&status=${statusFilter}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch('/api/admin/transactions', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/admin/invoices', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/admin/finance/overview', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/admin/finance/expenses', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/admin/communication/templates', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/admin/audit-logs', { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+
+        if (usersRes.ok) {
+          const d = await usersRes.json();
+          setUsersList(d.users || []);
+        }
+        if (txnRes.ok) {
+          const d = await txnRes.json();
+          setTransactionsList(d.transactions || []);
+        }
+        if (invRes.ok) {
+          const d = await invRes.json();
+          setInvoicesList(d.invoices || []);
+        }
+        if (finRes.ok) {
+          const d = await finRes.json();
+          setFinanceOverview(d.financeOverview);
+        }
+        if (expRes.ok) {
+          const d = await expRes.json();
+          setExpensesList(d.expenses || []);
+        }
+        if (tplRes.ok) {
+          const d = await tplRes.json();
+          setTemplatesList(d.templates || []);
+        }
+        if (audRes.ok) {
+          const d = await audRes.json();
+          setAuditLogs(d.logs || []);
+        }
       }
     } catch (err) {
       console.error('Failed to load admin data:', err);
@@ -592,18 +607,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <span>Email Logs</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'users'
-                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Users &amp; CRM ({usersList.length})</span>
-          </button>
+          {!isModerator && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('users')}
+              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'users'
+                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Users &amp; CRM ({usersList.length})</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -618,31 +635,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <span>Orders ({ordersList.length})</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('invoices')}
-            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'invoices'
-                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Invoices &amp; Billing ({invoicesList.length})</span>
-          </button>
+          {!isModerator && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('invoices')}
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'invoices'
+                    ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Invoices &amp; Billing ({invoicesList.length})</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('finance')}
-            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'finance'
-                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Financial Control</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('finance')}
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'finance'
+                    ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>Financial Control</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -670,31 +691,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <span>Disputes ({ticketsList.length})</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('communication')}
-            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'communication'
-                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Mail className="w-4 h-4" />
-            <span>Communication Center</span>
-          </button>
+          {!isModerator && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('communication')}
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'communication'
+                    ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Mail className="w-4 h-4" />
+                <span>Communication Center</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('audit')}
-            className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'audit'
-                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Audit Trail</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('audit')}
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'audit'
+                    ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Audit Trail</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

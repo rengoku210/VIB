@@ -51,6 +51,17 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [availableSkins, setAvailableSkins] = useState<any[]>([]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setInspectingSkin(null);
+        setActiveVideoUrl(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (!listingId) {
       setError('No listing ID provided.');
       setLoading(false);
@@ -401,6 +412,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                                 alt={skinName}
                                 className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
                                 loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                                }}
                               />
                             ) : (
                               <Sparkles className="w-4 h-4 text-purple-400" />
@@ -586,6 +600,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       src={inspectingSkin.image_url}
                       alt={inspectingSkin.name}
                       className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                      }}
                     />
                   </div>
                 )}
@@ -631,6 +648,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     src={inspectingSkin?.video_url || activeVideoUrl || ''}
                     controls
                     autoPlay
+                    muted
                     loop={false}
                     playsInline
                     className="w-full h-full object-contain"
@@ -651,6 +669,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     src={inspectingSkin.image_url}
                     alt={inspectingSkin.name}
                     className="max-h-full max-w-full object-contain filter drop-shadow-[0_15px_30px_rgba(168,85,247,0.35)] hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                    }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 px-1">

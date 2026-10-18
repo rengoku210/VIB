@@ -67,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSearch,
   onOpenTracking,
 }) => {
-  const { user, logout, openAuthModal, isAdmin } = useAuth();
+  const { user, logout, openAuthModal, isAdmin, isStaff } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -444,7 +444,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Authenticated Controls vs Login/Sign Up */}
           {user ? (
             <div className="hidden sm:flex items-center gap-2">
-              {isAdmin && (
+              {isStaff && (
                 <button
                   type="button"
                   onClick={() => handleNav('admin')}
@@ -697,7 +697,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {user ? (
               <div className="flex items-center gap-1.5 flex-wrap">
-                {isAdmin && (
+                {isStaff && (
                   <button
                     type="button"
                     onClick={() => handleNav('admin')}

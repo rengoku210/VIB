@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import { Header, ClientPage } from './components/client/Header';
 import { Footer } from './components/client/Footer';
 import { ClientHomePage } from './components/client/ClientHomePage';
@@ -25,7 +26,7 @@ import { soundFx } from './utils/audio';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 function AppContent() {
-  const { user, isAdmin, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
+  const { user, isAdmin, isStaff, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
 
   const getInitialPage = (): ClientPage => {
     try {
@@ -120,14 +121,14 @@ function AppContent() {
 
   // Protected route enforcement on auth state changes
   useEffect(() => {
-    if (currentPage === 'admin' && user && !isAdmin) {
+    if (currentPage === 'admin' && user && !isStaff) {
       setCurrentPage('dashboard');
     }
     if ((currentPage === 'dashboard' || currentPage === 'admin') && !user) {
       // If user logs out while on protected route, return to home
       setCurrentPage('home');
     }
-  }, [user, isAdmin, currentPage]);
+  }, [user, isStaff, currentPage]);
 
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -359,18 +360,74 @@ function AppContent() {
         )}
 
         {currentPage === 'dashboard' && (
-          <UserDashboard
-            currency={currency}
-            onNavigate={(p) => handleNavigate(p as ClientPage)}
-            onOpenCheckout={handleOpenCustomCheckout}
-            onOpenTracking={handleOpenTracking}
-          />
+          user ? (
+            <UserDashboard
+              currency={currency}
+              onNavigate={(p) => handleNavigate(p as ClientPage)}
+              onOpenCheckout={handleOpenCustomCheckout}
+              onOpenTracking={handleOpenTracking}
+            />
+          ) : (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <ShieldAlert className="w-16 h-16 text-purple-400 animate-pulse" />
+              <h2 className="text-2xl font-black font-rajdhani uppercase text-white tracking-wider">
+                Authentication Required
+              </h2>
+              <p className="text-gray-400 max-w-md text-xs sm:text-sm">
+                Please log in to access your persistent orders, wallet balance, and secure escrow dashboard.
+              </p>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login')}
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs cursor-pointer shadow-lg shadow-purple-600/30"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('home')}
+                  className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 font-bold font-rajdhani uppercase text-xs cursor-pointer"
+                >
+                  Return to Home
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {currentPage === 'admin' && (
-          <AdminDashboard
-            onNavigate={(p) => handleNavigate(p as ClientPage)}
-          />
+          isStaff ? (
+            <AdminDashboard
+              onNavigate={(p) => handleNavigate(p as ClientPage)}
+            />
+          ) : (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <ShieldAlert className="w-16 h-16 text-rose-500 animate-pulse" />
+              <h2 className="text-2xl font-black font-rajdhani uppercase text-white tracking-wider">
+                Access Restricted • Staff Authorization Required
+              </h2>
+              <p className="text-gray-400 max-w-md text-xs sm:text-sm">
+                Administrative authorization is required to access the VIB Control Console. Please authenticate with an authorized staff account.
+              </p>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login')}
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs cursor-pointer shadow-lg shadow-purple-600/30"
+                >
+                  Staff Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('home')}
+                  className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 font-bold font-rajdhani uppercase text-xs cursor-pointer"
+                >
+                  Return to Home
+                </button>
+              </div>
+            </div>
+          )
         )}
       </main>
 

@@ -58,6 +58,7 @@ export const AdminIndianVPInventory: React.FC = () => {
     { id: 'vp-2050', label: '2,050 VP (Reyna)', priceINR: 1720 },
     { id: 'vp-3650', label: '3,650 VP (Fade)', priceINR: 2999 },
     { id: 'vp-5350', label: '5,350 VP (Jett)', priceINR: 4299 },
+    { id: 'vp-7400', label: '7,400 VP (Sova)', priceINR: 6199 },
     { id: 'vp-11000', label: '11,000 VP (Iso)', priceINR: 8499 },
   ];
 

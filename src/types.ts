@@ -6,7 +6,7 @@ export interface VPPackage {
   vpAmount: number;
   vpLabel: string;
   priceINR: number;
-  badge?: 'POPULAR' | 'BEST VALUE';
+  badge?: 'POPULAR' | 'BEST VALUE' | 'HOT' | 'EXCLUSIVE' | string;
   quote: string;
   quoteAuthor: string;
   graffitiLeft: string;
