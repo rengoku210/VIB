@@ -11,6 +11,7 @@ import {
   Check,
   Zap,
   Filter,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -124,18 +125,12 @@ export const AdminIndianVPInventory: React.FC = () => {
         setImportCodeText('');
         setImportBatch('');
         await fetchInventory();
-        setTimeout(() => {
-          setImportResult(null);
-          setImportWarning(null);
-        }, 7000);
       } else {
         const err = await res.json().catch(() => null);
         setImportError(err?.error || 'Failed to import VP codes. Please verify the code format.');
-        setTimeout(() => setImportError(null), 8000);
       }
     } catch {
       setImportError('Network error while importing codes. Please check your connection.');
-      setTimeout(() => setImportError(null), 8000);
     } finally {
       setIsImporting(false);
     }
@@ -297,23 +292,53 @@ export const AdminIndianVPInventory: React.FC = () => {
 
           {/* Status Feedback Banners */}
           {importResult && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{importResult}</span>
+            <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-mono flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{importResult}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportResult(null)}
+                className="text-emerald-400 hover:text-emerald-200 cursor-pointer p-1"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           )}
 
           {importWarning && (
-            <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{importWarning}</span>
+            <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{importWarning}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportWarning(null)}
+                className="text-amber-400 hover:text-amber-200 cursor-pointer p-1"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           )}
 
           {importError && (
-            <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{importError}</span>
+            <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs font-mono flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{importError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportError(null)}
+                className="text-rose-400 hover:text-rose-200 cursor-pointer p-1"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           )}
 
