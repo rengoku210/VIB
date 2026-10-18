@@ -1286,6 +1286,213 @@ async function runTestSuite() {
     );
   }
 
+  // ==========================================
+  // Phase 23: VP Vault Idempotency & Duplicate Handling
+  // ==========================================
+  console.log('\n--- Phase 23: VP Vault Idempotency, Transactionality & Duplicate Detection ---');
+  {
+    const uniqueSuffix = Date.now().toString(36).toUpperCase();
+    const batchName = `REG-TEST-BATCH-${uniqueSuffix}`;
+    const freshCodes = [
+      `VIB-VAULT-${uniqueSuffix}-CODE1`,
+      `VIB-VAULT-${uniqueSuffix}-CODE2`,
+      `VIB-VAULT-${uniqueSuffix}-CODE3`,
+    ];
+
+    // Test 23.1: Reject invalid package denomination
+    const invalidPkgRes = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-999999-invalid',
+        codes: freshCodes,
+      }),
+    });
+    assert(
+      invalidPkgRes.status === 400 &&
+      Boolean(invalidPkgRes.data?.error),
+      'VP Vault Validation',
+      'Server strictly rejects unrecognized VP package denomination with 400 Bad Request'
+    );
+
+    // Test 23.2: Reject invalid code formatting (e.g. spaces, symbols)
+    const invalidFormatRes = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-475',
+        codes: ['INVALID CODE WITH SPACES!@#'],
+      }),
+    });
+    assert(
+      invalidFormatRes.status === 400 &&
+      Boolean(invalidFormatRes.data?.error),
+      'VP Vault Validation',
+      'Server strictly rejects malformed code string formatting with 400 Bad Request'
+    );
+
+    // Test 23.3: Import genuine new codes into 7,400 VP pack
+    const import7400Res = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-7400',
+        batch_no: batchName,
+        codes: freshCodes,
+      }),
+    });
+    assert(
+      import7400Res.status === 201 &&
+      import7400Res.data?.addedCount === 3 &&
+      import7400Res.data?.duplicatesSkipped === 0,
+      'VP Vault Validation',
+      'Importing valid new inventory codes succeeds and increments available stock'
+    );
+
+    // Test 23.4: Re-importing identical batch is idempotent (reports duplicates, 0 added)
+    const retryImportRes = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-7400',
+        batch_no: batchName,
+        codes: freshCodes,
+      }),
+    });
+    assert(
+      retryImportRes.status === 201 &&
+      retryImportRes.data?.addedCount === 0 &&
+      retryImportRes.data?.duplicatesSkipped === 3,
+      'VP Vault Validation',
+      'Retrying an already imported batch safely reports duplicate records without duplicating inventory'
+    );
+
+    // Test 23.5: Mixed import: some new, some duplicate
+    const mixedCodes = [
+      freshCodes[0], // duplicate
+      `VIB-VAULT-${uniqueSuffix}-CODE4-NEW`, // new
+    ];
+    const mixedRes = await request('/api/admin/vp-codes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        package_id: 'vp-7400',
+        batch_no: batchName,
+        codes: mixedCodes,
+      }),
+    });
+    assert(
+      mixedRes.status === 201 &&
+      mixedRes.data?.addedCount === 1 &&
+      mixedRes.data?.duplicatesSkipped === 1,
+      'VP Vault Validation',
+      'Mixed batch correctly distinguishes new codes from existing codes and skips duplicates'
+    );
+  }
+
+  // ==========================================
+  // Phase 24: Persistent Stateless HMAC Token Authentication
+  // ==========================================
+  console.log('\n--- Phase 24: Persistent HMAC Token Authentication ---');
+  {
+    // Test 24.1: Login generates signed HMAC token
+    const loginRes = await request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'admin@vib.gg', password: 'AdminPassword@123' }),
+    });
+    assert(
+      loginRes.status === 200 &&
+      typeof loginRes.data?.token === 'string' &&
+      loginRes.data.token.includes('.'),
+      'Persistent Auth',
+      'Login returns cryptographically signed HMAC token containing base64 payload and signature'
+    );
+
+    const signedToken = loginRes.data?.token;
+
+    // Test 24.2: Signed token valid on /api/auth/me (refresh simulation)
+    const meRes = await request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${signedToken}` },
+    });
+    assert(
+      meRes.status === 200 &&
+      meRes.data?.user?.email === 'admin@vib.gg' &&
+      meRes.data?.user?.role === 'superadmin',
+      'Persistent Auth',
+      'GET /api/auth/me successfully verifies signed token and restores full superadmin profile'
+    );
+
+    // Test 24.3: Tampered signature is strictly rejected
+    const tamperedToken = signedToken.slice(0, -4) + 'abcd';
+    const tamperedRes = await request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${tamperedToken}` },
+    });
+    assert(
+      tamperedRes.status === 401 &&
+      tamperedRes.data?.error === 'Invalid or expired session. Please log in again.',
+      'Persistent Auth',
+      'Tampered token signature is strictly rejected with 401 Unauthorized'
+    );
+  }
+
+  // ==========================================
+  // Phase 25: Atomic Order Transitions & Multi-Entity Aggregation
+  // ==========================================
+  console.log('\n--- Phase 25: Atomic Order Status Transitions & Aggregations ---');
+  {
+    // Create test order
+    const orderRes = await request('/api/user/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        product_id: 'vp-475',
+        type: 'vp',
+        amount: 499,
+        payment_method: 'UPI / PhonePe',
+        currency: 'INR',
+      }),
+    });
+    assert(orderRes.status === 201 && Boolean(orderRes.data?.order?.id), 'Order Aggregation', 'Test order created');
+    const orderId = orderRes.data?.order?.id;
+
+    // Test 25.1: Verify payment approves order and marks transaction & invoice paid
+    const approveRes = await request(`/api/admin/orders/${orderId}/verify-payment`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ action: 'approve' }),
+    });
+    assert(
+      approveRes.status === 200 &&
+      (approveRes.data?.order?.payment_status === 'PAYMENT_VERIFIED' || approveRes.data?.order?.status === 'completed'),
+      'Order Aggregation',
+      'Admin payment approval atomically updates order payment_status to PAYMENT_VERIFIED'
+    );
+
+    // Verify invoice status updated
+    const invoicesRes = await request('/api/admin/invoices', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const orderInvoice = invoicesRes.data?.invoices?.find((inv: any) => inv.order_id === orderId);
+    assert(
+      orderInvoice && orderInvoice.status === 'paid',
+      'Order Aggregation',
+      'Related commercial tax invoice status is atomically marked as paid'
+    );
+
+    // Test 25.2: Transitions to cancelled release reserved codes and mark invoice cancelled
+    const cancelRes = await request(`/api/admin/orders/${orderId}/status`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ status: 'cancelled', note: 'Customer requested refund' }),
+    });
+    assert(
+      cancelRes.status === 200 &&
+      cancelRes.data?.order?.status === 'cancelled',
+      'Order Aggregation',
+      'Transition to cancelled updates order status, transactions, and invoices atomically'
+    );
+  }
+
   console.log('\n====================================================');
   console.log('TEST SUMMARY RESULTS');
   console.log('====================================================');

@@ -525,7 +525,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             }`}
           >
             <Headphones className="w-4 h-4" />
-            <span>Support &amp; Disputes ({tickets.length})</span>
+            <span>Support &amp; Disputes ({tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length})</span>
           </button>
 
           <button
@@ -568,6 +568,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {/* ============================================================== */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in">
+            {isStaff && (
+              <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+                <div className="flex items-center gap-2 text-amber-200">
+                  <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
+                  <span>
+                    Staff Account Active: <strong className="text-white uppercase">{user.role}</strong>. Platform-wide operations, Indian VP vault, orders, and financial controls are located in the Admin Console.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('admin')}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold font-rajdhani uppercase tracking-wider shrink-0 transition-all cursor-pointer shadow-lg shadow-amber-900/40"
+                >
+                  Open Admin Console &rarr;
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
@@ -577,7 +595,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div className="text-2xl font-black font-rajdhani text-white">
                   {orders.filter((o) => o.status === 'processing' || o.status === 'pending').length}
                 </div>
-                <div className="text-[11px] text-gray-500">Live orders currently in fulfillment queue</div>
+                <div className="text-[11px] text-gray-500">Live personal orders currently in fulfillment queue</div>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 space-y-2">
@@ -597,7 +615,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <Headphones className="w-4 h-4 text-indigo-400" />
                 </div>
                 <div className="text-2xl font-black font-rajdhani text-indigo-300">
-                  {tickets.filter((t) => t.status === 'open').length}
+                  {tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length}
                 </div>
                 <div className="text-[11px] text-gray-500">Active communications with VIB support</div>
               </div>

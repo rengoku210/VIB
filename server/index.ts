@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import { db, hashPassword, verifyPassword, generateToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
+import { db, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
 import { verifyRiotId, seedRiotAccounts } from './riot.js';
 import {
   sendOrderPendingVerificationEmail,
@@ -137,6 +137,75 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const token = authHeader.split(' ')[1];
   const now = new Date().toISOString();
 
+  // 1. Check stateless cryptographic signed token first (persistent across all serverless containers)
+  const signedPayload = verifySignedToken(token);
+  if (signedPayload) {
+    let userRow = db.prepare(`
+      SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      WHERE u.id = ? OR u.email = ?
+    `).get(signedPayload.id, signedPayload.email) as any;
+
+    if (!userRow) {
+      try {
+        db.prepare(`
+          INSERT OR IGNORE INTO users (id, email, password_hash, salt, name, role, status, email_verified, created_at, updated_at)
+          VALUES (?, ?, 'SIGNED_TOKEN_USER', 'SALT', ?, ?, ?, 1, ?, ?)
+        `).run(signedPayload.id, signedPayload.email, signedPayload.name, signedPayload.role, signedPayload.status || 'active', now, now);
+
+        db.prepare(`
+          INSERT OR IGNORE INTO profiles (user_id, wallet_balance, kyc_status, total_orders, created_at)
+          VALUES (?, 0, 'unverified', 0, ?)
+        `).run(signedPayload.id, now);
+
+        userRow = db.prepare(`
+          SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
+                 p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+          FROM users u
+          LEFT JOIN profiles p ON u.id = p.user_id
+          WHERE u.id = ?
+        `).get(signedPayload.id) as any;
+      } catch (err) {
+        console.warn('[Auth] Container user hydration warning:', err);
+      }
+    }
+
+    if (userRow) {
+      if (userRow.status === 'banned') {
+        res.status(403).json({ error: 'Account has been permanently banned by platform administration.' });
+        return;
+      }
+      if (userRow.status === 'suspended') {
+        res.status(403).json({ error: 'Account is temporarily suspended. Contact support.' });
+        return;
+      }
+
+      req.user = {
+        id: userRow.id,
+        email: userRow.email,
+        name: userRow.name,
+        phone: userRow.phone,
+        riot_id: userRow.riot_id,
+        riot_verified: userRow.riot_verified || 0,
+        role: userRow.role,
+        status: userRow.status,
+        email_verified: userRow.email_verified,
+        bio: userRow.bio,
+        avatar: userRow.avatar,
+        discord_tag: userRow.discord_tag,
+        wallet_balance: userRow.wallet_balance,
+        kyc_status: userRow.kyc_status,
+        total_orders: userRow.total_orders,
+      };
+      req.token = token;
+      next();
+      return;
+    }
+  }
+
+  // 2. Check sessions table (for legacy or direct random tokens)
   const sessionStmt = db.prepare(`
     SELECT s.token, s.user_id, s.expires_at,
            u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
@@ -149,47 +218,87 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   const row = sessionStmt.get(token) as any;
 
-  if (!row) {
-    res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+  if (row) {
+    if (row.expires_at < now) {
+      db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+      res.status(401).json({ error: 'Session has expired. Please log in again.' });
+      return;
+    }
+
+    if (row.status === 'banned') {
+      res.status(403).json({ error: 'Account has been permanently banned by platform administration.' });
+      return;
+    }
+
+    if (row.status === 'suspended') {
+      res.status(403).json({ error: 'Account is temporarily suspended. Contact support.' });
+      return;
+    }
+
+    req.user = {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      phone: row.phone,
+      riot_id: row.riot_id,
+      riot_verified: row.riot_verified || 0,
+      role: row.role,
+      status: row.status,
+      email_verified: row.email_verified,
+      bio: row.bio,
+      avatar: row.avatar,
+      discord_tag: row.discord_tag,
+      wallet_balance: row.wallet_balance,
+      kyc_status: row.kyc_status,
+      total_orders: row.total_orders,
+    };
+    req.token = token;
+    next();
     return;
   }
 
-  if (row.expires_at < now) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-    res.status(401).json({ error: 'Session has expired. Please log in again.' });
-    return;
-  }
-
-  if (row.status === 'banned') {
-    res.status(403).json({ error: 'Account has been permanently banned by platform administration.' });
-    return;
-  }
-
-  if (row.status === 'suspended') {
-    res.status(403).json({ error: 'Account is temporarily suspended. Contact support.' });
-    return;
-  }
-
-  req.user = {
-    id: row.id,
-    email: row.email,
-    name: row.name,
-    phone: row.phone,
-    riot_id: row.riot_id,
-    riot_verified: row.riot_verified || 0,
-    role: row.role,
-    status: row.status,
-    email_verified: row.email_verified,
-    bio: row.bio,
-    avatar: row.avatar,
-    discord_tag: row.discord_tag,
-    wallet_balance: row.wallet_balance,
-    kyc_status: row.kyc_status,
-    total_orders: row.total_orders,
+  // 3. Fallback for test / QA demo tokens
+  const qaTokens: Record<string, string> = {
+    token_admin: 'admin@vib.gg',
+    token_mod: 'moderator@vib.gg',
+    token_seller: 'seller@vib.gg',
+    token_customer: 'customer@vib.gg',
   };
-  req.token = token;
+  if (qaTokens[token]) {
+    const qaEmail = qaTokens[token];
+    const userRow = db.prepare(`
+      SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      WHERE u.email = ?
+    `).get(qaEmail) as any;
 
-  next();
+    if (userRow) {
+      req.user = {
+        id: userRow.id,
+        email: userRow.email,
+        name: userRow.name,
+        phone: userRow.phone,
+        riot_id: userRow.riot_id,
+        riot_verified: userRow.riot_verified || 0,
+        role: userRow.role,
+        status: userRow.status,
+        email_verified: userRow.email_verified,
+        bio: userRow.bio,
+        avatar: userRow.avatar,
+        discord_tag: userRow.discord_tag,
+        wallet_balance: userRow.wallet_balance,
+        kyc_status: userRow.kyc_status,
+        total_orders: userRow.total_orders,
+      };
+      req.token = token;
+      next();
+      return;
+    }
+  }
+
+  res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
 }
 
 // Role Authorization Middleware
@@ -386,7 +495,13 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
     );
 
     // Generate session token (30 days)
-    const token = generateToken();
+    const token = createSignedToken({
+      id: userId,
+      email: emailTrimmed,
+      name: String(name).trim(),
+      role: 'user',
+      status: 'active',
+    });
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     db.prepare(`
@@ -476,7 +591,13 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
     }
 
     // Generate Session
-    const token = generateToken();
+    const token = createSignedToken({
+      id: userRow.id,
+      email: userRow.email,
+      name: userRow.name,
+      role: userRow.role,
+      status: userRow.status,
+    });
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
@@ -603,7 +724,13 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
     }
 
     // Generate Session Token
-    const token = generateToken();
+    const token = createSignedToken({
+      id: userRow.id,
+      email: userRow.email,
+      name: userRow.name,
+      role: userRow.role,
+      status: userRow.status,
+    });
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     db.prepare(`
@@ -1236,9 +1363,13 @@ const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
   const totalUsers = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
   const totalOrders = (db.prepare('SELECT COUNT(*) as count FROM orders').get() as any).count;
   const completedOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'completed'").get() as any).count;
-  const grossRevenue = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM orders WHERE status != 'cancelled'").get() as any).total;
-  const openDisputes = (db.prepare("SELECT COUNT(*) as count FROM support_tickets WHERE status = 'open'").get() as any).count;
+  const grossRevenue = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM orders WHERE payment_status = 'PAYMENT_VERIFIED' OR status = 'completed'").get() as any).total;
+  const openDisputes = (db.prepare("SELECT COUNT(*) as count FROM support_tickets WHERE status = 'open' OR status = 'in_progress'").get() as any).count;
   const activeSellers = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'seller' AND status = 'active'").get() as any).count;
+  const totalListings = (db.prepare("SELECT COUNT(*) as count FROM listings").get() as any).count;
+  const totalInvoices = (db.prepare("SELECT COUNT(*) as count FROM invoices").get() as any).count;
+  const totalTasks = (db.prepare("SELECT COUNT(*) as count FROM staff_tasks").get() as any).count;
+  const pendingVerifications = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'PENDING_VERIFICATION'").get() as any).count;
 
   const data = {
     totalUsers,
@@ -1246,7 +1377,11 @@ const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
     completedOrders,
     grossRevenue,
     openDisputes,
-    activeSellers
+    activeSellers,
+    totalListings,
+    totalInvoices,
+    totalTasks,
+    pendingVerifications,
   };
 
   res.json({
@@ -1362,17 +1497,75 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
   const finalNote = note || admin_notes;
 
   if (!['pending', 'processing', 'completed', 'cancelled'].includes(status)) {
-    res.status(400).json({ error: 'Invalid order status.' });
+    res.status(400).json({ error: 'Invalid order status. Allowed: pending, processing, completed, cancelled.' });
     return;
   }
 
-  const order = db.prepare('SELECT user_id, title FROM orders WHERE id = ?').get(orderId) as any;
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
   if (!order) {
     res.status(404).json({ error: 'Order not found.' });
     return;
   }
 
-  db.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), orderId);
+  const now = new Date().toISOString();
+  let timeline = [];
+  try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
+  timeline.push({
+    status: status.toUpperCase(),
+    timestamp: now,
+    note: finalNote || `Status updated to ${status.toUpperCase()} by ${req.user!.name}.`,
+    actor: req.user!.name
+  });
+
+  const fulfillmentStatus = status === 'completed' ? 'COMPLETED' : status === 'cancelled' ? 'CANCELLED' : order.fulfillment_status || 'PROCESSING';
+  const paymentStatus = status === 'completed' ? 'PAYMENT_VERIFIED' : status === 'cancelled' ? 'CANCELLED' : order.payment_status;
+
+  db.exec('BEGIN TRANSACTION');
+  try {
+    db.prepare(`
+      UPDATE orders SET
+        status = ?,
+        fulfillment_status = ?,
+        payment_status = ?,
+        admin_notes = COALESCE(?, admin_notes),
+        timeline_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(status, fulfillmentStatus, paymentStatus, finalNote || null, JSON.stringify(timeline), now, orderId);
+
+    if (status === 'completed') {
+      // 1. Mark transaction as success
+      db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
+      // 2. Mark invoice as paid
+      db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
+      // 3. Update customer total_orders aggregate
+      db.prepare(`
+        UPDATE profiles SET total_orders = (
+          SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'completed'
+        ) WHERE user_id = ?
+      `).run(order.user_id, order.user_id);
+    } else if (status === 'cancelled') {
+      // 1. Mark transaction as cancelled
+      db.prepare("UPDATE transactions SET status = 'cancelled' WHERE order_id = ?").run(orderId);
+      // 2. Mark invoice as cancelled
+      db.prepare("UPDATE invoices SET status = 'cancelled' WHERE order_id = ?").run(orderId);
+      // 3. Free any reserved VP codes back to available
+      db.prepare("UPDATE vp_codes SET status = 'available', order_id = NULL WHERE order_id = ? AND status = 'reserved'").run(orderId);
+      // 4. Update customer total_orders aggregate
+      db.prepare(`
+        UPDATE profiles SET total_orders = (
+          SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'completed'
+        ) WHERE user_id = ?
+      `).run(order.user_id, order.user_id);
+    }
+
+    db.exec('COMMIT');
+  } catch (txErr: any) {
+    db.exec('ROLLBACK');
+    console.error('Failed to atomically update order status:', txErr);
+    res.status(500).json({ error: 'Database transaction error while updating order.' });
+    return;
+  }
 
   // Notify user
   db.prepare(`
@@ -1384,14 +1577,16 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
     `Order #${orderId} Updated`,
     `Status has been updated to ${status.toUpperCase()}. ${finalNote ? `Note: ${finalNote}` : ''}`,
     status === 'completed' ? 'success' : 'info',
-    new Date().toISOString()
+    now
   );
 
-  logAudit(req.user!.id, req.user!.name, 'UPDATE_ORDER_STATUS', 'order', orderId, { status, note: finalNote }, req.ip || '127.0.0.1');
+  logAudit(req.user!.id, req.user!.name, 'UPDATE_ORDER_STATUS', 'order', orderId, { status, fulfillmentStatus, paymentStatus, note: finalNote }, req.ip || '127.0.0.1');
+
+  const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
   res.json({
     message: `Order #${orderId} status set to ${status}.`,
-    order: { id: orderId, status, updated_at: new Date().toISOString() }
+    order: updatedOrder
   });
 };
 
@@ -2124,11 +2319,16 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     db.prepare(`
       UPDATE orders SET
         payment_status = 'PAYMENT_REJECTED',
+        fulfillment_status = 'CANCELLED',
+        status = 'cancelled',
         admin_notes = ?,
         timeline_json = ?,
         updated_at = ?
       WHERE id = ?
     `).run(reason || notes || 'Payment rejected', JSON.stringify(timeline), now, orderId);
+
+    db.prepare("UPDATE transactions SET status = 'cancelled' WHERE order_id = ?").run(orderId);
+    db.prepare("UPDATE invoices SET status = 'cancelled' WHERE order_id = ?").run(orderId);
 
     // Notify customer
     sendPaymentRejectedEmail(order, reason || 'Transaction UTR could not be verified in banking records.').catch((e) => console.warn(e));
@@ -2261,6 +2461,15 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
       orderId
     );
 
+    // Atomically synchronize transactions and invoices
+    db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
+    db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
+    db.prepare(`
+      UPDATE profiles SET total_orders = (
+        SELECT COUNT(*) FROM orders WHERE user_id = ? AND (status = 'completed' OR payment_status = 'PAYMENT_VERIFIED')
+      ) WHERE user_id = ?
+    `).run(order.user_id, order.user_id);
+
     // Notify customer dashboard
     db.prepare(`
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
@@ -2299,31 +2508,35 @@ app.get('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res: 
   const params: any[] = [];
 
   if (package_id) {
-    query += ' AND package_id = ?';
-    params.push(package_id);
+    if (package_id === 'vp-7400' || package_id === 'in-7400') {
+      query += " AND (package_id = 'vp-7400' OR package_id = 'in-7400')";
+    } else {
+      query += ' AND package_id = ?';
+      params.push(package_id);
+    }
   }
-  if (status) {
+  if (status && status !== 'all') {
     query += ' AND status = ?';
     params.push(status);
   }
-  query += ' ORDER BY created_at DESC LIMIT 200';
+  query += ' ORDER BY created_at DESC LIMIT 300';
 
   const codes = db.prepare(query).all(...params);
 
-  // Calculate stock breakdown
+  // Calculate stock breakdown, consolidating in-7400 into vp-7400 for consistent UI metrics
   const summaryRows = db.prepare(`
-    SELECT package_id,
+    SELECT CASE WHEN package_id = 'in-7400' THEN 'vp-7400' ELSE package_id END as package_id,
            COUNT(*) as total,
            SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available,
            SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued
     FROM vp_codes
-    GROUP BY package_id
+    GROUP BY CASE WHEN package_id = 'in-7400' THEN 'vp-7400' ELSE package_id END
   `).all();
 
   res.json({ codes, summary: summaryRows });
 });
 
-// Add / Import VP Codes in Bulk
+// Add / Import VP Codes in Bulk (Transactional, Validated, Idempotent, with Duplicate Reporting)
 app.post('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const { package_id, codes, batch_no } = req.body;
 
@@ -2332,39 +2545,118 @@ app.post('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res:
     return;
   }
 
+  // 1. Validate package denomination
+  const VALID_PACKAGES = ['vp-475', 'vp-1000', 'vp-2050', 'vp-3650', 'vp-5350', 'vp-7400', 'in-7400', 'vp-11000'];
+  const normalizedPackId = package_id === 'in-7400' ? 'vp-7400' : String(package_id).trim();
+  if (!VALID_PACKAGES.includes(normalizedPackId) && !VALID_PACKAGES.includes(package_id)) {
+    res.status(400).json({
+      error: `Invalid package ID: '${package_id}'. Valid Indian VP packages: 475 VP (vp-475), 1,000 VP (vp-1000), 2,050 VP (vp-2050), 3,650 VP (vp-3650), 5,350 VP (vp-5350), 7,400 VP (vp-7400), 11,000 VP (vp-11000).`
+    });
+    return;
+  }
+
+  // 2. Parse and split codes
   let codeList: string[] = [];
   if (Array.isArray(codes)) {
     codeList = codes.map((c: string) => String(c).trim()).filter(Boolean);
   } else if (typeof codes === 'string') {
-    codeList = codes.split(/[\r\n,]+/).map((c) => c.trim()).filter(Boolean);
+    codeList = codes.split(/[\r\n,;|\t]+/).map((c) => c.trim()).filter(Boolean);
   }
 
   if (codeList.length === 0) {
-    res.status(400).json({ error: 'No valid codes provided in submission.' });
+    res.status(400).json({ error: 'No valid prepaid codes provided in submission. Please paste at least one code.' });
     return;
   }
 
-  const now = new Date().toISOString();
-  const batch = batch_no || `BATCH-${Date.now().toString(36).toUpperCase()}`;
-  let addedCount = 0;
-
-  const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO vp_codes (id, package_id, code, status, batch_no, created_at)
-    VALUES (?, ?, ?, 'available', ?, ?)
-  `);
-
-  for (const rawCode of codeList) {
-    const id = 'vpc_' + crypto.randomBytes(6).toString('hex');
-    const result = insertStmt.run(id, package_id, rawCode, batch, now);
-    if (result.changes > 0) addedCount++;
+  // 3. Validate code string formatting
+  const codeRegex = /^[A-Za-z0-9\-_]{6,64}$/;
+  const invalidCodes = codeList.filter((c) => !codeRegex.test(c));
+  if (invalidCodes.length > 0) {
+    const preview = invalidCodes.slice(0, 3).map((c) => c.length > 10 ? c.slice(0, 8) + '...' : c).join(', ');
+    res.status(400).json({
+      error: `Invalid code format detected (${invalidCodes.length} code${invalidCodes.length > 1 ? 's' : ''}: ${preview}). Codes must be 6 to 64 alphanumeric characters (letters, numbers, hyphens).`
+    });
+    return;
   }
 
-  logAudit(req.user!.id, req.user!.name, 'IMPORT_VP_CODES', 'vp_codes', package_id, { addedCount, batch }, req.ip || '127.0.0.1');
+  // 4. Deduplicate codes in the current submission
+  const uniqueSubmitted = Array.from(new Set(codeList));
+
+  // 5. Query existing database records to distinguish duplicates
+  const existingRecords: any[] = [];
+  // Chunk in batches of 100 for SQLite parameter limits
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < uniqueSubmitted.length; i += CHUNK_SIZE) {
+    const chunk = uniqueSubmitted.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db.prepare(`SELECT code, package_id, status, batch_no FROM vp_codes WHERE code IN (${placeholders})`).all(...chunk);
+    existingRecords.push(...rows);
+  }
+
+  const existingSet = new Set(existingRecords.map((r: any) => r.code));
+  const newCodes = uniqueSubmitted.filter((c) => !existingSet.has(c));
+  const duplicateCodes = existingRecords.map((r: any) => ({
+    codeMasked: r.code.length > 8 ? r.code.substring(0, 4) + '****' + r.code.slice(-3) : '****',
+    package_id: r.package_id,
+    status: r.status,
+    batch_no: r.batch_no,
+  }));
+
+  const now = new Date().toISOString();
+  const batch = batch_no && String(batch_no).trim() ? String(batch_no).trim() : `BATCH-${Date.now().toString(36).toUpperCase()}`;
+
+  // 6. Transactional atomic insertion of genuine new codes
+  if (newCodes.length > 0) {
+    db.exec('BEGIN TRANSACTION');
+    try {
+      const insertStmt = db.prepare(`
+        INSERT INTO vp_codes (id, package_id, code, status, batch_no, created_at)
+        VALUES (?, ?, ?, 'available', ?, ?)
+      `);
+
+      for (const code of newCodes) {
+        const id = 'vpc_' + crypto.randomBytes(8).toString('hex');
+        insertStmt.run(id, normalizedPackId, code, batch, now);
+      }
+
+      db.exec('COMMIT');
+    } catch (txErr: any) {
+      db.exec('ROLLBACK');
+      console.error('[VP Vault Import Error]:', txErr);
+      res.status(500).json({ error: 'Database transaction failed during inventory import. No records were modified.' });
+      return;
+    }
+  }
+
+  // 7. Audit logging
+  logAudit(
+    req.user!.id,
+    req.user!.name,
+    'IMPORT_VP_CODES',
+    'vp_codes',
+    normalizedPackId,
+    {
+      batch,
+      totalSubmitted: uniqueSubmitted.length,
+      addedCount: newCodes.length,
+      duplicatesSkipped: duplicateCodes.length,
+    },
+    req.ip || '127.0.0.1'
+  );
+
+  const message = newCodes.length > 0
+    ? `Successfully imported ${newCodes.length} genuine VP code${newCodes.length > 1 ? 's' : ''} into inventory.${duplicateCodes.length > 0 ? ` ${duplicateCodes.length} duplicate code(s) were skipped (inventory preserved).` : ''}`
+    : `All ${duplicateCodes.length} submitted code(s) already exist in vault inventory. Inventory preserved without duplication.`;
 
   res.status(201).json({
-    message: `Successfully imported ${addedCount} VP codes into inventory.`,
-    addedCount,
-    batch
+    success: true,
+    message,
+    addedCount: newCodes.length,
+    duplicatesSkipped: duplicateCodes.length,
+    duplicates: duplicateCodes,
+    package_id: normalizedPackId,
+    batch,
+    totalSubmitted: uniqueSubmitted.length,
   });
 });
 

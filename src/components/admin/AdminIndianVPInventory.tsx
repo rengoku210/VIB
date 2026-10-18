@@ -48,6 +48,8 @@ export const AdminIndianVPInventory: React.FC = () => {
   const [importCodeText, setImportCodeText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [importWarning, setImportWarning] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Copy helper
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
@@ -94,6 +96,8 @@ export const AdminIndianVPInventory: React.FC = () => {
     if (!token || !importCodeText.trim()) return;
     setIsImporting(true);
     setImportResult(null);
+    setImportWarning(null);
+    setImportError(null);
 
     try {
       const res = await fetch('/api/admin/vp-codes', {
@@ -111,17 +115,27 @@ export const AdminIndianVPInventory: React.FC = () => {
 
       if (res.ok) {
         const data = await res.json();
-        setImportResult(`Successfully imported ${data.addedCount} VP codes into stock!`);
+        if (data.addedCount > 0) {
+          setImportResult(`Successfully imported ${data.addedCount} VP codes into vault inventory!`);
+        }
+        if (data.duplicatesSkipped > 0) {
+          setImportWarning(`${data.duplicatesSkipped} duplicate code(s) already existed in inventory and were safely skipped.`);
+        }
         setImportCodeText('');
         setImportBatch('');
-        fetchInventory();
-        setTimeout(() => setImportResult(null), 4000);
+        await fetchInventory();
+        setTimeout(() => {
+          setImportResult(null);
+          setImportWarning(null);
+        }, 7000);
       } else {
         const err = await res.json().catch(() => null);
-        alert(err?.error || 'Failed to import VP codes.');
+        setImportError(err?.error || 'Failed to import VP codes. Please verify the code format.');
+        setTimeout(() => setImportError(null), 8000);
       }
     } catch {
-      alert('Network error while importing codes.');
+      setImportError('Network error while importing codes. Please check your connection.');
+      setTimeout(() => setImportError(null), 8000);
     } finally {
       setIsImporting(false);
     }
@@ -151,13 +165,13 @@ export const AdminIndianVPInventory: React.FC = () => {
     setTimeout(() => setCopiedCodeId(null), 2000);
   };
 
-  // Helper to get stock numbers for a pack
+  // Helper to get stock numbers for a pack (consolidating vp-7400 and in-7400)
   const getPackStock = (packId: string) => {
-    const row = summary.find((s) => s.package_id === packId);
+    const rows = summary.filter((s) => s.package_id === packId || (packId === 'vp-7400' && s.package_id === 'in-7400'));
     return {
-      available: row?.available || 0,
-      issued: row?.issued || 0,
-      total: row?.total || 0,
+      available: rows.reduce((acc, r) => acc + (r.available || 0), 0),
+      issued: rows.reduce((acc, r) => acc + (r.issued || 0), 0),
+      total: rows.reduce((acc, r) => acc + (r.total || 0), 0),
     };
   };
 
@@ -281,23 +295,37 @@ export const AdminIndianVPInventory: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            {importResult && (
-              <span className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{importResult}</span>
-              </span>
-            )}
-            <div className="ml-auto">
-              <button
-                type="submit"
-                disabled={isImporting || !importCodeText.trim()}
-                className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold font-rajdhani uppercase text-sm text-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30 disabled:opacity-50"
-              >
-                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                <span>Import Codes to Vault</span>
-              </button>
+          {/* Status Feedback Banners */}
+          {importResult && (
+            <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{importResult}</span>
             </div>
+          )}
+
+          {importWarning && (
+            <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>{importWarning}</span>
+            </div>
+          )}
+
+          {importError && (
+            <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs font-mono flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{importError}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isImporting || !importCodeText.trim()}
+              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold font-rajdhani uppercase text-sm text-white transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30 disabled:opacity-50"
+            >
+              {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              <span>Import Codes to Vault</span>
+            </button>
           </div>
         </form>
       </div>

@@ -618,7 +618,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               }`}
             >
               <Users className="w-4 h-4" />
-              <span>Users &amp; CRM ({usersList.length})</span>
+              <span>Users &amp; CRM ({metrics.totalUsers || usersList.length})</span>
             </button>
           )}
 
@@ -632,7 +632,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             }`}
           >
             <Package className="w-4 h-4" />
-            <span>Orders ({ordersList.length})</span>
+            <span>Orders ({metrics.totalOrders || ordersList.length})</span>
           </button>
 
           {!isModerator && (
@@ -647,7 +647,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 }`}
               >
                 <FileText className="w-4 h-4" />
-                <span>Invoices &amp; Billing ({invoicesList.length})</span>
+                <span>Invoices &amp; Billing ({metrics.totalInvoices || invoicesList.length})</span>
               </button>
 
               <button
@@ -675,7 +675,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             }`}
           >
             <Briefcase className="w-4 h-4" />
-            <span>Staff Tasks ({tasksList.length})</span>
+            <span>Staff Tasks ({metrics.totalTasks || tasksList.length})</span>
           </button>
 
           <button
@@ -688,7 +688,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             }`}
           >
             <Headphones className="w-4 h-4" />
-            <span>Disputes ({ticketsList.length})</span>
+            <span>Disputes ({metrics.openDisputes || ticketsList.filter(t => t.status === 'open' || t.status === 'in_progress').length})</span>
           </button>
 
           {!isModerator && (

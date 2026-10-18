@@ -123,14 +123,19 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         const data = await parseJsonResponse(res, 'Session restore failed.');
         setUser(data.user);
         setToken(savedToken);
-      } else {
+      } else if (res.status === 401) {
+        // Genuine 401 Unauthorized: token has expired or is invalid
         localStorage.removeItem(TOKEN_KEY);
         setUser(null);
         setToken(null);
+      } else {
+        // Transient server errors (500, 502, 504 during serverless cold starts)
+        // Retain saved credential so user is not incorrectly logged out
+        console.warn(`[Auth] Session verification returned HTTP ${res.status}. Retaining saved credentials.`);
       }
     } catch (err) {
       console.warn('[Auth] Network error validating session:', err);
-      // Keep saved token in case of brief offline state, but don't crash
+      // Keep saved token in case of brief offline or cold-start state
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,20 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, 'vib.db');
+
+// If running in Vercel serverless environment, copy the canonical repository database template if /tmp/data/vib.db does not exist yet
+if (isVercel && !fs.existsSync(dbPath)) {
+  const templateDb = path.resolve(process.cwd(), 'data', 'vib.db');
+  if (fs.existsSync(templateDb)) {
+    try {
+      fs.copyFileSync(templateDb, dbPath);
+      console.log('[Database] Successfully copied canonical template database to /tmp/data/vib.db');
+    } catch (err) {
+      console.warn('[Database] Warning: Failed to copy template database to /tmp:', err);
+    }
+  }
+}
+
 export const db = new DatabaseSync(dbPath);
 
 // Enable WAL mode for high concurrency (or MEMORY journal on Vercel read-only serverless filesystem)
@@ -413,7 +427,69 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
   }
 }
 
-export function generateToken(): string {
+const TOKEN_SECRET = process.env.SESSION_SECRET || 'vib-platform-auth-secret-key-2026-production';
+
+export interface TokenPayload {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  exp: number;
+  iat: number;
+}
+
+export function createSignedToken(payload: {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status?: string;
+}): string {
+  const data: TokenPayload = {
+    id: payload.id,
+    email: payload.email,
+    name: payload.name,
+    role: payload.role,
+    status: payload.status || 'active',
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    iat: Date.now(),
+  };
+  const encodedData = Buffer.from(JSON.stringify(data)).toString('base64url');
+  const hmac = crypto.createHmac('sha256', TOKEN_SECRET).update(encodedData).digest('base64url');
+  return `${encodedData}.${hmac}`;
+}
+
+export function verifySignedToken(token: string): TokenPayload | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [encodedData, signature] = parts;
+  if (!encodedData || !signature) return null;
+
+  try {
+    const expectedSignature = crypto.createHmac('sha256', TOKEN_SECRET).update(encodedData).digest('base64url');
+    if (signature.length !== expectedSignature.length) return null;
+
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+    if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+
+    const payload = JSON.parse(Buffer.from(encodedData, 'base64url').toString('utf8')) as TokenPayload;
+    if (!payload.id || !payload.role) return null;
+    if (payload.exp && payload.exp < Date.now()) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export function generateToken(user?: { id: string; email: string; name: string; role: string; status?: string }): string {
+  if (user) {
+    return createSignedToken(user);
+  }
   return crypto.randomBytes(32).toString('hex');
 }
 
