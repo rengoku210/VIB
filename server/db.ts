@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const dataDir = path.resolve(process.cwd(), 'data');
+const isVercel = Boolean(process.env.VERCEL);
+const dataDir = isVercel ? '/tmp/data' : path.resolve(process.cwd(), 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -11,8 +12,12 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'vib.db');
 export const db = new DatabaseSync(dbPath);
 
-// Enable WAL mode for high concurrency
-db.exec('PRAGMA journal_mode = WAL;');
+// Enable WAL mode for high concurrency (or MEMORY journal on Vercel read-only serverless filesystem)
+if (isVercel) {
+  db.exec('PRAGMA journal_mode = MEMORY;');
+} else {
+  db.exec('PRAGMA journal_mode = WAL;');
+}
 db.exec('PRAGMA foreign_keys = ON;');
 
 // Initialize tables
