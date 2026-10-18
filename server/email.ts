@@ -1,5 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import { db } from './db';
+import { db } from './db.js';
 import crypto from 'node:crypto';
 
 export interface EmailLogEntry {
