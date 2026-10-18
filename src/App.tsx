@@ -124,8 +124,8 @@ function AppContent() {
     if (currentPage === 'admin' && user && !isStaff) {
       setCurrentPage('dashboard');
     }
-    if ((currentPage === 'dashboard' || currentPage === 'admin') && !user) {
-      // If user logs out while on protected route, return to home
+    if (currentPage === 'dashboard' && !user) {
+      // If user logs out while on protected dashboard, return to home
       setCurrentPage('home');
     }
   }, [user, isStaff, currentPage]);
