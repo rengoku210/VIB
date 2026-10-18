@@ -246,6 +246,9 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         errMessage = 'Google Sign-In popup was closed before completion.';
       } else if (err?.code === 'auth/popup-blocked') {
         errMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site.';
+      } else if (err?.code === 'auth/unauthorized-domain' || errMessage.includes('auth/unauthorized-domain')) {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        errMessage = `Domain '${domain}' is not authorized in Firebase Console yet. Please add '${domain}' in Firebase Console > Authentication > Settings > Authorized domains, or sign in with email and password below.`;
       } else if (err?.code === 'auth/cancelled-popup-request') {
         errMessage = 'Previous sign-in request was cancelled.';
       } else if (errMessage.includes('JSON') || errMessage.includes('Failed to fetch') || errMessage.includes('NetworkError')) {
