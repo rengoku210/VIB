@@ -400,55 +400,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </>
               )}
             </button>
-
-            {/* Quick-Fill QA Credentials */}
-            <div className="pt-2 border-t border-white/5 space-y-1.5">
-              <span className="text-[10px] font-mono uppercase text-gray-400 tracking-wider block">
-                Quick QA Credentials Fill:
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-mono">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('customer@vib.gg');
-                    setPassword('CustomerPassword@123');
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-colors text-center cursor-pointer"
-                >
-                  Customer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('seller@vib.gg');
-                    setPassword('SellerPassword@123');
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-colors text-center cursor-pointer"
-                >
-                  Seller
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('moderator@vib.gg');
-                    setPassword('Moderator@123');
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-colors text-center cursor-pointer"
-                >
-                  Moderator
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('admin@vib.gg');
-                    setPassword('AdminPassword@123');
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-purple-300 hover:text-white border border-purple-500/30 transition-colors text-center cursor-pointer"
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
           </form>
         </div>
       )}

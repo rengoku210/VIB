@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 /**
  * Comprehensive Automated Integration Test Suite for VIB Digital Services Platform
  * Verifies Phases 2, 3, 4, 5, 7 of the Master Prompt
@@ -1245,8 +1246,8 @@ async function runTestSuite() {
       'VIB-08 Auctions',
       'GET /api/auctions/lot_0881 returns active Lot #0881 with current bid'
     );
-    const initialBid = Number(lotRes.data?.lot?.current_bid || 4850);
-    const minIncrement = Number(lotRes.data?.lot?.min_increment || 150);
+    const initialBid = Number(lotRes.data?.lot?.current_bid);
+    const minIncrement = Number(lotRes.data?.lot?.bid_increment || 150);
 
     // Test 22.2: Below-minimum bid rejected
     const badBidRes = await request('/api/auctions/lot_0881/bid', {
@@ -1273,7 +1274,8 @@ async function runTestSuite() {
       validBidRes.data?.lot?.current_bid === validBidAmount &&
       validBidRes.data?.bid?.amount === validBidAmount,
       'VIB-08 Auctions',
-      'Server accepts valid bid, updates current_bid, increments total bids, and records audit trail'
+      'Server accepts valid bid, updates current_bid, increments total bids, and records audit trail',
+      JSON.stringify({ status: validBidRes.status, data: validBidRes.data })
     );
 
     // Verify bid persists on GET
@@ -1282,7 +1284,8 @@ async function runTestSuite() {
       refreshedLot.status === 200 &&
       refreshedLot.data?.lot?.current_bid === validBidAmount,
       'VIB-08 Auctions',
-      'Placed bid persists across requests in authoritative SQLite database'
+      'Placed bid persists across requests in authoritative SQLite database',
+      JSON.stringify({ status: refreshedLot.status, data: refreshedLot.data })
     );
   }
 
@@ -1491,6 +1494,127 @@ async function runTestSuite() {
       'Order Aggregation',
       'Transition to cancelled updates order status, transactions, and invoices atomically'
     );
+  }
+
+  // ==========================================
+  // Phase 26: VIB-15 Security & Plaintext Credential Elimination
+  // ==========================================
+  console.log('\n--- Phase 26: VIB-15 Security & Plaintext Credential Elimination ---');
+  {
+    const authModalSrc = fs.readFileSync('src/components/auth/AuthModal.tsx', 'utf8');
+    assert(
+      !authModalSrc.includes('AdminPassword@123') &&
+      !authModalSrc.includes('CustomerPassword@123') &&
+      !authModalSrc.includes('Quick QA Credentials'),
+      'VIB-15 Security',
+      'AuthModal component contains zero hardcoded plaintext passwords or QA credential quick-fill buttons'
+    );
+  }
+
+  // ==========================================
+  // Phase 27: VIB-16 Other-Region WhatsApp Handoff Context
+  // ==========================================
+  console.log('\n--- Phase 27: VIB-16 Other-Region WhatsApp Handoff Context ---');
+  {
+    const vpPageSrc = fs.readFileSync('src/components/client/ClientVPOverviewPage.tsx', 'utf8');
+    assert(
+      vpPageSrc.includes('selectedOtherRegion') &&
+      vpPageSrc.includes('Hello VIB Regional Desk, I would like to request assistance with purchasing a Valorant Points pack for region:'),
+      'VIB-16 Regional VP',
+      'ClientVPOverviewPage includes interactive region selector and contextual WhatsApp inquiry text'
+    );
+  }
+
+  // ==========================================
+  // Phase 28: VIB-13 Escrow Middleman & Trade Desk Persistence
+  // ==========================================
+  console.log('\n--- Phase 28: VIB-13 Escrow Middleman & Trade Desk Persistence ---');
+  {
+    const escrowRes = await request('/api/escrow/tickets', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({
+        tradeType: 'buy',
+        counterparty: 'TenZ#NA1',
+        weaponOrSkin: 'Prime Vandal & Kuronami No Yaiba',
+        skinVariant: 'Level 4 Upgrade',
+        region: 'India (MUM)',
+        amount: '4500',
+        contactEmail: 'trade.customer@test.com'
+      })
+    });
+    assert(
+      escrowRes.status === 201 &&
+      Boolean(escrowRes.data?.ticketId) &&
+      escrowRes.data?.ticket?.category === 'trade_escrow',
+      'VIB-13 Trade Escrow',
+      'Escrow trade ticket is created with category trade_escrow and persists in database'
+    );
+
+    // Verify ticket appears in admin tickets desk
+    const adminTicketsRes = await request('/api/admin/tickets', {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    const foundTicket = adminTicketsRes.data?.tickets?.find((t: any) => t.id === escrowRes.data?.ticketId);
+    assert(
+      Boolean(foundTicket) && foundTicket.status === 'open',
+      'VIB-13 Trade Escrow',
+      'Newly initiated escrow ticket is queryable in admin support and middleman desk'
+    );
+  }
+
+  // ==========================================
+  // Phase 29: VIB-08 Auction Engine Token Bidder Attribution
+  // ==========================================
+  console.log('\n--- Phase 29: VIB-08 Auction Engine Token Bidder Attribution ---');
+  {
+    const lotRes = await request('/api/auctions/lot_0881');
+    const curBid = Number(lotRes.data?.lot?.current_bid);
+    const nextBid = curBid + 200;
+
+    const bidRes = await request('/api/auctions/lot_0881/bid', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify({ amount: nextBid })
+    });
+
+    assert(
+      bidRes.status === 200 &&
+      bidRes.data?.bid?.amount === nextBid &&
+      bidRes.data?.bid?.user_id === userId,
+      'VIB-08 Auctions',
+      'Auction bid with HMAC signed token attributes bidder ID directly to authenticated user'
+    );
+  }
+
+  // ==========================================
+  // Phase 30: VIB-11 Admin Moderation Rejection Reason Handling
+  // ==========================================
+  console.log('\n--- Phase 30: VIB-11 Admin Moderation Rejection Reason Handling ---');
+  {
+    // Fetch a community listing to test moderation
+    const listingsRes = await request('/api/admin/listings', {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    const testListing = listingsRes.data?.listings?.[0];
+    if (testListing) {
+      const rejectRes = await request(`/api/admin/listings/${testListing.id}/status`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({
+          status: 'rejected',
+          reject_reason: 'Account screenshot missing rank verification timestamp'
+        })
+      });
+
+      assert(
+        rejectRes.status === 200 &&
+        rejectRes.data?.listing?.status === 'rejected' &&
+        rejectRes.data?.listing?.rejection_reason === 'Account screenshot missing rank verification timestamp',
+        'VIB-11 Moderation',
+        'Admin moderation accepts reject_reason alias and updates listing rejection reason'
+      );
+    }
   }
 
   console.log('\n====================================================');

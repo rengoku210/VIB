@@ -331,7 +331,9 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                           setUserBidInput(e.target.value);
                           if (bidErrorMessage) setBidErrorMessage(null);
                         }}
-                        min={currentBid + 1}
+                        min={currentBid + 150}
+                        step="50"
+                        required
                         aria-describedby={bidErrorMessage ? "bid-error" : undefined}
                         className="w-full pl-8 pr-4 py-3 sm:py-3.5 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
                         placeholder="Enter amount"

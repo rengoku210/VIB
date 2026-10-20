@@ -932,11 +932,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <strong>What happens next?</strong><br />
                 {isValuation ? (
                   <>• Connect with our appraisal desk on WhatsApp with your reference <strong>#{createdOrder.id}</strong> to receive your valuation report and cashout estimate.</>
+                ) : isRental ? (
+                  <>• <strong>Skin Rentals:</strong> Account login credentials and temporary password will be dispatched directly to your private Order Room under official escrow. Our middleman will coordinate two-factor authentication (OTP) in the order room chat.</>
+                ) : isCoaching || isRankup ? (
+                  <>• <strong>Coaching &amp; Rank Consultation:</strong> A Radiant-tier coach/specialist has been assigned. Connect in your order room or on Discord to confirm match timing and voice review session.</>
+                ) : isRegional ? (
+                  <>• <strong>Regional VP Packs (PHP/Other):</strong> Dispatched via our dedicated regional operations desk within 15-30 minutes on WhatsApp.</>
                 ) : (
-                  <>
-                    • <strong>Indian VP Packs:</strong> Once approved, your genuine Valorant Prepaid PIN code will automatically appear on your live tracking page and be emailed to <span className="text-white">{email}</span>.<br />
-                    • <strong>Regional Packs / Accounts / Coaching:</strong> Our operations manager will coordinate immediately on WhatsApp/Discord.
-                  </>
+                  <>• <strong>Indian VP Packs:</strong> Once approved, your genuine Valorant Prepaid PIN code will automatically appear on your live tracking page and be emailed to <span className="text-white">{email}</span>.</>
                 )}
               </div>
             </div>

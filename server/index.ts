@@ -1252,6 +1252,75 @@ app.get('/api/user/transactions', authenticate, (req: AuthRequest, res: Response
   res.json({ transactions });
 });
 
+
+// VIB Escrow Trade Desk Ticket Initiation
+app.post('/api/escrow/tickets', (req: Request, res: Response): void => {
+  try {
+    const { tradeType, counterparty, weaponOrSkin, skinVariant, region, amount, contactEmail } = req.body;
+    if (!tradeType || !counterparty || !amount) {
+      res.status(400).json({ error: 'Trade type, counterparty Riot/Discord ID, and trade amount are required.' });
+      return;
+    }
+
+    let userId = 'usr_guest';
+    let userName = 'Guest Trader';
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const payload = verifySignedToken(token);
+      if (payload && payload.id) {
+        const u = db.prepare('SELECT id, name FROM users WHERE id = ?').get(payload.id) as any;
+        if (u) {
+          userId = u.id;
+          userName = u.name;
+        }
+      }
+    }
+
+    // Fallback user if usr_guest doesn't exist
+    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!userExists) {
+      const defaultUser = db.prepare("SELECT id FROM users WHERE role = 'user' OR role = 'customer' LIMIT 1").get() as any;
+      if (defaultUser) {
+        userId = defaultUser.id;
+      } else {
+        const anyUser = db.prepare("SELECT id FROM users LIMIT 1").get() as any;
+        if (anyUser) userId = anyUser.id;
+      }
+    }
+
+    const ticketId = 'escrow_' + crypto.randomBytes(6).toString('hex');
+    const now = new Date().toISOString();
+    const subject = `[Escrow Trade] ${String(tradeType).toUpperCase()} - ${weaponOrSkin || 'Account/Skin'} (₹${amount})`;
+    const detailMessage = `Trade Type: ${String(tradeType).toUpperCase()}
+Counterparty: ${counterparty}
+Item/Skin: ${weaponOrSkin || 'General Trade'}
+Variant/Tier: ${skinVariant || 'Standard'}
+Target Region: ${region || 'India (MUM)'}
+Valuation: ₹${amount}
+Contact: ${contactEmail || 'Provided via session'}`;
+
+    const initialMessages = JSON.stringify([
+      { sender: 'user', senderName: userName, text: detailMessage, time: now },
+      { sender: 'system', senderName: 'VIB Middleman Escrow', text: 'Escrow ticket initiated. An official middleman has been assigned. Please coordinate exchange credentials securely inside this ticket room.', time: now }
+    ]);
+
+    db.prepare(`
+      INSERT INTO support_tickets (id, user_id, subject, category, status, priority, messages_json, created_at, updated_at)
+      VALUES (?, ?, ?, 'trade_escrow', 'open', 'high', ?, ?, ?)
+    `).run(ticketId, userId, subject, initialMessages, now, now);
+
+    res.status(201).json({
+      message: 'Escrow trade ticket initiated successfully.',
+      ticketId,
+      ticket: { id: ticketId, subject, status: 'open', category: 'trade_escrow' }
+    });
+  } catch (err: any) {
+    console.error('Escrow ticket error:', err);
+    res.status(500).json({ error: 'Server error processing escrow ticket.' });
+  }
+});
+
 // User Tickets
 app.get('/api/user/tickets', authenticate, (req: AuthRequest, res: Response): void => {
   const tickets = db.prepare('SELECT * FROM support_tickets WHERE user_id = ? ORDER BY updated_at DESC').all(req.user!.id);
@@ -2995,7 +3064,8 @@ app.get('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res: 
 // Admin Approve, Reject, or Publish Listing
 app.put('/api/admin/listings/:id/status', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const listingId = req.params.id;
-  const { status, reason, featured } = req.body;
+  const { status, featured } = req.body;
+  const reason = req.body.reason || req.body.reject_reason || req.body.rejection_reason || null;
 
   const validStatuses = ['approved', 'published', 'rejected', 'archived', 'draft', 'pending_review', 'submitted'];
   if (!validStatuses.includes(status)) {
@@ -3195,10 +3265,19 @@ app.post('/api/auctions/:id/bid', async (req: Request, res: Response): Promise<v
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const session = db.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ?').get(token) as any;
-      if (session) {
-        bidderId = session.id;
-        finalBidderName = session.name;
+      const payload = verifySignedToken(token);
+      if (payload && payload.id) {
+        const u = db.prepare('SELECT id, name FROM users WHERE id = ?').get(payload.id) as any;
+        if (u) {
+          bidderId = u.id;
+          finalBidderName = u.name;
+        }
+      } else {
+        const session = db.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ?').get(token) as any;
+        if (session) {
+          bidderId = session.id;
+          finalBidderName = session.name;
+        }
       }
     }
 

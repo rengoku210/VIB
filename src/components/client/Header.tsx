@@ -393,8 +393,18 @@ export const Header: React.FC<HeaderProps> = ({
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search profiles, VP..."
               aria-label="Search profiles and services"
-              className="w-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 bg-transparent focus:outline-none"
+              className="w-full pl-8 pr-7 py-1.5 text-xs text-white placeholder-gray-500 bg-transparent focus:outline-none"
             />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </form>
 
           {/* Sound FX Toggle */}

@@ -58,6 +58,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   onOpenCheckout,
 }) => {
   const [activeRegion, setActiveRegion] = useState<'in' | 'php' | 'other'>('in');
+  const [selectedOtherRegion, setSelectedOtherRegion] = useState<string>('Indonesia');
   const indianCarouselRef = useRef<HTMLDivElement>(null);
   const phpCarouselRef = useRef<HTMLDivElement>(null);
 
@@ -970,52 +971,75 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
 
           <div className="w-full flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-gray-300 flex items-center gap-1.5 font-medium">
-                <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
-                  <span className="h-1/2 bg-[#FF0000] w-full" />
-                  <span className="h-1/2 bg-white w-full" />
-                </span>
-                <span>Indonesia</span>
-              </span>
-
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-gray-300 flex items-center gap-1.5 font-medium">
-                <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
-                  <span className="h-1/2 bg-[#CC0000] w-full" />
-                  <span className="h-1/2 bg-white w-full" />
-                </span>
-                <span>Malaysia</span>
-              </span>
-
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-gray-300 flex items-center gap-1.5 font-medium">
-                <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
-                  <span className="h-1/2 bg-[#00008B] w-full" />
-                  <span className="h-1/2 bg-[#FF0000] w-full" />
-                </span>
-                <span>Australia</span>
-              </span>
-
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-gray-300 flex items-center gap-1.5 font-medium">
-                <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
-                  <span className="h-1/2 bg-[#ED2939] w-full" />
-                  <span className="h-1/2 bg-white w-full" />
-                </span>
-                <span>Singapore</span>
-              </span>
-
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-gray-400 font-medium">
-                ••• Others
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                {
+                  name: 'Indonesia',
+                  flag: (
+                    <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
+                      <span className="h-1/2 bg-[#FF0000] w-full" />
+                      <span className="h-1/2 bg-white w-full" />
+                    </span>
+                  ),
+                },
+                {
+                  name: 'Malaysia',
+                  flag: (
+                    <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
+                      <span className="h-1/2 bg-[#CC0000] w-full" />
+                      <span className="h-1/2 bg-white w-full" />
+                    </span>
+                  ),
+                },
+                {
+                  name: 'Australia',
+                  flag: (
+                    <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
+                      <span className="h-1/2 bg-[#00008B] w-full" />
+                      <span className="h-1/2 bg-[#FF0000] w-full" />
+                    </span>
+                  ),
+                },
+                {
+                  name: 'Singapore',
+                  flag: (
+                    <span className="w-3.5 h-2.5 rounded-sm inline-flex flex-col overflow-hidden border border-white/20">
+                      <span className="h-1/2 bg-[#ED2939] w-full" />
+                      <span className="h-1/2 bg-white w-full" />
+                    </span>
+                  ),
+                },
+                { name: 'Others', flag: null },
+              ].map((r) => {
+                const isSelected = selectedOtherRegion === r.name;
+                return (
+                  <button
+                    key={r.name}
+                    type="button"
+                    onClick={() => setSelectedOtherRegion(r.name)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 font-medium transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-purple-600/30 border-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.3)]'
+                        : 'bg-white/[0.04] border-white/10 text-gray-300 hover:text-white hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    {r.flag}
+                    <span>{r.name === 'Others' ? '••• Others' : r.name}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <a
-              href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+              href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                'Hello VIB Regional Desk, I would like to request assistance with purchasing a Valorant Points pack for region: ' + selectedOtherRegion + '. Please share available pack denominations and provisioning details.'
+              )}`}
               target="_blank"
               rel="noreferrer"
               className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all flex items-center gap-1.5 shadow-md whitespace-nowrap cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5 fill-white" />
-              <span>Request on WhatsApp →</span>
+              <span>Request on WhatsApp ({selectedOtherRegion}) →</span>
             </a>
           </div>
         </div>
@@ -1109,7 +1133,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="flex items-center gap-2 pt-2">
               <a
-                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href={`https://wa.me/919181801766?text=${encodeURIComponent('Hello VIB Support, I need assistance with my Valorant account or VP order. Please assist me.')}`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1.5"
