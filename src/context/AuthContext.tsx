@@ -55,9 +55,46 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'vib_auth_token';
+const USER_KEY = 'vib_user';
+
+function getInitialUser(): User | null {
+  try {
+    const cachedUser = localStorage.getItem(USER_KEY);
+    if (cachedUser) {
+      return JSON.parse(cachedUser);
+    }
+    const savedToken = localStorage.getItem(TOKEN_KEY);
+    if (savedToken && savedToken.includes('.')) {
+      const [encodedData] = savedToken.split('.');
+      const base64 = encodedData.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonStr = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonStr);
+      if (payload && payload.id && payload.role) {
+        return {
+          id: payload.id,
+          email: payload.email,
+          name: payload.name,
+          phone: null,
+          riot_id: null,
+          role: payload.role,
+          status: payload.status || 'active',
+          email_verified: 1,
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(getInitialUser);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,9 +160,13 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         const data = await parseJsonResponse(res, 'Session restore failed.');
         setUser(data.user);
         setToken(savedToken);
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        } catch {}
       } else if (res.status === 401) {
         // Genuine 401 Unauthorized: token has expired or is invalid
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
         setUser(null);
         setToken(null);
       } else {
@@ -164,6 +205,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
       }
 
       localStorage.setItem(TOKEN_KEY, data.token);
+      try { localStorage.setItem(USER_KEY, JSON.stringify(data.user)); } catch {}
       setToken(data.token);
       setUser(data.user);
       closeAuthModal();
@@ -197,6 +239,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
       }
 
       localStorage.setItem(TOKEN_KEY, resData.token);
+      try { localStorage.setItem(USER_KEY, JSON.stringify(resData.user)); } catch {}
       setToken(resData.token);
       setUser(resData.user);
       closeAuthModal();
@@ -241,6 +284,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
       }
 
       localStorage.setItem(TOKEN_KEY, data.token);
+      try { localStorage.setItem(USER_KEY, JSON.stringify(data.user)); } catch {}
       setToken(data.token);
       setUser(data.user);
       closeAuthModal();
@@ -316,6 +360,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
       }
     }
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     localStorage.removeItem('vib_checkout_draft');
     localStorage.removeItem('vib_seller_draft');
     try {

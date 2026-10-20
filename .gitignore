@@ -21,4 +21,5 @@ vib_pdf_text.txt
 # Database binaries
 data/*.db-wal
 data/*.db-shm
+data/vib_backup_*.db
 

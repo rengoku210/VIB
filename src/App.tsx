@@ -26,7 +26,7 @@ import { soundFx } from './utils/audio';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 function AppContent() {
-  const { user, isAdmin, isStaff, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
+  const { user, loading, isAdmin, isStaff, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
 
   const getInitialPage = (): ClientPage => {
     try {
@@ -119,8 +119,9 @@ function AppContent() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // Protected route enforcement on auth state changes
+  // Protected route enforcement on auth state changes (waits for initial auth check)
   useEffect(() => {
+    if (loading) return;
     if (currentPage === 'admin' && user && !isStaff) {
       setCurrentPage('dashboard');
     }
@@ -128,7 +129,7 @@ function AppContent() {
       // If user logs out while on protected dashboard, return to home
       setCurrentPage('home');
     }
-  }, [user, isStaff, currentPage]);
+  }, [user, isStaff, currentPage, loading]);
 
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -360,7 +361,12 @@ function AppContent() {
         )}
 
         {currentPage === 'dashboard' && (
-          user ? (
+          loading ? (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+              <p className="text-gray-400 font-mono text-xs">Authenticating user session...</p>
+            </div>
+          ) : user ? (
             <UserDashboard
               currency={currency}
               onNavigate={(p) => handleNavigate(p as ClientPage)}
@@ -397,7 +403,12 @@ function AppContent() {
         )}
 
         {currentPage === 'admin' && (
-          isStaff ? (
+          loading ? (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <div className="w-10 h-10 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              <p className="text-gray-400 font-mono text-xs">Verifying staff credentials...</p>
+            </div>
+          ) : isStaff ? (
             <AdminDashboard
               onNavigate={(p) => handleNavigate(p as ClientPage)}
             />

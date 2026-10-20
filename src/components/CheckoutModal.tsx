@@ -43,12 +43,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [email, setEmail] = useState(() => user?.email || '');
   const [contactPhone, setContactPhone] = useState('');
   const [discordTag, setDiscordTag] = useState('');
+  const [rentalDuration, setRentalDuration] = useState<'24h' | '48h' | '72h' | '7d'>('24h');
+  const [rentalTermsAccepted, setRentalTermsAccepted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     riotId?: string;
     tagline?: string;
     email?: string;
     contactPhone?: string;
     discordTag?: string;
+    rentalTerms?: string;
   }>({});
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
 
@@ -182,7 +185,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const isRegional = lowerTitle.includes('php') || lowerTitle.includes('regional') || lowerTitle.includes('philippines');
   const isRental = lowerTitle.includes('rental');
   const isCoaching = lowerTitle.includes('coaching');
-  const isRankup = lowerTitle.includes('rank') || lowerTitle.includes('derank') || lowerTitle.includes('progression');
+  const isDerank = lowerTitle.includes('derank');
+  const isRankup = (lowerTitle.includes('rank') || lowerTitle.includes('progression')) && !isDerank;
 
   const priceText =
     currency === 'USD'
@@ -204,6 +208,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (!email.trim() || !email.includes('@')) errors.email = 'A valid receipt email address is required';
     if (isRegional && !contactPhone.trim()) errors.contactPhone = 'WhatsApp phone number is required for manual regional delivery';
     if (isCoaching && !discordTag.trim()) errors.discordTag = 'Discord username is required for coaching coordination';
+    if (isRental && !rentalTermsAccepted) errors.rentalTerms = 'You must accept the Rental Escrow Terms and fair play pledge';
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -242,6 +247,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ? 'rental'
         : isCoaching
         ? 'coaching'
+        : isDerank
+        ? 'derank'
+        : isRankup
+        ? 'rankup'
         : isRegional
         ? 'regional_vp'
         : currentTitle.includes('VP')
@@ -273,6 +282,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             email: email.trim(),
             contactPhone: contactPhone.trim() || undefined,
             discordTag: discordTag.trim() || undefined,
+            rentalDuration: isRental ? rentalDuration : undefined,
             category: orderType,
           },
         }),
@@ -448,6 +458,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     ? 'Escrow Middleman Rental • Security Pledge & Timed Account Access'
                     : isCoaching
                     ? '1-on-1 Discord Coaching • Session Scheduling & VOD Review'
+                    : isDerank
+                    ? 'Manual Derank Service • Middleman Supervised Safe MMR Reset'
+                    : isRankup
+                    ? 'Rank Progression Assistance • Duo-Queue Middleman Escrow'
                     : 'Secured Official Dispatch • Automated Code Delivery & Escrow'}
                 </p>
               </div>
@@ -633,15 +647,77 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               )}
 
-              {/* Category-Specific Notice: Rentals */}
+              {/* Category-Specific Field: Rentals (Duration & Security Pledge) */}
               {isRental && (
-                <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1 text-xs">
-                  <div className="font-bold text-white font-chakra flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Rental Escrow Security Pledge</span>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                      Rental Access Duration *
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: '24h', label: '24 Hours' },
+                        { id: '48h', label: '48 Hours' },
+                        { id: '72h', label: '3 Days' },
+                        { id: '7d', label: '7 Days' },
+                      ].map((dur) => (
+                        <button
+                          key={dur.id}
+                          type="button"
+                          onClick={() => setRentalDuration(dur.id as any)}
+                          className={`py-2 px-2 text-xs font-chakra font-bold rounded-lg border text-center transition-all cursor-pointer ${
+                            rentalDuration === dur.id
+                              ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30'
+                              : 'bg-black/40 text-gray-400 border-white/10 hover:border-white/30'
+                          }`}
+                        >
+                          {dur.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1.5 text-xs">
+                    <div className="font-bold text-white font-chakra flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Rental Escrow Security Pledge</span>
+                    </div>
+                    <p className="text-[11px] text-gray-300 font-rajdhani leading-relaxed">
+                      By renting, you agree to play fairly without 3rd-party software or toxicity. Account credentials will be revoked automatically when rental duration expires.
+                    </p>
+                    <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={rentalTermsAccepted}
+                        onChange={(e) => {
+                          setRentalTermsAccepted(e.target.checked);
+                          if (fieldErrors.rentalTerms) setFieldErrors((prev) => ({ ...prev, rentalTerms: undefined }));
+                        }}
+                        className="mt-0.5 rounded border-purple-400 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-[11px] text-purple-200">
+                        I agree to the VIB Fair Play Pledge and understand credentials are timed under official middleman escrow.
+                      </span>
+                    </label>
+                    {fieldErrors.rentalTerms && (
+                      <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{fieldErrors.rentalTerms}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Category-Specific Notice: Derank Consultation */}
+              {isDerank && (
+                <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 space-y-1 text-xs">
+                  <div className="font-bold text-amber-200 font-chakra flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Safe MMR Derank Protocol</span>
                   </div>
                   <p className="text-[11px] text-gray-300 font-rajdhani leading-relaxed">
-                    By renting, you agree to play fairly without 3rd-party software or toxicity. Account credentials will be revoked automatically when rental duration expires.
+                    Our Radiant specialist performs manual 5-stack deranking with 0% teammate toxicity or AFK penalty risk. Live match coordination will take place in your private Order Room chat.
                   </p>
                 </div>
               )}
@@ -934,6 +1010,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <>• Connect with our appraisal desk on WhatsApp with your reference <strong>#{createdOrder.id}</strong> to receive your valuation report and cashout estimate.</>
                 ) : isRental ? (
                   <>• <strong>Skin Rentals:</strong> Account login credentials and temporary password will be dispatched directly to your private Order Room under official escrow. Our middleman will coordinate two-factor authentication (OTP) in the order room chat.</>
+                ) : isDerank ? (
+                  <>• <strong>Safe Derank Consultation:</strong> Your assigned derank specialist will connect in your private Order Room chat. You can coordinate your schedule, target MMR bracket, and party queue preferences directly.</>
                 ) : isCoaching || isRankup ? (
                   <>• <strong>Coaching &amp; Rank Consultation:</strong> A Radiant-tier coach/specialist has been assigned. Connect in your order room or on Discord to confirm match timing and voice review session.</>
                 ) : isRegional ? (

@@ -56,13 +56,19 @@ export const AdminIndianVPInventory: React.FC = () => {
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const PACKS = [
-    { id: 'vp-475', label: '475 VP (Viper)', priceINR: 425 },
-    { id: 'vp-1000', label: '1,000 VP (Neon)', priceINR: 875 },
-    { id: 'vp-2050', label: '2,050 VP (Reyna)', priceINR: 1720 },
-    { id: 'vp-3650', label: '3,650 VP (Fade)', priceINR: 2999 },
-    { id: 'vp-5350', label: '5,350 VP (Jett)', priceINR: 4299 },
+    { id: 'vp-475', label: '475 VP (Viper)', priceINR: 499 },
+    { id: 'vp-1000', label: '1,000 VP (Neon)', priceINR: 999 },
+    { id: 'vp-2050', label: '2,050 VP (Reyna)', priceINR: 1899 },
+    { id: 'vp-3650', label: '3,650 VP (Fade)', priceINR: 3199 },
+    { id: 'vp-5350', label: '5,350 VP (Jett)', priceINR: 4499 },
     { id: 'vp-7400', label: '7,400 VP (Sova)', priceINR: 6199 },
-    { id: 'vp-11000', label: '11,000 VP (Iso)', priceINR: 8499 },
+    { id: 'vp-11000', label: '11,000 VP (Iso)', priceINR: 8999 },
+    { id: 'vp-14650', label: '14,650 VP', priceINR: 11999 },
+    { id: 'vp-22000', label: '22,000 VP', priceINR: 17999 },
+    { id: 'vp-44000', label: '44,000 VP', priceINR: 34999 },
+    { id: 'vp-66000', label: '66,000 VP', priceINR: 49999 },
+    { id: 'vp-110000', label: '110,000 VP', priceINR: 79999 },
+    { id: 'vp-220000', label: '220,000 VP', priceINR: 149999 },
   ];
 
   useEffect(() => {

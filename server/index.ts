@@ -359,6 +359,20 @@ export function scanMessageForAntiFraud(text: string): { flagged: boolean; reaso
   return { flagged: false };
 }
 
+// Auto-generate Sequential Invoice ID (GST / Accounting Compliant)
+export function generateNextInvoiceId(): string {
+  const rows = db.prepare("SELECT id FROM invoices WHERE id LIKE 'VIB-INV-%'").all() as { id: string }[];
+  let maxNum = 0;
+  for (const r of rows) {
+    const match = r.id.match(/^VIB-INV-(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+  return 'VIB-INV-' + String(maxNum + 1).padStart(4, '0');
+}
+
 // ==========================================
 // PUBLIC PRODUCTS & CATALOG ROUTES
 // ==========================================
@@ -986,8 +1000,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
     db.prepare('UPDATE profiles SET total_orders = total_orders + 1 WHERE user_id = ?').run(req.user!.id);
 
     // Auto-generate Sequential Invoice (GST / Accounting Compliant)
-    const invCount = (db.prepare('SELECT COUNT(*) as c FROM invoices').get() as any).c;
-    const invoiceId = 'VIB-INV-' + String(invCount + 1).padStart(4, '0');
+    const invoiceId = generateNextInvoiceId();
     const finalAmount = Number(amount);
     const subtotal = Math.round((finalAmount / 1.18) * 100) / 100;
     const taxAmount = Math.round((finalAmount - subtotal) * 100) / 100;
@@ -1066,6 +1079,8 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
         title,
         amount: finalAmount,
         currency,
+        type,
+        details,
         status: 'processing',
         payment_status: 'AWAITING_PAYMENT',
         fulfillment_status: 'PENDING',
@@ -1820,8 +1835,7 @@ app.post('/api/admin/invoices', authenticate, adminOnly, (req: AuthRequest, res:
     const discount = Number(discountAmount) || 0;
     const finalTotal = Math.round((subtotal + fee + tax - discount) * 100) / 100;
 
-    const invCount = (db.prepare('SELECT COUNT(*) as c FROM invoices').get() as any).c;
-    const invoiceId = 'VIB-INV-' + String(invCount + 1).padStart(4, '0');
+    const invoiceId = generateNextInvoiceId();
     const now = new Date().toISOString();
 
     db.prepare(`
@@ -2428,7 +2442,9 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
       actor: req.user!.name
     });
 
-    const isIndianVP = order.type === 'vp' && !order.title.toLowerCase().includes('php') && !order.title.toLowerCase().includes('region');
+    const titleLower = order.title.toLowerCase();
+    const isRegionalVP = titleLower.includes('php') || titleLower.includes('philippines') || titleLower.includes('malaysia') || titleLower.includes('myr') || titleLower.includes('indonesia') || titleLower.includes('idr') || titleLower.includes('singapore') || titleLower.includes('sgd') || order.type === 'regional_vp';
+    const isIndianVP = (order.type === 'vp' || titleLower.includes('valorant points') || titleLower.includes('vp')) && !isRegionalVP;
     let codeAssigned: string | null = null;
     let newFulfillmentStatus = 'PROCESSING';
     let newOrderStatus = 'processing';
@@ -2436,12 +2452,19 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     if (isIndianVP) {
       // Resolve package ID for code inventory matching
       let pkgId = 'vp-475';
-      if (order.title.includes('1,000') || order.title.includes('1000')) pkgId = 'vp-1000';
-      else if (order.title.includes('2,050') || order.title.includes('2050')) pkgId = 'vp-2050';
-      else if (order.title.includes('3,650') || order.title.includes('3650')) pkgId = 'vp-3650';
-      else if (order.title.includes('5,350') || order.title.includes('5350')) pkgId = 'vp-5350';
-      else if (order.title.includes('7,400') || order.title.includes('7400')) pkgId = 'vp-7400';
-      else if (order.title.includes('11,000') || order.title.includes('11000')) pkgId = 'vp-11000';
+      if (titleLower.includes('220,000') || titleLower.includes('220000')) pkgId = 'vp-220000';
+      else if (titleLower.includes('110,000') || titleLower.includes('110000')) pkgId = 'vp-110000';
+      else if (titleLower.includes('66,000') || titleLower.includes('66000')) pkgId = 'vp-66000';
+      else if (titleLower.includes('44,000') || titleLower.includes('44000')) pkgId = 'vp-44000';
+      else if (titleLower.includes('22,000') || titleLower.includes('22000')) pkgId = 'vp-22000';
+      else if (titleLower.includes('14,650') || titleLower.includes('14650')) pkgId = 'vp-14650';
+      else if (titleLower.includes('11,000') || titleLower.includes('11000')) pkgId = 'vp-11000';
+      else if (titleLower.includes('7,400') || titleLower.includes('7400')) pkgId = 'vp-7400';
+      else if (titleLower.includes('5,350') || titleLower.includes('5350')) pkgId = 'vp-5350';
+      else if (titleLower.includes('3,650') || titleLower.includes('3650')) pkgId = 'vp-3650';
+      else if (titleLower.includes('2,050') || titleLower.includes('2050')) pkgId = 'vp-2050';
+      else if (titleLower.includes('1,000') || titleLower.includes('1000')) pkgId = 'vp-1000';
+      else if (titleLower.includes('475')) pkgId = 'vp-475';
 
       // Atomic code reservation from inventory (check both vp- and in- prefixes)
       let codeRow = db.prepare(`
@@ -2614,12 +2637,15 @@ app.post('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res:
     return;
   }
 
-  // 1. Validate package denomination
-  const VALID_PACKAGES = ['vp-475', 'vp-1000', 'vp-2050', 'vp-3650', 'vp-5350', 'vp-7400', 'in-7400', 'vp-11000'];
-  const normalizedPackId = package_id === 'in-7400' ? 'vp-7400' : String(package_id).trim();
-  if (!VALID_PACKAGES.includes(normalizedPackId) && !VALID_PACKAGES.includes(package_id)) {
+  // 1. Validate package denomination (support both vp- and in- prefixes for all 13 denominations)
+  const normalizedPackId = String(package_id).trim().replace(/^in-/, 'vp-');
+  const VALID_PACKAGES = [
+    'vp-475', 'vp-1000', 'vp-2050', 'vp-3650', 'vp-5350', 'vp-7400',
+    'vp-11000', 'vp-14650', 'vp-22000', 'vp-44000', 'vp-66000', 'vp-110000', 'vp-220000'
+  ];
+  if (!VALID_PACKAGES.includes(normalizedPackId)) {
     res.status(400).json({
-      error: `Invalid package ID: '${package_id}'. Valid Indian VP packages: 475 VP (vp-475), 1,000 VP (vp-1000), 2,050 VP (vp-2050), 3,650 VP (vp-3650), 5,350 VP (vp-5350), 7,400 VP (vp-7400), 11,000 VP (vp-11000).`
+      error: `Invalid package ID: '${package_id}'. Valid Indian VP packages: 475, 1,000, 2,050, 3,650, 5,350, 7,400, 11,000, 14,650, 22,000, 44,000, 66,000, 110,000, 220,000 VP.`
     });
     return;
   }
@@ -3087,6 +3113,124 @@ app.put('/api/admin/listings/:id/status', authenticate, staffOnly, (req: AuthReq
 
   const updated = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId);
   res.json({ message: `Listing status updated to ${status}.`, listing: updated });
+});
+
+// Admin / Staff Edit All Listing Details
+app.put('/api/admin/listings/:id', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
+  const listingId = req.params.id;
+  const existing = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Listing not found.' });
+    return;
+  }
+
+  const {
+    title,
+    description,
+    price_inr,
+    rank,
+    peak_rank,
+    level,
+    region,
+    skin_count,
+    knife_count,
+    featured,
+    vip_plan,
+    images,
+    skins,
+    seller_role,
+    guarantee_type,
+    status,
+    rejection_reason,
+  } = req.body;
+
+  const updatedTitle = title !== undefined ? String(title).trim() : existing.title;
+  const updatedDesc = description !== undefined ? String(description).trim() : existing.description;
+  const updatedPrice = price_inr !== undefined ? Number(price_inr) : existing.price_inr;
+  const updatedRank = rank !== undefined ? String(rank).trim() : existing.rank;
+  const updatedPeakRank = peak_rank !== undefined ? String(peak_rank).trim() : existing.peak_rank;
+  const updatedLevel = level !== undefined ? Number(level) : existing.level;
+  const updatedRegion = region !== undefined ? String(region).trim() : existing.region;
+  const updatedSkinCount = skin_count !== undefined ? Number(skin_count) : existing.skin_count;
+  const updatedKnifeCount = knife_count !== undefined ? Number(knife_count) : existing.knife_count;
+  const updatedFeatured = featured !== undefined ? (featured ? 1 : 0) : existing.featured;
+  const updatedVipPlan = vip_plan !== undefined ? String(vip_plan).trim() : existing.vip_plan;
+  const updatedImages = images !== undefined ? JSON.stringify(images) : existing.images_json;
+  const updatedSkins = skins !== undefined ? JSON.stringify(skins) : existing.skins_json;
+  const updatedSellerRole = seller_role !== undefined ? String(seller_role).trim() : existing.seller_role;
+  const updatedGuarantee = guarantee_type !== undefined ? String(guarantee_type).trim() : existing.guarantee_type;
+  const updatedStatus = status !== undefined ? String(status).trim() : existing.status;
+  const updatedReason = rejection_reason !== undefined ? rejection_reason : existing.rejection_reason;
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE listings SET
+      title = ?,
+      description = ?,
+      price_inr = ?,
+      rank = ?,
+      peak_rank = ?,
+      level = ?,
+      region = ?,
+      skin_count = ?,
+      knife_count = ?,
+      featured = ?,
+      vip_plan = ?,
+      images_json = ?,
+      skins_json = ?,
+      seller_role = ?,
+      guarantee_type = ?,
+      status = ?,
+      rejection_reason = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(
+    updatedTitle,
+    updatedDesc,
+    updatedPrice,
+    updatedRank,
+    updatedPeakRank,
+    updatedLevel,
+    updatedRegion,
+    updatedSkinCount,
+    updatedKnifeCount,
+    updatedFeatured,
+    updatedVipPlan,
+    updatedImages,
+    updatedSkins,
+    updatedSellerRole,
+    updatedGuarantee,
+    updatedStatus,
+    updatedReason,
+    now,
+    listingId
+  );
+
+  logAudit(req.user!.id, req.user!.name, 'ADMIN_EDIT_LISTING', 'listings', listingId, { title: updatedTitle, price: updatedPrice }, req.ip || '127.0.0.1');
+
+  const updated = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
+  res.json({
+    message: 'Listing updated successfully by administration.',
+    listing: {
+      ...updated,
+      images: updated.images_json ? JSON.parse(updated.images_json) : [],
+      skins: updated.skins_json ? JSON.parse(updated.skins_json) : [],
+    },
+  });
+});
+
+// Admin Delete Listing
+app.delete('/api/admin/listings/:id', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  const listingId = req.params.id;
+  const existing = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Listing not found.' });
+    return;
+  }
+
+  db.prepare('DELETE FROM listings WHERE id = ?').run(listingId);
+  logAudit(req.user!.id, req.user!.name, 'ADMIN_DELETE_LISTING', 'listings', listingId, { title: existing.title }, req.ip || '127.0.0.1');
+  res.json({ message: 'Listing permanently removed by administrator.', listingId });
 });
 
 // VIP Plans List

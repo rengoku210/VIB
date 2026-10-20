@@ -185,16 +185,16 @@ export const Header: React.FC<HeaderProps> = ({
       >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
         {/* Left: Brand & Navigation Links grouped together */}
-        <div className="flex items-center gap-3 sm:gap-4 xl:gap-6">
+        <div className="flex items-center gap-3 sm:gap-4 xl:gap-6 shrink-0">
           {/* Hamburger & Brand */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
-              className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              className="xl:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-fuchsia-400" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -206,14 +206,14 @@ export const Header: React.FC<HeaderProps> = ({
               role="button"
               tabIndex={0}
               aria-label="VIB Home"
-              className="flex items-center gap-2.5 cursor-pointer group select-none flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg p-1"
+              className="flex items-center gap-2.5 cursor-pointer group select-none shrink-0 min-w-[72px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg p-1"
             >
-              <div className="relative flex items-center justify-center h-8 sm:h-9">
+              <div className="relative flex items-center justify-center h-8 sm:h-9 min-w-[64px] shrink-0">
                 <div className="absolute inset-0 bg-purple-600/30 blur-md rounded-full pointer-events-none scale-125" />
                 <img
                   src="/assets/hires/vib_logo_metallic_hires.png"
                   alt="VIB Logo"
-                  className="h-8 sm:h-9 w-auto object-contain relative z-10 drop-shadow-[0_0_12px_rgba(168,85,247,0.7)] group-hover:scale-105 transition-transform"
+                  className="h-8 sm:h-9 w-auto max-w-[80px] object-contain relative z-10 drop-shadow-[0_0_12px_rgba(168,85,247,0.7)] group-hover:scale-105 transition-transform shrink-0"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = '/assets/client/vib-logo.png';
                   }}
@@ -223,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Navigation Links positioned close to the logo */}
-          <nav aria-label="Main Navigation" className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-[12.5px] font-medium text-gray-300">
+          <nav aria-label="Main Navigation" className="hidden xl:flex items-center gap-1 xl:gap-1.5 text-[12.5px] font-medium text-gray-300 shrink-0">
             <button
               type="button"
               onClick={() => handleNav('home')}
@@ -531,7 +531,7 @@ export const Header: React.FC<HeaderProps> = ({
           id="mobile-navigation"
           role="navigation"
           aria-label="Mobile Navigation"
-          className="lg:hidden mt-3 pt-3 border-t border-white/10 space-y-3 pb-3 max-h-[calc(100dvh-75px)] overflow-y-auto pr-1 animate-in fade-in slide-in-from-top-2 duration-200"
+          className="xl:hidden mt-3 pt-3 border-t border-white/10 space-y-3 pb-3 max-h-[calc(100dvh-75px)] overflow-y-auto pr-1 animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {/* Mobile Search Bar - text-base prevents iOS Safari auto-zoom */}
           <form onSubmit={handleSearchSubmit} className="relative">
