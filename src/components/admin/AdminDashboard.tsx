@@ -30,6 +30,10 @@ import {
   DollarSign,
   Eye,
   Globe,
+  QrCode,
+  Image as ImageIcon,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { AdminPaymentSettings } from './AdminPaymentSettings';
@@ -120,6 +124,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [newCRMNote, setNewCRMNote] = useState('');
   const [crmNoteSubmitting, setCrmNoteSubmitting] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+
+  // Orders filter & payment verification modal state
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'verification_needed' | 'verified' | 'completed' | 'cancelled'>('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [selectedOrderVerify, setSelectedOrderVerify] = useState<any | null>(null);
+  const [verifyAction, setVerifyAction] = useState<'approve' | 'reject'>('approve');
+  const [verifyNotes, setVerifyNotes] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isSubmittingVerify, setIsSubmittingVerify] = useState(false);
+  const [zoomScreenshot, setZoomScreenshot] = useState<string | null>(null);
 
   // Manual Invoice Form State
   const [invCustName, setInvCustName] = useState('');
@@ -426,6 +440,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       }
     } catch (err) {
       console.error('Failed to update order status:', err);
+    }
+  };
+
+  // Confirm or Reject Payment Verification
+  const handleConfirmPaymentVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedOrderVerify) return;
+    setIsSubmittingVerify(true);
+
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrderVerify.id}/verify-payment`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: verifyAction,
+          notes: verifyNotes.trim() || undefined,
+          reason: verifyAction === 'reject' ? (rejectionReason.trim() || 'Payment UTR verification failed') : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || (verifyAction === 'approve' ? 'Payment verified successfully!' : 'Payment rejected.'));
+        setSelectedOrderVerify(null);
+        setVerifyNotes('');
+        setRejectionReason('');
+        fetchAdminData();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.error || 'Failed to update payment verification.');
+      }
+    } catch {
+      alert('Network error while processing verification.');
+    } finally {
+      setIsSubmittingVerify(false);
     }
   };
 
@@ -907,74 +959,337 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         )}
 
         {/* ============================================================== */}
-        {/* TAB 3: ORDERS MANAGEMENT & FULFILLMENT                         */}
+        {/* TAB 3: ORDERS MANAGEMENT & PAYMENT VERIFICATION CONSOLE        */}
         {/* ============================================================== */}
-        {activeTab === 'orders' && (
-          <div className="space-y-4 animate-in fade-in">
-            <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-              Order Fulfillment Console ({ordersList.length})
-            </h2>
+        {activeTab === 'orders' && (() => {
+          const verificationNeededCount = ordersList.filter(
+            (o) => o.payment_status === 'SUBMITTED_FOR_VERIFICATION'
+          ).length;
+          const verifiedCount = ordersList.filter(
+            (o) => o.payment_status === 'PAYMENT_VERIFIED'
+          ).length;
+          const completedCount = ordersList.filter((o) => o.status === 'completed').length;
+          const awaitingPaymentCount = ordersList.filter(
+            (o) => o.payment_status === 'AWAITING_PAYMENT'
+          ).length;
 
-            <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="p-4">Order ID</th>
-                      <th className="p-4">Customer</th>
-                      <th className="p-4">Product / Particulars</th>
-                      <th className="p-4">Amount</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-right">Fulfillment Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 text-gray-300">
-                    {ordersList.map((ord) => (
-                      <tr key={ord.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-4 font-bold text-purple-300">#{ord.id}</td>
-                        <td className="p-4">
-                          <div className="font-bold text-white font-sans">{ord.user_name}</div>
-                          <div className="text-[10px] text-gray-400">{ord.user_email}</div>
-                        </td>
-                        <td className="p-4 font-sans font-semibold text-white">{ord.title}</td>
-                        <td className="p-4 font-bold text-emerald-400">₹{ord.amount.toLocaleString('en-IN')}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                            ord.status === 'completed'
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-amber-950 text-amber-300 border border-amber-500/30'
-                          }`}>
-                            {ord.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right space-x-1.5">
-                          {ord.status !== 'completed' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOrderStatus(ord.id, 'completed')}
-                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer"
-                            >
-                              Mark Delivered
-                            </button>
-                          )}
-                          {ord.status !== 'cancelled' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOrderStatus(ord.id, 'cancelled')}
-                              className="px-2.5 py-1 rounded-lg bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-500/30 font-bold text-[10px] font-rajdhani uppercase cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </td>
+          const filteredOrders = ordersList.filter((ord) => {
+            // Status tab filter
+            if (orderStatusFilter === 'verification_needed' && ord.payment_status !== 'SUBMITTED_FOR_VERIFICATION') {
+              return false;
+            }
+            if (orderStatusFilter === 'verified' && ord.payment_status !== 'PAYMENT_VERIFIED') {
+              return false;
+            }
+            if (orderStatusFilter === 'completed' && ord.status !== 'completed') {
+              return false;
+            }
+            if (orderStatusFilter === 'cancelled' && ord.status !== 'cancelled' && ord.payment_status !== 'PAYMENT_REJECTED') {
+              return false;
+            }
+
+            // Search query filter
+            if (orderSearchQuery.trim()) {
+              const q = orderSearchQuery.toLowerCase().trim();
+              const matchId = String(ord.id || '').toLowerCase().includes(q);
+              const matchName = String(ord.user_name || '').toLowerCase().includes(q);
+              const matchEmail = String(ord.user_email || '').toLowerCase().includes(q);
+              const matchTitle = String(ord.title || '').toLowerCase().includes(q);
+              const matchUtr = String(ord.payment_evidence_ref || '').toLowerCase().includes(q);
+              return matchId || matchName || matchEmail || matchTitle || matchUtr;
+            }
+
+            return true;
+          });
+
+          return (
+            <div className="space-y-5 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>Order Fulfillment &amp; Payment Desk</span>
+                    <span className="text-xs font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">
+                      {ordersList.length} Total
+                    </span>
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Verify UPI payments, inspect uploaded receipts, and trigger automated or manual dispatch.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchAdminData}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              {/* Status Chips & Search Bar */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      orderStatusFilter === 'all'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    All ({ordersList.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('verification_needed')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      orderStatusFilter === 'verification_needed'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/40 ring-2 ring-amber-400'
+                        : verificationNeededCount > 0
+                        ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40 hover:bg-amber-900 animate-pulse'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span>Verification Needed</span>
+                    {verificationNeededCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-black text-[10px] font-bold">
+                        {verificationNeededCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('verified')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      orderStatusFilter === 'verified'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Verified ({verifiedCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('completed')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      orderStatusFilter === 'completed'
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Completed ({completedCount})
+                  </button>
+                </div>
+
+                {/* Search Field */}
+                <div className="relative min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Search Order ID, UTR, or Customer..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-white font-mono text-xs focus:ring-1 focus:ring-purple-400 placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* Orders Table */}
+              <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="p-3.5">Order ID &amp; Time</th>
+                        <th className="p-3.5">Customer &amp; Contact</th>
+                        <th className="p-3.5">Product &amp; Category</th>
+                        <th className="p-3.5">Amount</th>
+                        <th className="p-3.5">Payment Status</th>
+                        <th className="p-3.5">Payment Evidence</th>
+                        <th className="p-3.5 text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-gray-300">
+                      {filteredOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-500 font-sans">
+                            No orders found matching the selected filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredOrders.map((ord) => {
+                          let details: any = {};
+                          try {
+                            details = ord.details_json ? JSON.parse(ord.details_json) : {};
+                          } catch {}
+
+                          const phone = details.contactPhone || details.phone || ord.user_phone;
+                          const email = details.email || ord.user_email;
+                          const isAwaitingVerification = ord.payment_status === 'SUBMITTED_FOR_VERIFICATION';
+
+                          return (
+                            <tr
+                              key={ord.id}
+                              className={`transition-colors ${
+                                isAwaitingVerification
+                                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.08]'
+                                  : 'hover:bg-white/[0.02]'
+                              }`}
+                            >
+                              {/* Order ID & Date */}
+                              <td className="p-3.5">
+                                <div className="font-bold text-purple-300">#{ord.id}</div>
+                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                  {new Date(ord.created_at).toLocaleDateString()}{' '}
+                                  {new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </td>
+
+                              {/* Customer & Delivery Contact */}
+                              <td className="p-3.5">
+                                <div className="font-bold text-white font-sans">{ord.user_name || 'Customer'}</div>
+                                <div className="text-[10px] text-gray-400">{email}</div>
+                                {phone && (
+                                  <div className="text-[10px] text-purple-300 font-mono mt-0.5 flex items-center gap-1">
+                                    <span>📱 {phone}</span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Product & Type */}
+                              <td className="p-3.5">
+                                <div className="font-sans font-semibold text-white max-w-[180px] truncate" title={ord.title}>
+                                  {ord.title}
+                                </div>
+                                <div className="text-[10px] text-gray-400 uppercase font-mono mt-0.5">
+                                  Type: <span className="text-purple-300 font-bold">{ord.type}</span>
+                                </div>
+                              </td>
+
+                              {/* Amount */}
+                              <td className="p-3.5 font-bold text-emerald-400">
+                                ₹{Number(ord.amount).toLocaleString('en-IN')}
+                              </td>
+
+                              {/* Payment Status */}
+                              <td className="p-3.5">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold inline-block ${
+                                    ord.payment_status === 'PAYMENT_VERIFIED'
+                                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                      : ord.payment_status === 'SUBMITTED_FOR_VERIFICATION'
+                                      ? 'bg-amber-950 text-amber-300 border border-amber-500/40 animate-pulse'
+                                      : ord.payment_status === 'PAYMENT_REJECTED'
+                                      ? 'bg-rose-950 text-rose-300 border border-rose-500/30'
+                                      : 'bg-zinc-800 text-gray-300 border border-white/10'
+                                  }`}
+                                >
+                                  {ord.payment_status || 'AWAITING_PAYMENT'}
+                                </span>
+                                {ord.fulfillment_status && (
+                                  <div className="text-[9px] text-gray-500 uppercase mt-1">
+                                    Fulfill: {ord.fulfillment_status}
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Payment Evidence (UTR & Screenshot) */}
+                              <td className="p-3.5">
+                                {ord.payment_evidence_ref ? (
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-mono text-purple-200 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30 inline-block font-bold">
+                                      UTR: {ord.payment_evidence_ref}
+                                    </div>
+                                    {ord.payment_evidence_image && (
+                                      <div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setZoomScreenshot(ord.payment_evidence_image)}
+                                          className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer underline"
+                                        >
+                                          <ImageIcon className="w-3 h-3" />
+                                          <span>View Receipt Screenshot</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-gray-500 italic">No proof submitted</span>
+                                )}
+                              </td>
+
+                              {/* Actions */}
+                              <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                                {/* Verify & Approve button */}
+                                {ord.payment_status !== 'PAYMENT_VERIFIED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedOrderVerify(ord);
+                                      setVerifyAction('approve');
+                                      setVerifyNotes('Verified in bank records / UPI ledger');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
+                                    title="Verify & Confirm Payment"
+                                  >
+                                    Verify
+                                  </button>
+                                )}
+
+                                {/* Reject button */}
+                                {ord.payment_status === 'SUBMITTED_FOR_VERIFICATION' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedOrderVerify(ord);
+                                      setVerifyAction('reject');
+                                      setRejectionReason('UTR could not be located in bank ledger');
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer"
+                                    title="Reject Payment Proof"
+                                  >
+                                    Reject
+                                  </button>
+                                )}
+
+                                {/* Mark Delivered button if already verified */}
+                                {ord.payment_status === 'PAYMENT_VERIFIED' && ord.status !== 'completed' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOrderStatus(ord.id, 'completed')}
+                                    className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
+                                  >
+                                    Fulfill
+                                  </button>
+                                )}
+
+                                {/* Cancel Order button */}
+                                {ord.status !== 'cancelled' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOrderStatus(ord.id, 'cancelled')}
+                                    className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-[10px] font-rajdhani uppercase cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ============================================================== */}
         {/* TAB 4: INVOICES & MANUAL BILLING (NEW REQUIREMENT)             */}
@@ -2025,6 +2340,216 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYMENT VERIFICATION DECISION MODAL */}
+      {selectedOrderVerify && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-lg rounded-2xl bg-[#0c0d1c] border border-purple-500/40 p-6 shadow-2xl space-y-4 text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-chakra font-bold text-lg text-white">
+                    Verify Order Payment #{selectedOrderVerify.id}
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-mono">
+                    Audit banking ledger and confirm customer payment proof
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderVerify(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Order & Evidence Summary */}
+            <div className="p-3.5 rounded-xl bg-black/50 border border-white/10 text-xs font-mono space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Customer:</span>
+                <span className="text-white font-bold">{selectedOrderVerify.user_name || 'Customer'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Email:</span>
+                <span className="text-gray-300">{selectedOrderVerify.user_email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Product:</span>
+                <span className="text-purple-300 font-semibold">{selectedOrderVerify.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Amount:</span>
+                <span className="text-emerald-400 font-bold text-sm">
+                  ₹{Number(selectedOrderVerify.amount).toLocaleString('en-IN')}.00
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-white/5">
+                <span className="text-gray-400">Submitted UTR:</span>
+                <span className="font-mono text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30 font-bold">
+                  {selectedOrderVerify.payment_evidence_ref || 'No UTR Submitted'}
+                </span>
+              </div>
+
+              {selectedOrderVerify.payment_evidence_image && (
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-gray-400">Attached Screenshot:</span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomScreenshot(selectedOrderVerify.payment_evidence_image)}
+                    className="px-2 py-0.5 rounded bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 text-sky-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    <span>View Receipt Image</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Decision Form */}
+            <form onSubmit={handleConfirmPaymentVerification} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                  Verification Action
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVerifyAction('approve')}
+                    className={`py-2 px-3 rounded-xl font-chakra font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      verifyAction === 'approve'
+                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 border border-emerald-400'
+                        : 'bg-black/40 text-gray-400 border border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve Payment</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVerifyAction('reject')}
+                    className={`py-2 px-3 rounded-xl font-chakra font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      verifyAction === 'reject'
+                        ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 border border-rose-400'
+                        : 'bg-black/40 text-gray-400 border border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Reject Payment</span>
+                  </button>
+                </div>
+              </div>
+
+              {verifyAction === 'approve' ? (
+                <div className="space-y-2">
+                  <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-1">
+                    <div className="text-emerald-300 font-bold font-rajdhani uppercase tracking-wide">
+                      Automated Fulfillment Note:
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
+                      {selectedOrderVerify.type === 'vp' && !selectedOrderVerify.title.toLowerCase().includes('php')
+                        ? '• Indian VP Order: A genuine prepaid code will be auto-allocated from the Indian VP Vault and emailed to the customer.'
+                        : '• Manual Delivery Order: Payment status will be confirmed, order placed in fulfillment queue, and an email dispatched to customer to confirm delivery WhatsApp/email.'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1">
+                      Audit Notes (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={verifyNotes}
+                      onChange={(e) => setVerifyNotes(e.target.value)}
+                      placeholder="e.g. Verified in HDFC Bank UPI statement"
+                      className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/30 text-xs space-y-1">
+                    <div className="text-rose-300 font-bold font-rajdhani uppercase tracking-wide">
+                      Payment Rejection Notice:
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
+                      The order will be marked PAYMENT_REJECTED. An email alert will be sent to the customer with your specified reason, allowing them to re-submit valid proof.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1">
+                      Reason for Rejection *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="e.g. UTR not found in bank ledger / Incorrect transfer amount"
+                      className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:ring-1 focus:ring-rose-400"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderVerify(null)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingVerify}
+                  className={`px-5 py-2 rounded-xl font-bold font-rajdhani uppercase text-xs flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 ${
+                    verifyAction === 'approve'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+                  }`}
+                >
+                  {isSubmittingVerify ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{verifyAction === 'approve' ? 'Confirm Payment Approval' : 'Confirm Rejection'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SCREENSHOT FULLSCREEN ZOOM MODAL */}
+      {zoomScreenshot && (
+        <div
+          onClick={() => setZoomScreenshot(null)}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer"
+        >
+          <div className="relative max-w-3xl max-h-[85vh] p-2 bg-[#0c0d1c] border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setZoomScreenshot(null)}
+              className="absolute top-4 right-4 p-2 rounded-lg bg-black/60 text-white hover:bg-black/80 cursor-pointer z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={zoomScreenshot}
+              alt="Payment Screenshot Zoom"
+              className="max-h-[80vh] w-auto object-contain rounded-xl mx-auto"
+            />
           </div>
         </div>
       )}

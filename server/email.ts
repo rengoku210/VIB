@@ -295,3 +295,58 @@ export async function sendPaymentRejectedEmail(order: any, reason: string): Prom
     context: { orderId: order.id, reason, title: order.title },
   });
 }
+
+export async function sendOrderPaymentVerifiedEmail(order: any, isManualDelivery: boolean = true): Promise<void> {
+  const details = typeof order.details_json === 'string' ? JSON.parse(order.details_json) : (order.details || {});
+  const customerEmail = details.email || order.user_email || 'customer@vib.gg';
+  const trackUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?page=track&orderId=${order.id}`;
+  const phone = details.contactPhone || details.phone || order.phone || 'Not specified';
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">PAYMENT VERIFIED • ORDER CONFIRMED</h2>
+      <p>Hello,</p>
+      <p>Your payment of <strong>₹${Number(order.amount).toLocaleString('en-IN')}</strong> for <strong>${order.title}</strong> has been officially confirmed by VIB Administration!</p>
+      
+      <div style="background-color: #1a162b; border: 1px solid #7c3aed; padding: 16px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #c084fc; margin-top: 0;">Order Status: Manual Escrow Fulfillment Underway</h3>
+        <p style="color: #e2e8f0; font-size: 14px; margin-bottom: 8px;">
+          This product (${order.type || 'Service / Account'}) requires manual middleman dispatch and live account coordination.
+        </p>
+        <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+          <strong>Dispatch Phone / WhatsApp:</strong> ${phone}<br/>
+          <strong>Delivery Email:</strong> ${customerEmail}
+        </p>
+      </div>
+
+      <div style="background-color: #0f172a; padding: 16px; border-radius: 6px; margin: 16px 0;">
+        <h4 style="color: #38bdf8; margin-top: 0;">Next Steps for Delivery:</h4>
+        <ol style="line-height: 1.8; color: #cbd5e1; font-size: 14px;">
+          <li>Visit your <strong>Confirmed Order View</strong> or <strong>Order Room</strong> to confirm or update your WhatsApp number or email if needed.</li>
+          <li>Our assigned middleman specialist will connect with you to safely transfer account credentials or coordinate match schedules.</li>
+          <li>For immediate assistance, reach our 24/7 Operations Desk on WhatsApp: <strong>${SUPPORT_WHATSAPP}</strong>.</li>
+        </ol>
+      </div>
+
+      <p style="margin: 20px 0;">
+        <a href="${trackUrl}" style="background-color: #9333ea; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+          Open Confirmed Order &amp; Delivery Room
+        </a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 13px;">
+        Order #${order.id} | VIB Escrow Guarantee Protected | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: customerEmail,
+    subject: `Payment Confirmed: Order #${order.id} [${order.title}] - Manual Delivery In Progress`,
+    html,
+    templateName: 'order_payment_verified_manual',
+    context: { orderId: order.id, amount: order.amount, title: order.title, isManualDelivery },
+  });
+}
+

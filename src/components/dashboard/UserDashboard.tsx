@@ -28,6 +28,8 @@ import {
   ShieldAlert,
   Loader2,
   Edit3,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Currency } from '../../types';
@@ -72,6 +74,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
   const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   // Live Riot ID verification on settings edit
   useEffect(() => {
@@ -740,6 +743,72 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                         <div className="text-[11px] text-gray-400 font-mono">{ord.payment_method}</div>
                       </div>
                     </div>
+
+                    {/* Automatic VP Code Delivery Banner */}
+                    {ord.issued_code && (
+                      <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/60 to-emerald-900/40 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <div>
+                            <span className="text-[10px] text-emerald-300 uppercase font-mono tracking-wider block">
+                              Valorant Points Prepaid PIN (Delivered):
+                            </span>
+                            <span className="font-mono text-sm sm:text-base font-bold text-white tracking-widest select-all">
+                              {ord.issued_code}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(ord.issued_code);
+                            setCopiedCodeId(ord.id);
+                            setTimeout(() => setCopiedCodeId(null), 2000);
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm self-start sm:self-auto shrink-0"
+                        >
+                          {copiedCodeId === ord.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedCodeId === ord.id ? 'Copied!' : 'Copy Code'}</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Manual Delivery in Progress Notice */}
+                    {ord.payment_status === 'PAYMENT_VERIFIED' && !ord.issued_code && (
+                      <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-purple-400 shrink-0" />
+                          <div>
+                            <span className="font-bold text-purple-200 font-rajdhani uppercase text-xs">
+                              Payment Confirmed • Manual Delivery in Progress
+                            </span>
+                            <span className="text-[11px] text-gray-400 block font-rajdhani mt-0.5">
+                              {(() => {
+                                let d: any = {};
+                                try {
+                                  d = ord.details_json ? JSON.parse(ord.details_json) : {};
+                                } catch {}
+                                const phone = d.contactPhone || d.phone;
+                                const email = d.email;
+                                if (phone || email) {
+                                  return `Delivery contact on file: ${phone ? `📱 ${phone}` : ''} ${email ? `✉️ ${email}` : ''}`;
+                                }
+                                return 'Click "Live Tracking" to confirm your delivery WhatsApp or email.';
+                              })()}
+                            </span>
+                          </div>
+                        </div>
+                        {onOpenTracking && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenTracking(ord.id)}
+                            className="px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold font-rajdhani uppercase transition-all cursor-pointer self-start sm:self-auto shrink-0"
+                          >
+                            Update Contact
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400 pt-2 border-t border-white/5">
                       <div className="flex items-center gap-4">

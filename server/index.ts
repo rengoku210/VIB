@@ -1,10 +1,13 @@
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { db, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
 import { verifyRiotId, seedRiotAccounts } from './riot.js';
 import {
   sendOrderPendingVerificationEmail,
   sendIndianVPCodeIssuedEmail,
+  sendOrderPaymentVerifiedEmail,
   sendInventoryShortageAlert,
   sendPaymentRejectedEmail,
   sendEmail
@@ -18,13 +21,59 @@ syncOfficialValorantSkins().catch((e) => console.warn('[Skins Sync] Initial sync
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsing with 15MB limit for payment screenshots & receipts
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Ensure persistent uploads directory exists and mount static route
+const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response): void => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Upload Payment Receipt / Evidence Image (accepts base64 data URL)
+app.post('/api/upload', (req: Request, res: Response): void => {
+  try {
+    const { image, filename } = req.body || {};
+    if (!image || typeof image !== 'string') {
+      res.status(400).json({ error: 'Image data URL is required.' });
+      return;
+    }
+
+    const matches = image.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!matches) {
+      res.status(400).json({ error: 'Invalid image format. Expected base64 data URL (e.g. data:image/png;base64,...).' });
+      return;
+    }
+
+    const ext = matches[1].toLowerCase() === 'jpeg' ? 'jpg' : matches[1].toLowerCase();
+    const buffer = Buffer.from(matches[2], 'base64');
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      res.status(400).json({ error: 'Image exceeds maximum 10MB file size limit.' });
+      return;
+    }
+
+    const safeName = `receipt_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+    const filePath = path.join(uploadsDir, safeName);
+    fs.writeFileSync(filePath, buffer);
+
+    res.json({
+      success: true,
+      url: `/uploads/${safeName}`,
+      filename: safeName,
+      size: buffer.length
+    });
+  } catch (err: any) {
+    console.error('[Upload Error]:', err);
+    res.status(500).json({ error: 'Failed to process and store uploaded image.' });
+  }
 });
 
 // ==========================================
@@ -2276,7 +2325,7 @@ app.put('/api/admin/payment/settings', authenticate, adminOnly, (req: AuthReques
 // Submit Payment Evidence for an Order (Customer)
 app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, res: Response): void => {
   const orderId = req.params.id;
-  const { ref, screenshot } = req.body;
+  const { ref, screenshot, phone, email } = req.body;
 
   if (!ref || !String(ref).trim()) {
     res.status(400).json({ error: 'Valid payment transaction reference (UTR / UPI Ref) is required.' });
@@ -2296,6 +2345,32 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
     return;
   }
 
+  // Handle base64 image saving to disk if provided
+  let storedScreenshot = screenshot || null;
+  if (screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/')) {
+    try {
+      const matches = screenshot.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (matches) {
+        const ext = matches[1].toLowerCase() === 'jpeg' ? 'jpg' : matches[1].toLowerCase();
+        const buffer = Buffer.from(matches[2], 'base64');
+        const safeName = `receipt_${orderId}_${Date.now()}.${ext}`;
+        const filePath = path.join(uploadsDir, safeName);
+        fs.writeFileSync(filePath, buffer);
+        storedScreenshot = `/uploads/${safeName}`;
+      }
+    } catch (e) {
+      console.warn('[Evidence Screenshot Save Warning]:', e);
+    }
+  }
+
+  // Update order details if phone or email provided
+  let details = {};
+  try {
+    details = order.details_json ? JSON.parse(order.details_json) : {};
+  } catch {}
+  if (phone) (details as any).contactPhone = String(phone).trim();
+  if (email) (details as any).email = String(email).trim();
+
   const now = new Date().toISOString();
   let timeline = [];
   try {
@@ -2305,7 +2380,7 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
   timeline.push({
     status: 'SUBMITTED_FOR_VERIFICATION',
     timestamp: now,
-    note: `Customer submitted payment evidence. UTR: ${String(ref).trim()}`,
+    note: `Customer submitted payment evidence. UTR: ${String(ref).trim()}${storedScreenshot ? ' (Screenshot attached)' : ''}`,
     actor: req.user!.name
   });
 
@@ -2314,12 +2389,14 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
       payment_status = 'SUBMITTED_FOR_VERIFICATION',
       payment_evidence_ref = ?,
       payment_evidence_image = COALESCE(?, payment_evidence_image),
+      details_json = ?,
       timeline_json = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
     String(ref).trim(),
-    screenshot || null,
+    storedScreenshot,
+    JSON.stringify(details),
     JSON.stringify(timeline),
     now,
     orderId
@@ -2339,12 +2416,84 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
   });
 });
 
+// Update Delivery Contact (Phone / WhatsApp & Email) for Confirmed Manual Delivery Orders
+app.put('/api/orders/:id/delivery-contact', authenticate, (req: AuthRequest, res: Response): void => {
+  const orderId = req.params.id;
+  const { phone, email, notes } = req.body;
+
+  if (!phone && !email) {
+    res.status(400).json({ error: 'Please provide at least a phone number or email address.' });
+    return;
+  }
+
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  const isOwner = order.user_id === req.user!.id;
+  const isStaff = ['admin', 'superadmin', 'moderator'].includes(req.user!.role);
+  if (!isOwner && !isStaff) {
+    res.status(403).json({ error: 'Access denied: You cannot update delivery contact for this order.' });
+    return;
+  }
+
+  let details: any = {};
+  try {
+    details = order.details_json ? JSON.parse(order.details_json) : {};
+  } catch {}
+
+  if (phone) details.contactPhone = String(phone).trim();
+  if (email) details.email = String(email).trim();
+  if (notes) details.deliveryNotes = String(notes).trim();
+
+  const now = new Date().toISOString();
+  let timeline = [];
+  try {
+    timeline = order.timeline_json ? JSON.parse(order.timeline_json) : [];
+  } catch {}
+
+  timeline.push({
+    status: order.payment_status || 'PROCESSING',
+    timestamp: now,
+    note: `Customer updated delivery contact info: Phone/WhatsApp: ${phone || 'Unchanged'}, Email: ${email || 'Unchanged'}.`,
+    actor: req.user!.name
+  });
+
+  db.prepare(`
+    UPDATE orders SET
+      details_json = ?,
+      timeline_json = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(details), JSON.stringify(timeline), now, orderId);
+
+  // Also post an automated system notice to Order Room
+  db.prepare(`
+    INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
+    VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
+  `).run(
+    'msg_' + crypto.randomBytes(6).toString('hex'),
+    orderId,
+    `Delivery contact details updated by customer: Phone/WhatsApp: ${phone || details.contactPhone || 'N/A'} | Email: ${email || details.email || 'N/A'}. Staff will reach out on these channels for dispatch coordination.`,
+    now
+  );
+
+  const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  res.json({
+    message: 'Delivery contact information saved successfully!',
+    order: updatedOrder
+  });
+});
+
 // Public Live Order Tracking
 app.get('/api/orders/track/:orderId', (req: Request, res: Response): void => {
   const orderId = req.params.orderId;
   const order = db.prepare(`
     SELECT o.id, o.type, o.title, o.amount, o.currency, o.status, o.payment_status,
-           o.fulfillment_status, o.payment_evidence_ref, o.issued_code, o.code_issued_at,
+           o.fulfillment_status, o.payment_evidence_ref, o.payment_evidence_image,
+           o.issued_code, o.code_issued_at,
            o.timeline_json, o.details_json, o.created_at, o.updated_at
     FROM orders o
     WHERE o.id = ?
@@ -2575,6 +2724,11 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
         : `Payment verified! Your order #${order.id} is now being fulfilled by our operations team.`,
       now
     );
+
+    // Dispatch manual delivery confirmation email if not an automated code delivery
+    if (!codeAssigned) {
+      sendOrderPaymentVerifiedEmail(order, true).catch((e) => console.warn('[Manual Delivery Email Error]:', e));
+    }
 
     logAudit(req.user!.id, req.user!.name, 'APPROVE_PAYMENT', 'order', orderId, { codeAssigned, fulfillmentStatus: newFulfillmentStatus }, req.ip || '127.0.0.1');
 

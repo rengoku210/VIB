@@ -22,4 +22,7 @@ vib_pdf_text.txt
 data/*.db-wal
 data/*.db-shm
 data/vib_backup_*.db
+data/uploads/*
+!data/uploads/.gitkeep
+
 

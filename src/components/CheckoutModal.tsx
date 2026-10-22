@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   CheckCircle2,
@@ -14,11 +14,17 @@ import {
   Send,
   MessageCircle,
   ExternalLink,
+  Download,
+  UploadCloud,
+  FileImage,
+  Trash2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { VPPackage, Currency } from '../types';
 import { VP_PACKAGES } from '../data/packages';
 import { useAuth } from '../context/AuthContext';
 import { verifyRiotIdOnServer, RiotVerificationResponse } from '../lib/riot';
+import { downloadBrandedQrCard } from '../utils/qrDownload';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -61,11 +67,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Active Order info after creation
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
 
-  // UTR submission state
+  // UTR and Payment Screenshot submission state
   const [utrRef, setUtrRef] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotName, setScreenshotName] = useState<string | null>(null);
   const [isSubmittingEvidence, setIsSubmittingEvidence] = useState(false);
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [isDownloadingQr, setIsDownloadingQr] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Payment settings from server
   const [paymentSettings, setPaymentSettings] = useState<{
@@ -309,12 +321,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
+  // Handle File Selection for Payment Screenshot (drag-and-drop or file browser)
+  const handleFileSelect = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setEvidenceError('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setEvidenceError('Selected screenshot exceeds 10MB limit. Please upload a smaller image.');
+      return;
+    }
+
+    setEvidenceError(null);
+    setScreenshotFile(file);
+    setScreenshotName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setScreenshotPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveFile = () => {
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+    setScreenshotName(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Submit UTR / Payment Evidence
   const handleSubmitEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!utrRef.trim() || !createdOrder) return;
     setIsSubmittingEvidence(true);
     setEvidenceError(null);
+
+    const screenshotData = screenshotPreview || screenshotUrl.trim() || undefined;
 
     try {
       const res = await fetch(`/api/orders/${createdOrder.id}/payment-evidence`, {
@@ -325,7 +371,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         },
         body: JSON.stringify({
           ref: utrRef.trim(),
-          screenshot: screenshotUrl.trim() || undefined,
+          screenshot: screenshotData,
         }),
       });
 
@@ -365,6 +411,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setCreatedOrder(null);
     setUtrRef('');
     setScreenshotUrl('');
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+    setScreenshotName(null);
     setEvidenceError(null);
     onClose();
   };
@@ -377,10 +426,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  // Dynamic QR Code generation for UPI link
-  const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-    `upi://pay?pa=${paymentSettings.upi_id}&pn=${encodeURIComponent(paymentSettings.payee_name)}&am=${currentPriceINR}&cu=INR&tn=${encodeURIComponent(`VIB Order ${createdOrder?.id || ''}`)}`
-  )}`;
+  // Authoritative final amount and auto-filled UPI QR URI
+  const finalAmount = createdOrder?.amount || currentPriceINR;
+  const upiAmountStr = Number(finalAmount).toFixed(2);
+  const upiUri = `upi://pay?pa=${paymentSettings.upi_id}&pn=${encodeURIComponent(
+    paymentSettings.payee_name
+  )}&am=${upiAmountStr}&cu=INR&tn=${encodeURIComponent(`VIB Order #${createdOrder?.id || ''}`)}`;
+
+  const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUri)}`;
+
+  const handleDownloadQr = async () => {
+    setIsDownloadingQr(true);
+    try {
+      await downloadBrandedQrCard({
+        orderId: createdOrder?.id || 'PENDING',
+        amount: finalAmount,
+        upiId: paymentSettings.upi_id,
+        payeeName: paymentSettings.payee_name,
+        qrUrl: dynamicQrUrl,
+      });
+    } catch (err) {
+      console.error('Failed to download QR card:', err);
+      window.open(dynamicQrUrl, '_blank');
+    } finally {
+      setIsDownloadingQr(false);
+    }
+  };
 
   return (
     <div
@@ -845,12 +916,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* QR Code and Bank Display */}
             <div className="p-4 rounded-xl bg-black/60 border border-white/10 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-              <div className="p-2 bg-white rounded-xl shadow-lg shrink-0">
-                <img
-                  src={dynamicQrUrl}
-                  alt="VIB Payment QR"
-                  className="w-36 h-36 object-contain"
-                />
+              <div className="flex flex-col items-center gap-2 shrink-0">
+                <div className="p-2 bg-white rounded-xl shadow-lg">
+                  <img
+                    src={dynamicQrUrl}
+                    alt="VIB Payment QR"
+                    className="w-36 h-36 object-contain"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadQr}
+                  disabled={isDownloadingQr}
+                  className="w-full py-1.5 px-2.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 border border-purple-500/40 text-purple-200 text-[11px] font-bold font-rajdhani uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm hover:text-white"
+                >
+                  {isDownloadingQr ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Download className="w-3 h-3 text-purple-300" />
+                  )}
+                  <span>{isDownloadingQr ? 'Downloading...' : 'Download QR Card'}</span>
+                </button>
               </div>
 
               <div className="space-y-2 flex-1">
@@ -871,8 +957,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="text-xs text-gray-400 font-rajdhani">
                   Payee: <strong className="text-white">{paymentSettings.payee_name}</strong>
                 </div>
-                <div className="text-base font-black text-emerald-400 font-rajdhani">
-                  Exact Amount: ₹{currentPriceINR.toLocaleString('en-IN')}
+
+                <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 space-y-0.5">
+                  <div className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-emerald-400" />
+                    <span>Auto-Fills on Scan / Download</span>
+                  </div>
+                  <div className="text-base font-black text-emerald-300 font-rajdhani">
+                    Exact Amount: ₹{finalAmount.toLocaleString('en-IN')}.00
+                  </div>
                 </div>
               </div>
             </div>
@@ -881,14 +974,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs font-rajdhani text-gray-300 space-y-1">
               <div className="font-bold text-purple-300 uppercase tracking-wide">Payment Steps:</div>
               <ol className="list-decimal list-inside space-y-0.5 text-gray-400 text-[11px] leading-relaxed">
-                <li>Open GPay, PhonePe, Paytm, or BHIM and scan QR above (or pay to VPA).</li>
-                <li>Transfer exact amount: <strong>₹{currentPriceINR.toLocaleString('en-IN')}</strong>.</li>
-                <li>Copy the 12-digit <strong>Bank Reference / UTR Number</strong> from transaction receipt.</li>
-                <li>Enter the UTR number below and submit for instant verification.</li>
+                <li>Scan QR above (or download card to upload in GPay/PhonePe/Paytm).</li>
+                <li>The exact amount (<strong>₹{finalAmount.toLocaleString('en-IN')}</strong>) is automatically filled in your app.</li>
+                <li>Complete payment &amp; note the 12-digit <strong>UTR / Bank Ref Number</strong>.</li>
+                <li>Upload your payment screenshot below and submit for instant verification.</li>
               </ol>
             </div>
 
-            {/* UTR Submission Form */}
+            {/* UTR & Screenshot Submission Form */}
             <form onSubmit={handleSubmitEvidence} className="space-y-3">
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-200 uppercase mb-1">
@@ -904,21 +997,103 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 />
               </div>
 
+              {/* Upload Payment Screenshot Area */}
               <div>
-                <label className="block text-xs font-chakra tracking-wider text-gray-400 uppercase mb-1">
-                  Payment Screenshot Link (Optional)
+                <label className="block text-xs font-chakra tracking-wider text-gray-200 uppercase mb-1">
+                  Upload Payment Screenshot *
                 </label>
+
+                {/* Hidden File Input */}
                 <input
-                  type="url"
-                  value={screenshotUrl}
-                  onChange={(e) => setScreenshotUrl(e.target.value)}
-                  placeholder="https://... (screenshot or image link)"
-                  className="w-full px-3.5 py-2 rounded-lg bg-black/60 border border-white/10 text-white text-xs placeholder-gray-600 focus:outline-none focus:border-purple-400"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFileSelect(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
                 />
+
+                {!screenshotPreview ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingFile(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleFileSelect(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 ${
+                      isDraggingFile
+                        ? 'border-purple-400 bg-purple-950/40 text-purple-200'
+                        : 'border-white/15 hover:border-purple-500/50 bg-black/40 hover:bg-black/60 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    <UploadCloud className="w-6 h-6 text-purple-400" />
+                    <div className="font-chakra text-xs font-semibold">
+                      Click to Browse or Drag &amp; Drop Screenshot
+                    </div>
+                    <div className="text-[10px] font-rajdhani text-gray-500">
+                      Supports PNG, JPG, JPEG, WEBP (Max 10MB)
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/30 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={screenshotPreview}
+                        alt="Screenshot Preview"
+                        className="w-12 h-12 object-cover rounded-lg border border-purple-500/40 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-mono font-bold text-white truncate max-w-[200px]">
+                          {screenshotName || 'payment_proof.png'}
+                        </div>
+                        <div className="text-[10px] text-emerald-400 font-rajdhani flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 shrink-0" />
+                          <span>Image ready for verification</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="p-2 rounded-lg bg-rose-950/50 hover:bg-rose-900 border border-rose-500/30 text-rose-300 hover:text-white transition-colors cursor-pointer"
+                      title="Remove image"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
+              {/* Optional URL link alternative */}
+              {!screenshotPreview && (
+                <div>
+                  <label className="block text-[11px] font-rajdhani text-gray-400 mb-0.5">
+                    Or paste screenshot URL (Optional):
+                  </label>
+                  <input
+                    type="url"
+                    value={screenshotUrl}
+                    onChange={(e) => setScreenshotUrl(e.target.value)}
+                    placeholder="https://... (image link)"
+                    className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white text-xs placeholder-gray-600 focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              )}
+
               {evidenceError && (
-                <div className="p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-1.5">
+                <div className="p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-1.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{evidenceError}</span>
                 </div>
@@ -927,17 +1102,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmittingEvidence || !utrRef.trim()}
-                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-chakra font-bold text-sm text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-lg shadow-purple-600/30"
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-chakra font-bold text-sm text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-lg shadow-purple-600/30 mt-2"
               >
                 {isSubmittingEvidence ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Submitting Verification...</span>
+                    <span>Submitting Proof &amp; Verification...</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Confirm Payment &amp; Submit UTR</span>
+                    <span>Submit Payment Proof for Verification</span>
                   </>
                 )}
               </button>
@@ -996,6 +1171,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-between text-gray-400">
                   <span>Submitted UTR:</span>
                   <span className="font-mono text-purple-300 font-bold">{utrRef}</span>
+                </div>
+              )}
+
+              {screenshotPreview && (
+                <div className="flex justify-between items-center text-gray-400">
+                  <span>Payment Screenshot:</span>
+                  <span className="text-emerald-400 font-mono text-[11px] flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Uploaded &amp; Linked to Admin Ledger</span>
+                  </span>
                 </div>
               )}
 
