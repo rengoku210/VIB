@@ -23,6 +23,10 @@ export const FeaturedProfilesSection: React.FC<FeaturedProfilesSectionProps> = (
 
   const filteredProfiles = FEATURED_PROFILES_IMAGE_3;
 
+  if (!filteredProfiles || filteredProfiles.length === 0) {
+    return null;
+  }
+
   const handleAdd = (profile: DigitalProfile) => {
     onAddToCart({
       id: profile.id,

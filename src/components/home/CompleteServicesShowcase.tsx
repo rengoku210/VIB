@@ -74,13 +74,13 @@ export const CompleteServicesShowcase: React.FC<CompleteServicesShowcaseProps> =
     {
       id: 'rentals',
       icon: <Sparkles className="w-5 h-5 text-fuchsia-400" />,
-      badge: 'Skin & Account Rentals',
+      badge: 'Skin Rentals',
       title: 'VIB Experience',
       subtitle: 'High-Tier Skin Passes',
       description: 'Test-drive top-tier inventories featuring Kuronami, Prime, and Reaver at affordable daily rates.',
       features: ['Daily & Weekly Passes', 'Full Rare Skin Loadouts'],
       actionLabel: 'Explore Rentals',
-      whatsAppMsg: 'Hello VIB Team, I would like to inquire about VIB Experience Account & Skin Rentals.'
+      whatsAppMsg: 'Hello VIB Team, I would like to inquire about VIB Experience Skin Rentals.'
     }
   ];
 

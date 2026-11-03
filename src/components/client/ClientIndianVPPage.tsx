@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -25,7 +25,7 @@ interface ClientIndianVPPageProps {
   currency: Currency;
   onNavigate: (page: ClientPage) => void;
   onAddToCart: (item: CartItem) => void;
-  onOpenCheckout: (title: string, priceINR: number) => void;
+  onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
 }
 
 export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
@@ -34,7 +34,40 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
   onAddToCart,
   onOpenCheckout,
 }) => {
-  const [inStockOnly, setInStockOnly] = useState(true);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [stockMap, setStockMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let active = true;
+    const fetchStock = () => {
+      fetch('/api/vp-stock')
+        .then((res) => res.json())
+        .then((data) => {
+          if (!active || !data?.stock) return;
+          const map: Record<string, number> = {};
+          for (const item of data.stock) {
+            const rawId = String(item.package_id || '');
+            const count = Number(item.available ?? 0);
+            map[rawId] = count;
+            const bare = rawId.replace(/^(vp-|in-)/, '');
+            map[`vp-${bare}`] = count;
+            map[`in-${bare}`] = count;
+          }
+          setStockMap(map);
+        })
+        .catch((err) => console.warn('Failed to fetch VP stock:', err));
+    };
+    fetchStock();
+    const interval = setInterval(fetchStock, 5000);
+    window.addEventListener('focus', fetchStock);
+    window.addEventListener('vib-stock-refresh', fetchStock);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchStock);
+      window.removeEventListener('vib-stock-refresh', fetchStock);
+    };
+  }, []);
   const [popularOnly, setPopularOnly] = useState(false);
   const [bestValueOnly, setBestValueOnly] = useState(false);
   const [discountedOnly, setDiscountedOnly] = useState(false);
@@ -61,7 +94,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
 
   const handleBuy = (pack: typeof vpPacks[0]) => {
     soundFx.playClickSound();
-    onOpenCheckout(`${pack.vp} (Indian Region Top-Up)`, pack.priceINR);
+    onOpenCheckout(`${pack.vp} (Indian Region Top-Up)`, pack.priceINR, `vp-in-${pack.id.replace('in-', '')}`);
   };
 
   const handleAddToCartClick = (pack: typeof vpPacks[0]) => {
@@ -82,7 +115,22 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
     if (p.priceINR > priceMax) return false;
     if (popularOnly && p.badge !== 'POPULAR') return false;
     if (bestValueOnly && p.badge !== 'BEST VALUE') return false;
+    if (discountedOnly && !p.originalINR) return false;
+    const pkgId = 'vp-' + p.id.replace('in-', '');
+    const available = stockMap[pkgId] ?? 0;
+    if (inStockOnly && available <= 0) return false;
     return true;
+  });
+
+  const sortedPacks = [...filteredPacks].sort((a, b) => {
+    if (sortBy === 'price-low') return a.priceINR - b.priceINR;
+    if (sortBy === 'price-high') return b.priceINR - a.priceINR;
+    if (sortBy === 'vp-high') {
+      const vpa = parseInt(a.vp.replace(/[^0-9]/g, ''), 10);
+      const vpb = parseInt(b.vp.replace(/[^0-9]/g, ''), 10);
+      return vpb - vpa;
+    }
+    return 0; // recommended
   });
 
   const IndiaFlag = ({ className = "w-4 h-3" }: { className?: string }) => (
@@ -421,57 +469,76 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
 
             {/* 13 VP Packs Grid + 1 Wide Banner in 5-Column Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-              {filteredPacks.map((pack) => (
-                <div
-                  key={pack.id}
-                  className="p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] relative min-h-[175px]"
-                >
-                  {/* Badge */}
-                  {pack.badge && (
-                    <span
-                      className={`absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-rajdhani shadow-sm ${
-                        pack.badgeType === 'cyan'
-                          ? 'bg-sky-500 text-black'
-                          : 'bg-[#f59e0b] text-black'
+              {sortedPacks.map((pack) => {
+                const pkgId = 'vp-' + pack.id.replace('in-', '');
+                const available = stockMap[pkgId] ?? 0;
+                return (
+                  <div
+                    key={pack.id}
+                    className="p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] relative min-h-[185px]"
+                  >
+                    {/* Badge */}
+                    {pack.badge && (
+                      <span
+                        className={`absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-rajdhani shadow-sm ${
+                          pack.badgeType === 'cyan'
+                            ? 'bg-sky-500 text-black'
+                            : 'bg-[#f59e0b] text-black'
+                        }`}
+                      >
+                        {pack.badge}
+                      </span>
+                    )}
+
+                    {/* 3D Shiny Metallic VP Coin Stack */}
+                    <div className="w-20 h-20 rounded-lg flex items-center justify-center my-0.5 group-hover:scale-105 transition-transform duration-300">
+                      <img
+                        src="/assets/hires/vp_coins_stack.png"
+                        alt={pack.vp}
+                        className="w-full h-full object-contain filter drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]"
+                      />
+                    </div>
+
+                    {/* Pack Title & Pricing */}
+                    <div className="space-y-0.5 w-full">
+                      <div className="font-black text-sm text-white font-rajdhani tracking-wide">
+                        {pack.vp}
+                      </div>
+                      <div className="font-extrabold text-xs text-purple-300 font-rajdhani">
+                        {formatCurrencyPrice(pack.priceINR, currency)}
+                      </div>
+                      <div className="text-[10px] text-gray-500 line-through font-mono">
+                        {formatCurrencyPrice(pack.originalINR, currency)}
+                      </div>
+                      <div className="text-[10px] font-mono pt-1">
+                        {available > 0 ? (
+                          <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            {available} in stock
+                          </span>
+                        ) : (
+                          <span className="text-zinc-500 font-medium">Sold Out</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Buy Now Button */}
+                    <button
+                      type="button"
+                      disabled={available <= 0}
+                      onClick={() => handleBuy(pack)}
+                      className={`w-full mt-2.5 min-h-[38px] py-1.5 px-3 rounded-lg font-extrabold text-xs transition-colors border flex items-center justify-center gap-1.5 shadow-sm font-rajdhani uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                        available > 0
+                          ? 'bg-[#251342] hover:bg-[#7c3aed] text-white border-purple-500/30 cursor-pointer'
+                          : 'bg-zinc-900/60 text-zinc-600 border-white/5 cursor-not-allowed opacity-60'
                       }`}
                     >
-                      {pack.badge}
-                    </span>
-                  )}
-
-                  {/* 3D Shiny Metallic VP Coin Stack */}
-                  <div className="w-20 h-20 rounded-lg flex items-center justify-center my-0.5 group-hover:scale-105 transition-transform duration-300">
-                    <img
-                      src="/assets/hires/vp_coins_stack.png"
-                      alt={pack.vp}
-                      className="w-full h-full object-contain filter drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]"
-                    />
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      <span>{available > 0 ? 'Buy Now' : 'Sold Out'}</span>
+                    </button>
                   </div>
-
-                  {/* Pack Title & Pricing */}
-                  <div className="space-y-0.5 w-full">
-                    <div className="font-black text-sm text-white font-rajdhani tracking-wide">
-                      {pack.vp}
-                    </div>
-                    <div className="font-extrabold text-xs text-purple-300 font-rajdhani">
-                      {formatCurrencyPrice(pack.priceINR, currency)}
-                    </div>
-                    <div className="text-[10px] text-gray-500 line-through font-mono">
-                      {formatCurrencyPrice(pack.originalINR, currency)}
-                    </div>
-                  </div>
-
-                  {/* Buy Now Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleBuy(pack)}
-                    className="w-full mt-2.5 min-h-[38px] py-1.5 px-3 rounded-lg bg-[#251342] hover:bg-[#7c3aed] text-white font-extrabold text-xs transition-colors cursor-pointer border border-purple-500/30 flex items-center justify-center gap-1.5 shadow-sm font-rajdhani uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    <span>Buy Now</span>
-                  </button>
-                </div>
-              ))}
+                );
+              })}
 
               {/* 14th Element: Wide 2-Column Banner "MORE VALUE MORE WINS" (Matching Reference 2) */}
               <div className="col-span-2 rounded-xl overflow-hidden bg-gradient-to-r from-[#170a2c] via-[#120822] to-[#0d0618] border border-purple-500/35 p-4 flex flex-col justify-between relative shadow-lg min-h-[175px]">

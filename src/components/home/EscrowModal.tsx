@@ -9,7 +9,7 @@ interface EscrowModalProps {
 }
 
 export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => {
-  const { token, user } = useAuth();
+  const { token, user, openAuthModal } = useAuth();
   const [tradeType, setTradeType] = useState<'buy' | 'sell' | 'swap'>('buy');
   const [sellerTag, setSellerTag] = useState('');
   const [weaponOrSkin, setWeaponOrSkin] = useState('');
@@ -68,6 +68,11 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+    if (!token) {
+      setSubmitError('Please sign in before creating an escrow request so it stays linked to your account.');
+      openAuthModal('login');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -141,7 +146,7 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
             </div>
             <h4 className="font-chakra font-bold text-xl text-white">Escrow Ticket #{submittedTicketId} Initiated!</h4>
             <p className="font-rajdhani text-sm text-gray-300 max-w-xs mt-2">
-              A certified VIB Middleman agent has been assigned to your trade. Ticket is active in your dashboard and notification feed.
+              Your request is linked to your account and is waiting for staff review. Track its status in your support dashboard and notifications.
             </p>
           </div>
         ) : (

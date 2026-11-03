@@ -33,18 +33,20 @@
 
 /* Custom scrollbar for sleek gaming look */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #070a0e;
+  background: #07070d;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f2937;
-  border-radius: 3px;
+  background: #3b1d60;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  background: #6b21a8;
+  border-color: rgba(168, 85, 247, 0.6);
 }
 
 /* Subtle scanline and grid background overlay */

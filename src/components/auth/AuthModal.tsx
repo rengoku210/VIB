@@ -31,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { login, register, loginWithGoogle, resetPassword, error: authContextError } = useAuth();
+  const { login, register, loginWithGoogle, resetPassword, completePasswordReset, error: authContextError } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
 
   // Form states
@@ -41,7 +41,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [riotId, setRiotId] = useState('');
-  const [termsAgreed, setTermsAgreed] = useState(true);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [recoveryCodeRequired, setRecoveryCodeRequired] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [riotVerification, setRiotVerification] = useState<RiotVerificationResponse | null>(null);
   const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
 
@@ -88,6 +92,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMode(initialMode);
     setLocalError(null);
     setSuccessMessage(null);
+    setTermsAgreed(false);
+    setRecoveryCodeRequired(false);
+    setRecoveryCode('');
+    setNewPassword('');
+    setConfirmNewPassword('');
   }, [initialMode, isOpen]);
 
   // Lock body scroll and Escape key close
@@ -175,6 +184,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       name: name.trim(),
       email: email.trim(),
       password,
+      terms_accepted: termsAgreed,
       phone: phone.trim() || undefined,
       riot_id: riotId.trim() || undefined,
     });
@@ -201,10 +211,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     setLoading(true);
+    if (recoveryCodeRequired) {
+      if (!recoveryCode.trim() || newPassword.length < 8 || newPassword !== confirmNewPassword) {
+        setLoading(false);
+        setLocalError(newPassword.length < 8 ? 'New password must contain at least 8 characters.' : newPassword !== confirmNewPassword ? 'Passwords do not match.' : 'Enter the recovery code from your email.');
+        return;
+      }
+      const result = await completePasswordReset(email.trim().toLowerCase(), recoveryCode, newPassword);
+      setLoading(false);
+      if (result.success) {
+        setRecoveryCodeRequired(false);
+        setMode('login');
+        setPassword('');
+        setSuccessMessage(result.message || 'Password updated. You can now sign in.');
+      } else {
+        setLocalError(result.error || 'Password reset failed.');
+      }
+      return;
+    }
+
     const result = await resetPassword(email.trim().toLowerCase());
     setLoading(false);
     if (result.success) {
-      setSuccessMessage(result.message || 'Password reset instructions have been dispatched.');
+      setSuccessMessage(result.message || 'Password reset instructions have been sent.');
+      if (result.requiresCode) setRecoveryCodeRequired(true);
     } else {
       setLocalError(result.error || 'Network error requesting password reset.');
     }
@@ -608,7 +638,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'forgot' && (
           <form onSubmit={handleForgotSubmit} className="space-y-4 relative z-10">
             <p className="text-xs text-gray-300 leading-relaxed">
-              Enter your registered email address and we will generate a secure verification recovery token to restore your account access.
+              {recoveryCodeRequired
+                ? 'Enter the recovery code sent to your email, then choose a new password.'
+                : 'Enter your registered email address to receive password recovery instructions.'}
             </p>
 
             <div className="space-y-1.5">
@@ -628,12 +660,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
+            {recoveryCodeRequired && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">
+                    Recovery Code / OTP
+                  </label>
+                  <input
+                    type="text"
+                    value={recoveryCode}
+                    onChange={(e) => setRecoveryCode(e.target.value.trim().slice(0, 64))}
+                    placeholder="Enter 6-digit OTP or paste code"
+                    autoComplete="one-time-code"
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">New Password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full min-h-[44px] py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black font-rajdhani text-sm uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              {loading ? 'Sending Recovery Code...' : 'Send Recovery Code'}
+              {loading ? (recoveryCodeRequired ? 'Updating Password…' : 'Sending Code…') : (recoveryCodeRequired ? 'Reset Password' : 'Send Recovery Code')}
             </button>
 
             <div className="text-center">

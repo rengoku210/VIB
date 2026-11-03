@@ -6,19 +6,12 @@ export default async function handler(req: any, res: any) {
     }
     return app(req, res);
   } catch (err: any) {
+    console.error('[Vercel API] Failed to initialize Express handler:', err);
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
     return res.end(JSON.stringify({
       error: 'CRASH_ON_BOOT',
-      message: err?.message || String(err),
-      stack: err?.stack,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      env: {
-        VERCEL: process.env.VERCEL,
-        NODE_ENV: process.env.NODE_ENV
-      }
-    }, null, 2));
+      message: 'The API service could not start. Check the deployment function logs.'
+    }));
   }
 }

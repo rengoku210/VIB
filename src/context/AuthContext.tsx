@@ -27,6 +27,7 @@ export interface RegisterData {
   name: string;
   email: string;
   password: string;
+  terms_accepted: boolean;
   phone?: string;
   riot_id?: string;
 }
@@ -39,9 +40,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
-  resetPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string; requiresCode?: boolean }>;
+  completePasswordReset: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<boolean>;
+  updateProfile: (data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
   refreshUser: () => Promise<void>;
   isAuthModalOpen: boolean;
   authModalMode: 'login' | 'signup' | 'forgot';
@@ -309,27 +311,20 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
     }
   };
 
-  // Password Reset handler (Firebase + Local fallback)
-  const resetPassword = async (resetEmail: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+  // Password Reset handler (dispatches secure OTP via Resend email service)
+  const resetPassword = async (resetEmail: string): Promise<{ success: boolean; message?: string; error?: string; requiresCode?: boolean }> => {
     setError(null);
     try {
-      // 1. Try Firebase password reset email
-      try {
-        await sendFirebasePasswordReset(resetEmail);
-      } catch (fbErr) {
-        console.warn('[Firebase Reset Warning]:', fbErr);
-      }
-
-      // 2. Also register reset token on backend
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail }),
+        body: JSON.stringify({ email: resetEmail.trim().toLowerCase() }),
       });
       const data = await parseJsonResponse(res, 'Password reset request failed.');
       return {
         success: true,
-        message: data.message || 'Password reset instructions have been dispatched.',
+        message: data.message || 'Password reset instructions have been dispatched to your email.',
+        requiresCode: Boolean(data.requiresCode),
       };
     } catch (err: any) {
       let errMessage = err?.message || 'Failed to dispatch password reset.';
@@ -341,24 +336,26 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
     }
   };
 
+  const completePasswordReset = async (resetEmail: string, code: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail.trim().toLowerCase(), code: code.trim(), newPassword }),
+      });
+      const data = await parseJsonResponse(res, 'Password reset failed.');
+      return { success: true, message: data.message || 'Password updated. You can now sign in.' };
+    } catch (err: any) {
+      const errMessage = err?.message || 'Password reset failed.';
+      setError(errMessage);
+      return { success: false, error: errMessage };
+    }
+  };
+
   // Logout handler
   const logout = async (): Promise<void> => {
-    try {
-      await firebaseSignOut();
-    } catch (fbErr) {
-      console.warn('Firebase signout warning:', fbErr);
-    }
-
-    if (token) {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch (err) {
-        console.warn('Logout API notification error:', err);
-      }
-    }
+    const sessionToken = token;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem('vib_checkout_draft');
@@ -368,11 +365,25 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
     } catch {}
     setToken(null);
     setUser(null);
+
+    // Logging out must not depend on Firebase or the API responding. Clear the
+    // local session first, then notify both services without blocking the UI.
+    void firebaseSignOut().catch((fbErr) => {
+      console.warn('Firebase signout warning:', fbErr);
+    });
+    if (sessionToken) {
+      void fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      }).catch((err) => {
+        console.warn('Logout API notification error:', err);
+      });
+    }
   };
 
   // Update Profile
-  const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
-    if (!token) return false;
+  const updateProfile = async (updates: Partial<User>): Promise<{ success: boolean; error?: string }> => {
+    if (!token) return { success: false, error: 'Your session has expired. Please sign in again.' };
     try {
       const res = await fetch('/api/user/profile', {
         method: 'PUT',
@@ -383,12 +394,18 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         body: JSON.stringify(updates),
       });
       if (res.ok) {
+        const data = await parseJsonResponse(res, 'Profile update failed.');
+        if (data.user) {
+          try { localStorage.setItem(USER_KEY, JSON.stringify(data.user)); } catch {}
+          setUser(data.user);
+        }
         await refreshUser();
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch {
-      return false;
+      const data = await parseJsonResponse(res, 'Profile update failed.').catch(() => ({}));
+      return { success: false, error: data.error || `Profile update failed (HTTP ${res.status}).` };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'Network error while saving profile.' };
     }
   };
 
@@ -407,6 +424,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
         loginWithGoogle,
         register,
         resetPassword,
+        completePasswordReset,
         logout,
         updateProfile,
         refreshUser,

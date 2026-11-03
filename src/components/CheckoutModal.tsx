@@ -21,6 +21,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { VPPackage, Currency } from '../types';
+import type { CartItem } from '../types';
 import { VP_PACKAGES } from '../data/packages';
 import { useAuth } from '../context/AuthContext';
 import { verifyRiotIdOnServer, RiotVerificationResponse } from '../lib/riot';
@@ -30,7 +31,7 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   pkg?: VPPackage;
-  customItem?: { title: string; priceINR: number; productId?: string; id?: string };
+  customItem?: { title: string; priceINR: number; productId?: string; id?: string; cartItems?: Array<Pick<CartItem, 'id' | 'quantity'>>; rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' }; rentalDuration?: string };
   currency: Currency;
   onTrackOrder?: (orderId: string) => void;
 }
@@ -49,8 +50,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [email, setEmail] = useState(() => user?.email || '');
   const [contactPhone, setContactPhone] = useState('');
   const [discordTag, setDiscordTag] = useState('');
-  const [rentalDuration, setRentalDuration] = useState<'24h' | '48h' | '72h' | '7d'>('24h');
   const [rentalTermsAccepted, setRentalTermsAccepted] = useState(false);
+  const [generalTermsAccepted, setGeneralTermsAccepted] = useState(true);
+  const [fallbackRentalDuration, setFallbackRentalDuration] = useState<'24h' | '3d' | '7d' | '30d'>('24h');
   const [fieldErrors, setFieldErrors] = useState<{
     riotId?: string;
     tagline?: string;
@@ -58,8 +60,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     contactPhone?: string;
     discordTag?: string;
     rentalTerms?: string;
+    generalTerms?: string;
   }>({});
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
+  const [paymentMethod] = useState<'upi'>('upi');
 
   // Modal Stages: 'form' -> 'payment_qr' -> 'submitted'
   const [modalStage, setModalStage] = useState<'form' | 'submitting_order' | 'payment_qr' | 'submitted'>('form');
@@ -100,6 +103,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Copy states
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedOrderRef, setCopiedOrderRef] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Fetch payment settings
   useEffect(() => {
@@ -195,7 +199,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const isValuation = currentPriceINR === 0 || lowerTitle.includes('valuation') || lowerTitle.includes('appraisal');
   const isRegional = lowerTitle.includes('php') || lowerTitle.includes('regional') || lowerTitle.includes('philippines');
-  const isRental = lowerTitle.includes('rental');
+  const isRental = Boolean(customItem?.rentalDuration) || lowerTitle.startsWith('rent ') || lowerTitle.includes('rental');
   const isCoaching = lowerTitle.includes('coaching');
   const isDerank = lowerTitle.includes('derank');
   const isRankup = (lowerTitle.includes('rank') || lowerTitle.includes('progression')) && !isDerank;
@@ -221,6 +225,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (isRegional && !contactPhone.trim()) errors.contactPhone = 'WhatsApp phone number is required for manual regional delivery';
     if (isCoaching && !discordTag.trim()) errors.discordTag = 'Discord username is required for coaching coordination';
     if (isRental && !rentalTermsAccepted) errors.rentalTerms = 'You must accept the Rental Escrow Terms and fair play pledge';
+    if (!generalTermsAccepted) errors.generalTerms = 'You must accept the Terms of Service & Refund Policy to proceed';
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -284,17 +289,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           type: orderType,
           paymentMethod: isValuation
             ? 'Free Valuation / Appraisal'
-            : paymentMethod === 'upi'
-            ? 'UPI Manual QR Verification'
-            : paymentMethod === 'card'
-            ? 'Card Escrow'
-            : 'Net Banking Escrow',
+            : 'UPI Manual QR Verification',
           details: {
             riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
             email: email.trim(),
             contactPhone: contactPhone.trim() || undefined,
             discordTag: discordTag.trim() || undefined,
-            rentalDuration: isRental ? rentalDuration : undefined,
+            rentalDuration: isRental ? (customItem?.rentalDuration || fallbackRentalDuration) : undefined,
+            cartItems: customItem?.cartItems,
+            rankup: customItem?.rankup,
             category: orderType,
           },
         }),
@@ -309,6 +312,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       const data = await res.json();
       setCreatedOrder(data.order);
+      try {
+        window.dispatchEvent(new Event('vib-stock-refresh'));
+      } catch {}
+
+      if (data?.order?.id) {
+        fetch('/api/legal/consent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            policySlug: 'terms-and-conditions',
+            consentType: 'explicit_checkbox',
+            contextType: 'order_checkout',
+            contextId: data.order.id,
+          }),
+        }).catch(() => {});
+
+        if (isRental) {
+          fetch('/api/legal/consent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              policySlug: 'rental-terms',
+              consentType: 'explicit_checkbox',
+              contextType: 'rental_checkout',
+              contextId: data.order.id,
+            }),
+          }).catch(() => {});
+        }
+      }
 
       if (isValuation) {
         setModalStage('submitted');
@@ -384,6 +422,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       const result = await res.json();
       setCreatedOrder(result.order || createdOrder);
+      try {
+        window.dispatchEvent(new Event('vib-stock-refresh'));
+      } catch {}
       setModalStage('submitted');
     } catch {
       setEvidenceError('Network error while submitting payment verification.');
@@ -526,13 +567,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     : isRegional
                     ? 'Manual Regional Provisioning • Official WhatsApp Operations Desk (15-30 Mins)'
                     : isRental
-                    ? 'Escrow Middleman Rental • Security Pledge & Timed Account Access'
+                    ? 'Escrow Middleman Rental • Security Pledge & Timed Weapon Skin Access'
                     : isCoaching
                     ? '1-on-1 Discord Coaching • Session Scheduling & VOD Review'
                     : isDerank
                     ? 'Manual Derank Service • Middleman Supervised Safe MMR Reset'
                     : isRankup
-                    ? 'Rank Progression Assistance • Duo-Queue Middleman Escrow'
+                    ? `Rank Progression Assistance • ${customItem?.rankup?.mode === 'duo' ? 'Duo Queue' : 'Solo Queue'}`
                     : 'Secured Official Dispatch • Automated Code Delivery & Escrow'}
                 </p>
               </div>
@@ -725,27 +766,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
                       Rental Access Duration *
                     </label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { id: '24h', label: '24 Hours' },
-                        { id: '48h', label: '48 Hours' },
-                        { id: '72h', label: '3 Days' },
-                        { id: '7d', label: '7 Days' },
-                      ].map((dur) => (
-                        <button
-                          key={dur.id}
-                          type="button"
-                          onClick={() => setRentalDuration(dur.id as any)}
-                          className={`py-2 px-2 text-xs font-chakra font-bold rounded-lg border text-center transition-all cursor-pointer ${
-                            rentalDuration === dur.id
-                              ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30'
-                              : 'bg-black/40 text-gray-400 border-white/10 hover:border-white/30'
-                          }`}
-                        >
-                          {dur.label}
-                        </button>
-                      ))}
-                    </div>
+                    {customItem?.rentalDuration ? (
+                      <p className="rounded-lg border border-purple-500/30 bg-purple-950/30 px-3 py-2 text-sm text-white">
+                        Selected duration: <strong>{customItem.rentalDuration}</strong>. The catalog price is locked to this duration.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { id: '24h', label: '24 Hours' },
+                          { id: '3d', label: '3 Days' },
+                          { id: '7d', label: '7 Days' },
+                          { id: '30d', label: '30 Days' },
+                        ].map((dur) => (
+                          <button
+                            key={dur.id}
+                            type="button"
+                            onClick={() => setFallbackRentalDuration(dur.id as any)}
+                            className={`py-2 px-2 text-xs font-chakra font-bold rounded-lg border text-center transition-all cursor-pointer ${
+                              fallbackRentalDuration === dur.id
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30'
+                                : 'bg-black/40 text-gray-400 border-white/10 hover:border-white/30'
+                            }`}
+                          >
+                            {dur.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1.5 text-xs">
@@ -754,7 +801,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <span>Rental Escrow Security Pledge</span>
                     </div>
                     <p className="text-[11px] text-gray-300 font-rajdhani leading-relaxed">
-                      By renting, you agree to play fairly without 3rd-party software or toxicity. Account credentials will be revoked automatically when rental duration expires.
+                      By renting, you agree to play fairly without 3rd-party software or toxicity. Skin rental access expires automatically when rental duration ends.
                     </p>
                     <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
                       <input
@@ -822,34 +869,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               {/* Payment Methods (Only shown for paid services, bypassed for free valuation) */}
               {!isValuation ? (
-                <div>
-                  <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase mb-1.5">
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-chakra tracking-wider text-gray-300 uppercase">
                     Payment Method
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'upi', label: 'UPI / QR', sub: 'Manual Review' },
-                      { id: 'card', label: 'Card Escrow', sub: 'Escrow Desk' },
-                      { id: 'netbanking', label: 'NetBank', sub: 'Direct Bank' },
-                    ].map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(method.id as 'upi' | 'card' | 'netbanking')}
-                        className={`min-h-[44px] p-2.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                          paymentMethod === method.id
-                            ? 'bg-white/15 border-white text-white shadow'
-                            : 'bg-black/40 border-white/10 text-gray-400 hover:border-white/20'
-                        }`}
-                      >
-                        <div className="font-chakra font-bold text-xs">{method.label}</div>
-                        <div className="text-[9px] font-rajdhani text-gray-400">{method.sub}</div>
-                      </button>
-                    ))}
+
+                  {/* Active UPI / QR Card */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-950/40 via-purple-900/20 to-black/40 border border-purple-500/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-chakra font-bold text-xs text-white">Instant UPI / QR Code Transfer</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                            Verified
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-rajdhani text-gray-400">
+                          Auto-fills exact amount • GPay, PhonePe, Paytm, BHIM &amp; UPI
+                        </p>
+                      </div>
+                    </div>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   </div>
-                  <p className="text-[10px] text-amber-300/90 font-rajdhani mt-1.5">
-                    * Note: Instant manual UPI QR transfer with 12-digit UTR verification is the primary payment protocol.
-                  </p>
+
+                  {/* WhatsApp Support Notice for Alternative Methods */}
+                  <div className="p-3 rounded-xl bg-[#091522] border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-start sm:items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                      <p className="text-xs text-gray-200 leading-snug">
+                        Have questions or want to use a different payment method?
+                      </p>
+                    </div>
+                    <a
+                      href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                        `Hi VIB Support, I have questions or want to use a different payment method for ${currentTitle} (₹${currentPriceINR}).`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-colors shrink-0 shadow-md shadow-emerald-900/30"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Contact Us on WhatsApp</span>
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
@@ -862,6 +927,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 <span>VIB Escrow Desk • Secure Verified Payment &amp; Identity Protection</span>
+              </div>
+
+              {/* Statutory Legal Agreement Checkbox (DPDPA 2023 & Consumer Protection) */}
+              <div className="p-3 rounded-xl bg-purple-950/25 border border-purple-500/25 space-y-1 text-xs">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={generalTermsAccepted}
+                    onChange={(e) => {
+                      setGeneralTermsAccepted(e.target.checked);
+                      if (fieldErrors.generalTerms) setFieldErrors((prev) => ({ ...prev, generalTerms: undefined }));
+                    }}
+                    className="mt-0.5 rounded border-purple-400 text-purple-600 focus:ring-purple-500 w-4 h-4 shrink-0"
+                  />
+                  <span className="text-[11px] text-gray-300 leading-snug">
+                    I agree to VIB&apos;s{' '}
+                    <a
+                      href="/?page=legal&slug=terms-and-conditions"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 hover:text-purple-300 underline font-semibold"
+                    >
+                      Terms of Service
+                    </a>
+                    ,{' '}
+                    <a
+                      href="/?page=legal&slug=cancellation-and-refund"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 hover:text-purple-300 underline font-semibold"
+                    >
+                      Refund Policy
+                    </a>{' '}
+                    and acknowledge that transactions are protected under official VIB middleman escrow.
+                  </span>
+                </label>
+                {fieldErrors.generalTerms && (
+                  <p className="text-xs text-rose-400 mt-1 font-mono flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{fieldErrors.generalTerms}</span>
+                  </p>
+                )}
               </div>
 
               {/* Submit CTA */}
@@ -977,7 +1084,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <li>Scan QR above (or download card to upload in GPay/PhonePe/Paytm).</li>
                 <li>The exact amount (<strong>₹{finalAmount.toLocaleString('en-IN')}</strong>) is automatically filled in your app.</li>
                 <li>Complete payment &amp; note the 12-digit <strong>UTR / Bank Ref Number</strong>.</li>
-                <li>Upload your payment screenshot below and submit for instant verification.</li>
+                <li>Add a payment screenshot if available, then submit your UTR for staff review.</li>
               </ol>
             </div>
 
@@ -1000,7 +1107,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* Upload Payment Screenshot Area */}
               <div>
                 <label className="block text-xs font-chakra tracking-wider text-gray-200 uppercase mb-1">
-                  Upload Payment Screenshot *
+                  Upload Payment Screenshot (Optional)
                 </label>
 
                 {/* Hidden File Input */}
@@ -1039,7 +1146,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   >
                     <UploadCloud className="w-6 h-6 text-purple-400" />
                     <div className="font-chakra text-xs font-semibold">
-                      Click to Browse or Drag &amp; Drop Screenshot
+                      Click to Browse or Drag &amp; Drop Screenshot (Optional)
                     </div>
                     <div className="text-[10px] font-rajdhani text-gray-500">
                       Supports PNG, JPG, JPEG, WEBP (Max 10MB)
@@ -1123,27 +1230,87 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* STAGE 3: SUBMITTED FOR VERIFICATION SCREEN */}
         {modalStage === 'submitted' && createdOrder && (
           <div className="py-6 flex flex-col items-center text-center space-y-4 relative z-10">
-            <div className="w-14 h-14 rounded-full bg-sky-500/20 border border-sky-500 text-sky-400 flex items-center justify-center">
-              {isValuation ? <CheckCircle2 className="w-8 h-8 text-emerald-400" /> : <Clock className="w-8 h-8 animate-pulse" />}
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+              createdOrder.issued_code
+                ? 'bg-emerald-500/20 border border-emerald-500 text-emerald-400'
+                : isValuation
+                ? 'bg-emerald-500/20 border border-emerald-500 text-emerald-400'
+                : 'bg-sky-500/20 border border-sky-500 text-sky-400'
+            }`}>
+              {createdOrder.issued_code || isValuation ? <CheckCircle2 className="w-8 h-8 text-emerald-400" /> : <Clock className="w-8 h-8 animate-pulse" />}
             </div>
 
             <div>
               <div className={`inline-block px-3 py-1 rounded-full text-xs font-mono font-bold mb-2 border ${
-                isValuation
+                createdOrder.issued_code
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-500/30'
+                  : isValuation
                   ? 'bg-emerald-950 text-emerald-300 border-emerald-500/30'
                   : 'bg-sky-950 text-sky-300 border-sky-500/30'
               }`}>
-                {isValuation ? 'STATUS: APPRAISAL INQUIRY RECEIVED' : 'STATUS: SUBMITTED FOR VERIFICATION'}
+                {createdOrder.issued_code
+                  ? 'STATUS: FULFILLED • PREPAID PIN DELIVERED'
+                  : isValuation
+                  ? 'STATUS: APPRAISAL INQUIRY RECEIVED'
+                  : 'STATUS: SUBMITTED FOR VERIFICATION'}
               </div>
               <h4 className="font-chakra font-bold text-2xl text-white">
-                {isValuation ? 'Valuation Request Logged!' : 'Payment Proof Received!'}
+                {createdOrder.issued_code
+                  ? 'Valorant Points Delivered!'
+                  : isValuation
+                  ? 'Valuation Request Logged!'
+                  : 'Payment Proof Received!'}
               </h4>
               <p className="text-xs font-rajdhani text-gray-300 max-w-sm mx-auto mt-1">
-                {isValuation
+                {createdOrder.issued_code
+                  ? 'Your genuine Riot prepaid code was automatically provisioned from the secure vault.'
+                  : isValuation
                   ? 'Your account appraisal inquiry has been registered. Our valuation desk will analyze your skin inventory and MMR tier.'
-                  : 'Your order is safely locked in VIB escrow. Our accounting desk is cross-checking your bank reference with live statements.'}
+                  : 'Your order is saved. Our accounting team will review your bank reference before fulfillment.'}
               </p>
             </div>
+
+            {/* Glowing Delivered Code Box */}
+            {createdOrder.issued_code && (
+              <div className="w-full p-4 rounded-xl bg-gradient-to-br from-emerald-950/70 via-[#07241a] to-emerald-950/50 border-2 border-emerald-500/50 text-left font-rajdhani space-y-3 shadow-[0_0_25px_rgba(16,185,129,0.25)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="font-bold text-xs uppercase tracking-wider">
+                      Official Valorant Prepaid PIN Code Delivered
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-300/80">Instant Delivery</span>
+                </div>
+
+                <div className="p-3.5 rounded-lg bg-black/80 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="font-mono text-lg sm:text-xl font-black text-white tracking-widest break-all select-all">
+                    {createdOrder.issued_code}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdOrder.issued_code);
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }}
+                    className="min-h-[40px] px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shrink-0"
+                  >
+                    {copiedCode ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
+                    <span>{copiedCode ? 'Copied PIN!' : 'Copy Code'}</span>
+                  </button>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-black/40 text-[11px] text-gray-300 space-y-1 font-sans">
+                  <strong className="text-emerald-300 font-rajdhani uppercase tracking-wide block">How to Redeem in Valorant:</strong>
+                  <ol className="list-decimal list-inside space-y-0.5 text-gray-400">
+                    <li>Launch Valorant &amp; click the VP icon in the top right.</li>
+                    <li>Select <strong>Prepaid Cards &amp; Codes</strong> payment method.</li>
+                    <li>Paste your PIN code above and click <strong>Submit</strong>.</li>
+                  </ol>
+                </div>
+              </div>
+            )}
 
             {/* Receipt Summary Card */}
             <div className="w-full p-4 rounded-xl bg-black/60 border border-white/10 text-left font-rajdhani space-y-2 text-xs">

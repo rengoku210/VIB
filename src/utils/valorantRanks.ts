@@ -19,15 +19,15 @@ export type ValorantRankGroup =
 
 // Reliable high-resolution fallback icons matching RankProgressionCalculator
 export const FALLBACK_RANK_ICONS: Record<ValorantRankGroup, string> = {
-  Iron: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/4.png',
-  Bronze: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/7.png',
-  Silver: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/10.png',
-  Gold: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/13.png',
-  Platinum: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/16.png',
-  Diamond: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/19.png',
-  Ascendant: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/22.png',
-  Immortal: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/25.png',
-  Radiant: 'https://trackercdn.com/cdn/tracker.gg/valorant/icons/tiers/27.png',
+  Iron: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/4/largeicon.png',
+  Bronze: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/7/largeicon.png',
+  Silver: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/10/largeicon.png',
+  Gold: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/13/largeicon.png',
+  Platinum: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/16/largeicon.png',
+  Diamond: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/19/largeicon.png',
+  Ascendant: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/22/largeicon.png',
+  Immortal: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/25/largeicon.png',
+  Radiant: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/27/largeicon.png',
 };
 
 const CACHE_KEY = 'vib_valorant_rank_icons_v1';

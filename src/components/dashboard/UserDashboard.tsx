@@ -30,8 +30,12 @@ import {
   Edit3,
   Copy,
   Check,
+  Gavel,
+  Key,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, type User } from '../../context/AuthContext';
 import { Currency } from '../../types';
 import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
 import { SubmitListingModal } from '../profiles/SubmitListingModal';
@@ -50,7 +54,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenTracking,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin, isStaff } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings' | 'listings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'my_auctions' | 'my_rentals' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings' | 'listings'>('overview');
 
   // Live state from backend
   const [orders, setOrders] = useState<any[]>([]);
@@ -59,6 +63,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [tickets, setTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [userListings, setUserListings] = useState<any[]>([]);
+  const [userAuctions, setUserAuctions] = useState<any[]>([]);
+  const [userRentals, setUserRentals] = useState<any[]>([]);
+  const [revealedVaultId, setRevealedVaultId] = useState<string | null>(null);
+  const [settlingAuction, setSettlingAuction] = useState<any | null>(null);
+  const [settleUtr, setSettleUtr] = useState('');
+  const [settleSubmitting, setSettleSubmitting] = useState(false);
+  const [settleError, setSettleError] = useState<string | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [editingListing, setEditingListing] = useState<any | null>(null);
   const [listingActionLoading, setListingActionLoading] = useState(false);
@@ -100,6 +111,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketPriority, setTicketPriority] = useState('medium');
   const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [ticketReplyDrafts, setTicketReplyDrafts] = useState<Record<string, string>>({});
+  const [ticketReplyErrors, setTicketReplyErrors] = useState<Record<string, string>>({});
+  const [ticketReplySubmitting, setTicketReplySubmitting] = useState<string | null>(null);
 
   // Order Room state (Universal Order Flow & Chat)
   const [selectedOrderRoom, setSelectedOrderRoom] = useState<any | null>(null);
@@ -117,7 +131,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     if (!token) return;
     setLoading(true);
     try {
-      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes] = await Promise.all([
+      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes, aucRes, rntRes] = await Promise.all([
         fetch('/api/user/overview', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/orders', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/transactions', { headers: { Authorization: `Bearer ${token}` } }),
@@ -125,6 +139,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         fetch('/api/user/tickets', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/notifications', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/listings', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/my-auctions', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/my-rentals', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       if (ordRes.ok) {
@@ -151,6 +167,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         const d = await lstRes.json();
         setUserListings(d.listings || []);
       }
+      if (aucRes && aucRes.ok) {
+        const d = await aucRes.json();
+        setUserAuctions(d.bids || []);
+      }
+      if (rntRes && rntRes.ok) {
+        const d = await rntRes.json();
+        setUserRentals(d.bookings || []);
+      }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     } finally {
@@ -161,6 +185,52 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   useEffect(() => {
     fetchDashboardData();
   }, [token]);
+
+  const handleClaimAuctionRefund = async (lotId: string) => {
+    if (!confirm('Claim 100% refund of your security deposit?')) return;
+    try {
+      const res = await fetch(`/api/auctions/${lotId}/claim-refund`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        alert('Security deposit refund initiated successfully.');
+        fetchDashboardData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to claim deposit refund.');
+      }
+    } catch {
+      alert('Network communication failure.');
+    }
+  };
+
+  const handleSettleWinnerPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settlingAuction || !settleUtr.trim()) return;
+    setSettleSubmitting(true);
+    setSettleError(null);
+    try {
+      const res = await fetch(`/api/auctions/${settlingAuction.id}/winner-pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ transactionRef: settleUtr.trim() }),
+      });
+      if (res.ok) {
+        setSettlingAuction(null);
+        setSettleUtr('');
+        fetchDashboardData();
+        alert('Balance payment submitted. Staff will verify and decrypt vault credentials.');
+      } else {
+        const err = await res.json();
+        setSettleError(err.error || 'Failed to submit settlement.');
+      }
+    } catch {
+      setSettleError('Network communication failure.');
+    } finally {
+      setSettleSubmitting(false);
+    }
+  };
 
   // Open dedicated Order Room
   const handleOpenOrderRoom = async (orderId: string) => {
@@ -182,6 +252,34 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setOrderRoomLoading(false);
     }
   };
+
+  // Live polling for customer Order Room (auto-receives staff updates & messages)
+  useEffect(() => {
+    if (!selectedOrderRoom?.orderId || !token) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/orders/${selectedOrderRoom.orderId}/room`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.orderRoom?.messages) {
+            setOrderRoomMessages(d.orderRoom.messages);
+          }
+          if (d.orderRoom?.issued_code || d.orderRoom?.fulfillment_notes || d.orderRoom?.delivery_data?.code) {
+            setSelectedOrderRoom((prev: any) => ({
+              ...prev,
+              issued_code: d.orderRoom.issued_code,
+              fulfillment_notes: d.orderRoom.fulfillment_notes,
+              delivery_data: d.orderRoom.delivery_data,
+              status: d.orderRoom.status,
+            }));
+          }
+        }
+      } catch {}
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [selectedOrderRoom?.orderId, token]);
 
   // Send message in Order Room with live anti-fraud scanning
   const handleSendOrderMessage = async (e: React.FormEvent) => {
@@ -244,17 +342,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       }
     }
 
-    const success = await updateProfile({
+    const profileUpdates: Partial<User> = {
       name,
       phone,
-      riot_id: riotId.trim() || undefined,
       discord_tag: discordTag,
       bio,
-    });
-    if (success) {
+    };
+    if (riotId.trim() !== (user?.riot_id || '')) {
+      profileUpdates.riot_id = riotId.trim();
+    }
+    const result = await updateProfile(profileUpdates);
+    if (result.success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       refreshUser();
+    } else {
+      setSettingsError(result.error || 'Profile update failed.');
     }
   };
 
@@ -288,6 +391,34 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       console.error('Failed to create ticket:', err);
     } finally {
       setTicketSubmitting(false);
+    }
+  };
+
+  const handleReplyToTicket = async (e: React.FormEvent, ticketId: string) => {
+    e.preventDefault();
+    const message = (ticketReplyDrafts[ticketId] || '').trim();
+    if (!message || !token) return;
+    setTicketReplyErrors((current) => ({ ...current, [ticketId]: '' }));
+    setTicketReplySubmitting(ticketId);
+    try {
+      const res = await fetch(`/api/user/tickets/${encodeURIComponent(ticketId)}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTicketReplyErrors((current) => ({ ...current, [ticketId]: data.error || 'Could not send your reply.' }));
+        return;
+      }
+      setTicketReplyDrafts((current) => ({ ...current, [ticketId]: '' }));
+      setTickets((current) => current.map((ticket) => ticket.id === ticketId
+        ? { ...ticket, messages_json: data.ticket.messages_json, updated_at: data.ticket.updated_at, status: data.ticket.status }
+        : ticket));
+    } catch {
+      setTicketReplyErrors((current) => ({ ...current, [ticketId]: 'Network error. Please try your reply again.' }));
+    } finally {
+      setTicketReplySubmitting(null);
     }
   };
 
@@ -477,6 +608,32 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           >
             <Package className="w-4 h-4" />
             <span>Orders ({orders.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('my_auctions')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+              activeTab === 'my_auctions'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Gavel className="w-4 h-4" />
+            <span>My Auctions ({userAuctions.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('my_rentals')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+              activeTab === 'my_rentals'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            <span>My Rentals ({userRentals.length})</span>
           </button>
 
           <button
@@ -774,7 +931,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     )}
 
                     {/* Manual Delivery in Progress Notice */}
-                    {ord.payment_status === 'PAYMENT_VERIFIED' && !ord.issued_code && (
+                    {ord.payment_status === 'PAYMENT_VERIFIED' &&
+                      !ord.issued_code &&
+                      String(ord.fulfillment_status || '').toUpperCase() !== 'COMPLETED' && (
                       <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-purple-400 shrink-0" />
@@ -791,7 +950,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                                 const phone = d.contactPhone || d.phone;
                                 const email = d.email;
                                 if (phone || email) {
-                                  return `Delivery contact on file: ${phone ? `📱 ${phone}` : ''} ${email ? `✉️ ${email}` : ''}`;
+                                  return `Delivery contact on file: ${[phone ? `Phone: ${phone}` : '', email ? `Email: ${email}` : ''].filter(Boolean).join(' • ')}`;
                                 }
                                 return 'Click "Live Tracking" to confirm your delivery WhatsApp or email.';
                               })()}
@@ -861,8 +1020,338 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* TAB 3: TRANSACTIONS & RECEIPTS                                */}
+        {/* TAB 2.1: MY AUCTIONS & SECURITY DEPOSITS (Part 3 & 4)         */}
         {/* ============================================================== */}
+        {activeTab === 'my_auctions' && (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+                  <Gavel className="w-5 h-5 text-purple-400" />
+                  <span>My Auction Bids &amp; Held Deposits ({userAuctions.length})</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Every bid is secured by a 50% refundable security deposit. Outbid participants receive 100% deposit refunds upon request or lot closure.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchDashboardData}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Sync Bids</span>
+              </button>
+            </div>
+
+            {userAuctions.length === 0 ? (
+              <div className="p-8 text-center bg-[#0c0d1c] border border-white/5 rounded-2xl space-y-3">
+                <Gavel className="w-10 h-10 text-gray-600 mx-auto" />
+                <div className="text-sm font-bold text-white font-rajdhani uppercase">Zero Auction Bids</div>
+                <p className="text-xs text-gray-400 max-w-md mx-auto">
+                  You have not placed bids on any active auctions yet. Explore the verified auction marketplace to bid with full financial protection.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('auctions')}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                >
+                  Browse Auctions
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-white/10 overflow-hidden bg-[#0c0d1c] shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10 font-rajdhani font-bold">
+                      <tr>
+                        <th className="p-3.5">Auction Lot</th>
+                        <th className="p-3.5">Your Bid</th>
+                        <th className="p-3.5">Valid High Bid</th>
+                        <th className="p-3.5">Deposit Held</th>
+                        <th className="p-3.5">Bidding Status</th>
+                        <th className="p-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {userAuctions.map((bid) => {
+                        const isHighestBidder = bid.lot_highest_bidder_id === user?.id;
+                        const isLotClosed = bid.lot_status === 'closed';
+                        const isWinner = isLotClosed && isHighestBidder;
+                        const isOutbid = !isHighestBidder && bid.lot_status === 'active';
+                        const isRefundClaimable = (isOutbid || (isLotClosed && !isHighestBidder)) && bid.deposit_status === 'held';
+
+                        return (
+                          <tr key={bid.id} className="hover:bg-white/[0.02]">
+                            <td className="p-3.5">
+                              <div className="font-bold text-white font-rajdhani text-sm">
+                                {bid.lot_title}
+                              </div>
+                              <div className="text-[10px] text-purple-400 font-mono">
+                                #{bid.lot_number}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5 font-bold text-white text-sm font-rajdhani">
+                              ₹{Number(bid.amount).toLocaleString('en-IN')}
+                            </td>
+
+                            <td className="p-3.5 font-bold text-purple-300 font-rajdhani text-sm">
+                              ₹{Number(bid.lot_current_bid || bid.amount).toLocaleString('en-IN')}
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="text-yellow-300 font-bold">
+                                ₹{Number(bid.deposit_paid || 0).toLocaleString('en-IN')}
+                              </div>
+                              <span
+                                className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-bold ${
+                                  bid.deposit_status === 'refunded'
+                                    ? 'bg-blue-500/20 text-blue-300'
+                                    : bid.deposit_status === 'applied_to_winner'
+                                    ? 'bg-emerald-500/20 text-emerald-300'
+                                    : 'bg-yellow-500/20 text-yellow-300'
+                                }`}
+                              >
+                                {bid.deposit_status || 'held'}
+                              </span>
+                            </td>
+
+                            <td className="p-3.5">
+                              {isWinner ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  Won Auction
+                                </span>
+                              ) : isHighestBidder ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                  Highest Bidder
+                                </span>
+                              ) : isOutbid ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                  Outbid
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-zinc-500/20 text-zinc-400">
+                                  {bid.lot_status}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="p-3.5 text-right space-x-2">
+                              {isRefundClaimable && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleClaimAuctionRefund(bid.lot_id)}
+                                  className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] cursor-pointer"
+                                >
+                                  Claim Refund
+                                </button>
+                              )}
+
+                              {isWinner && bid.lot_winner_payment_status !== 'PAID' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSettlingAuction({
+                                    id: bid.lot_id,
+                                    title: bid.lot_title,
+                                    lot_number: bid.lot_number,
+                                    winning_bid: bid.amount,
+                                    deposit_paid: bid.deposit_paid,
+                                    remaining: Number(bid.amount) - Number(bid.deposit_paid),
+                                  })}
+                                  className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer animate-pulse"
+                                >
+                                  Pay Balance (₹{Number(bid.amount) - Number(bid.deposit_paid)})
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 2.2: MY RENTALS & CREDENTIALS VAULT (Part 1 & 5)           */}
+        {/* ============================================================== */}
+        {activeTab === 'my_rentals' && (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+                  <Key className="w-5 h-5 text-purple-400" />
+                  <span>My Active Rentals &amp; Riot Credentials Vault ({userRentals.length})</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Access your encrypted Riot account login credentials during your verified rental window. Escrow damage deposits are returned automatically upon session completion.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchDashboardData}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Sync Rentals</span>
+              </button>
+            </div>
+
+            {userRentals.length === 0 ? (
+              <div className="p-8 text-center bg-[#0c0d1c] border border-white/5 rounded-2xl space-y-3">
+                <Key className="w-10 h-10 text-gray-600 mx-auto" />
+                <div className="text-sm font-bold text-white font-rajdhani uppercase">Zero Active Rentals</div>
+                <p className="text-xs text-gray-400 max-w-md mx-auto">
+                  You have not booked any rental profiles yet. Browse verified accounts with high ranks and top-tier skins.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('rentals')}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                >
+                  Browse Rental Marketplace
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {userRentals.map((rental) => {
+                  let vaultCreds = null;
+                  try {
+                    vaultCreds = rental.credentials_vault_json ? JSON.parse(rental.credentials_vault_json) : null;
+                  } catch {}
+
+                  const isRevealed = revealedVaultId === rental.id;
+
+                  return (
+                    <div
+                      key={rental.id}
+                      className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/10 space-y-4 shadow-xl"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                            <Key className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="font-black text-white font-rajdhani text-base">
+                              {rental.listing_title || rental.listing_id}
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono">
+                              Booking #{rental.id} · Duration: {rental.duration}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              rental.status === 'active'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : rental.status === 'pending_credentials'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-zinc-500/20 text-zinc-400 border border-zinc-500/30'
+                            }`}
+                          >
+                            {rental.status === 'pending_credentials' ? 'Awaiting Dispatch' : rental.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                          <div className="text-[10px] text-gray-400 uppercase">Total Paid</div>
+                          <div className="font-bold text-white mt-0.5">₹{rental.total_paid}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                          <div className="text-[10px] text-gray-400 uppercase">Deposit Held</div>
+                          <div className="font-bold text-yellow-300 mt-0.5">₹{rental.deposit_inr}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                          <div className="text-[10px] text-gray-400 uppercase">Started At</div>
+                          <div className="text-gray-300 mt-0.5 text-[11px]">
+                            {rental.starts_at ? new Date(rental.starts_at).toLocaleDateString('en-IN') : 'Pending'}
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                          <div className="text-[10px] text-gray-400 uppercase">Expires At</div>
+                          <div className="text-cyan-300 font-bold mt-0.5 text-[11px]">
+                            {rental.expires_at ? new Date(rental.expires_at).toLocaleString('en-IN') : 'Pending Dispatch'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Credentials Vault Box */}
+                      {rental.status === 'active' && vaultCreds ? (
+                        <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-500/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-xs font-mono font-bold text-purple-300 uppercase">
+                              <Lock className="w-4 h-4 text-purple-400" />
+                              <span>Encrypted Credentials Vault</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setRevealedVaultId(isRevealed ? null : rental.id)}
+                              className="text-[11px] text-purple-300 hover:text-white font-bold underline cursor-pointer"
+                            >
+                              {isRevealed ? 'Hide Login Details' : 'Reveal Login Credentials'}
+                            </button>
+                          </div>
+
+                          {isRevealed ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs font-mono">
+                              <div className="p-3 rounded-lg bg-[#0e0f22] border border-white/10 flex items-center justify-between">
+                                <div>
+                                  <div className="text-[10px] text-gray-400">Riot Username</div>
+                                  <div className="font-bold text-white select-all">{vaultCreds.username}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(vaultCreds.username)}
+                                  className="p-1.5 text-gray-400 hover:text-white cursor-pointer"
+                                  title="Copy Username"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              <div className="p-3 rounded-lg bg-[#0e0f22] border border-white/10 flex items-center justify-between">
+                                <div>
+                                  <div className="text-[10px] text-gray-400">Riot Password</div>
+                                  <div className="font-bold text-emerald-300 select-all">{vaultCreds.password}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(vaultCreds.password)}
+                                  className="p-1.5 text-gray-400 hover:text-white cursor-pointer"
+                                  title="Copy Password"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-gray-400 font-mono">
+                              Credentials locked for privacy. Click &quot;Reveal Login Credentials&quot; to decrypt.
+                            </div>
+                          )}
+                        </div>
+                      ) : rental.status === 'pending_credentials' ? (
+                        <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Staff is currently performing security handoff. Riot login will be decrypted into this vault shortly.</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {activeTab === 'transactions' && (
           <div className="space-y-4 animate-in fade-in">
             <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
@@ -1059,6 +1548,31 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                           </div>
                         ))}
                       </div>
+                      {['open', 'in_progress'].includes(tkt.status) && (
+                        <form onSubmit={(e) => handleReplyToTicket(e, tkt.id)} className="space-y-2 border-t border-white/5 pt-3">
+                          <label htmlFor={`ticket-reply-${tkt.id}`} className="sr-only">Reply to ticket {tkt.id}</label>
+                          <textarea
+                            id={`ticket-reply-${tkt.id}`}
+                            value={ticketReplyDrafts[tkt.id] || ''}
+                            onChange={(e) => setTicketReplyDrafts((current) => ({ ...current, [tkt.id]: e.target.value }))}
+                            maxLength={4000}
+                            rows={2}
+                            placeholder="Reply to this support ticket..."
+                            className="w-full resize-y rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none"
+                          />
+                          {ticketReplyErrors[tkt.id] && <p role="alert" className="text-xs text-rose-300">{ticketReplyErrors[tkt.id]}</p>}
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={ticketReplySubmitting === tkt.id || !(ticketReplyDrafts[tkt.id] || '').trim()}
+                              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {ticketReplySubmitting === tkt.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                              Send Reply
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
                   );
                 })}
@@ -1452,6 +1966,36 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </span>
             </div>
 
+            {/* If VP Code has been delivered */}
+            {(selectedOrderRoom.issued_code || selectedOrderRoom.fulfillment_notes || selectedOrderRoom.details?.vp_code || selectedOrderRoom.delivery_data?.code) && (
+              <div className="my-3 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-purple-950/60 border border-emerald-500/40 space-y-2 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase text-emerald-400">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>Your Official Valorant VP Code</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-gray-400">Also sent to your email</span>
+                </div>
+                <div className="flex items-center gap-2 bg-black/60 p-2.5 rounded-xl border border-white/10">
+                  <span className="font-mono font-black text-sm text-emerald-300 tracking-wider flex-1 select-all break-all">
+                    {selectedOrderRoom.issued_code || selectedOrderRoom.fulfillment_notes || selectedOrderRoom.details?.vp_code || selectedOrderRoom.delivery_data?.code}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedOrderRoom.issued_code || selectedOrderRoom.fulfillment_notes || selectedOrderRoom.details?.vp_code || selectedOrderRoom.delivery_data?.code);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-rajdhani font-bold text-xs uppercase cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div className="text-[10px] text-gray-400 font-mono">
+                  Redeem in Valorant: Launch game &gt; Click VP icon &gt; Select 'Riot PINs and Codes' &gt; Submit code.
+                </div>
+              </div>
+            )}
+
             {/* Chat Thread */}
             <div className="flex-1 overflow-y-auto space-y-2.5 py-4 pr-1 max-h-[45vh]">
               {orderRoomMessages.length === 0 ? (
@@ -1459,30 +2003,43 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   No messages yet. Dispatch team will update this room shortly.
                 </div>
               ) : (
-                orderRoomMessages.map((msg, i) => (
-                  <div
-                    key={msg.id || i}
-                    className={`p-3.5 rounded-2xl text-xs max-w-[85%] ${
-                      msg.sender_id === user?.id
-                        ? 'ml-auto bg-purple-600 text-white rounded-tr-none'
-                        : msg.sender_role === 'system'
-                        ? 'mx-auto bg-white/5 border border-white/10 text-gray-300 text-center max-w-md'
-                        : 'mr-auto bg-[#15122c] border border-purple-500/30 text-purple-100 rounded-tl-none'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] opacity-75 font-mono mb-1 gap-2">
-                      <strong>{msg.sender_name}</strong>
-                      <span>{new Date(msg.created_at).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="whitespace-pre-wrap">{msg.message}</p>
-                    {msg.flagged === 1 && (
-                      <div className="mt-1.5 p-1.5 rounded bg-rose-950 text-rose-200 text-[10px] flex items-center gap-1 border border-rose-500/40">
-                        <AlertCircle className="w-3 h-3 text-rose-400" />
-                        <span>Flagged by Anti-Fraud System: {msg.flag_reason}</span>
+                orderRoomMessages.map((msg, i) => {
+                  const isStaff = ['admin', 'superadmin', 'moderator'].includes(msg.sender_role);
+                  return (
+                    <div
+                      key={msg.id || i}
+                      className={`p-3.5 rounded-2xl text-xs max-w-[85%] ${
+                        msg.sender_id === user?.id
+                          ? 'ml-auto bg-purple-600 text-white rounded-tr-none'
+                          : msg.sender_role === 'system'
+                          ? 'mx-auto bg-white/5 border border-white/10 text-gray-300 text-center max-w-md'
+                          : isStaff
+                          ? 'mr-auto bg-gradient-to-br from-indigo-950/90 to-purple-950/90 border border-indigo-500/40 text-indigo-100 rounded-tl-none shadow-md'
+                          : 'mr-auto bg-[#15122c] border border-purple-500/30 text-purple-100 rounded-tl-none'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] opacity-80 font-mono mb-1 gap-2">
+                        <strong className="flex items-center gap-1">
+                          {isStaff && <Award className="w-3 h-3 text-amber-400" />}
+                          <span>{msg.sender_name}</span>
+                          {isStaff && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 text-[9px] uppercase border border-amber-500/40">
+                              Official VIB Support
+                            </span>
+                          )}
+                        </strong>
+                        <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                    )}
-                  </div>
-                ))
+                      <p className="whitespace-pre-wrap">{msg.message}</p>
+                      {msg.flagged === 1 && (
+                        <div className="mt-1.5 p-1.5 rounded bg-rose-950 text-rose-200 text-[10px] flex items-center gap-1 border border-rose-500/40">
+                          <AlertCircle className="w-3 h-3 text-rose-400" />
+                          <span>Flagged by Anti-Fraud System: {msg.flag_reason}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -1762,6 +2319,104 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           fetchDashboardData();
         }}
       />
+
+      {/* ============================================================== */}
+      {/* MODAL 5: WINNER BALANCE SETTLEMENT                             */}
+      {/* ============================================================== */}
+      {settlingAuction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#0c0d1c] border border-purple-500/30 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="text-base font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+                <Gavel className="w-5 h-5 text-purple-400" />
+                <span>Settle Auction Winner Balance</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSettlingAuction(null)}
+                className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs font-mono">
+              <div className="font-bold text-white font-rajdhani text-sm">
+                {settlingAuction.title} (#{settlingAuction.lot_number})
+              </div>
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-1.5">
+                <div className="flex justify-between text-gray-400">
+                  <span>Winning Bid Amount:</span>
+                  <span className="text-white font-bold">₹{Number(settlingAuction.winning_bid).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-emerald-400">
+                  <span>Less Credited Deposit:</span>
+                  <span className="font-bold">-₹{Number(settlingAuction.deposit_paid).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="border-t border-white/10 pt-1.5 flex justify-between text-sm font-bold text-yellow-300">
+                  <span>Net Balance Due:</span>
+                  <span>₹{Number(settlingAuction.remaining).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/20 text-center space-y-2">
+              <div className="text-[11px] text-gray-300 font-medium">
+                Scan UPI QR to settle the remaining balance:
+              </div>
+              <div className="w-36 h-36 mx-auto bg-white p-2 rounded-xl">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=teamvibofficial@okaxis&pn=VIB%20Auctions&am=${settlingAuction.remaining}&cu=INR&tn=Auction_Settlement_${settlingAuction.id}`)}`}
+                  alt="UPI QR Code"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="text-[11px] font-mono text-purple-300 font-bold select-all">
+                UPI ID: teamvibofficial@okaxis
+              </div>
+            </div>
+
+            {settleError && (
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300">
+                {settleError}
+              </div>
+            )}
+
+            <form onSubmit={handleSettleWinnerPay} className="space-y-3">
+              <div>
+                <label className="text-[11px] text-gray-400 block mb-1 font-mono">12-Digit UTR / UPI Reference *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={12}
+                  pattern="[0-9]{12}"
+                  placeholder="e.g. 431092847291"
+                  value={settleUtr}
+                  onChange={(e) => setSettleUtr(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-[#141224] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSettlingAuction(null)}
+                  className="px-3 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white text-xs font-bold uppercase font-rajdhani cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={settleSubmitting || settleUtr.length !== 12}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani cursor-pointer disabled:opacity-50"
+                >
+                  {settleSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,36 +1,56 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
-import { verifyRiotId, seedRiotAccounts } from './riot.js';
+import { db, databaseDirectory, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
+import { verifyRiotId } from './riot.js';
+import { VALORANT_RANKS } from '../src/data/rank-pricing.js';
+import { registerOverhaulRoutes } from './overhaulRoutes.js';
 import {
   sendOrderPendingVerificationEmail,
   sendIndianVPCodeIssuedEmail,
   sendOrderPaymentVerifiedEmail,
   sendInventoryShortageAlert,
   sendPaymentRejectedEmail,
-  sendEmail
+  sendEmail,
+  getTransporter,
+  isEmailConfigured,
+  sendPasswordRecoveryOtpEmail,
+  sendWelcomeVerificationEmail,
+  sendOrderFulfilledEmail
 } from './email.js';
 
 // Initialize and seed database
 seedDatabase();
-seedRiotAccounts();
 syncOfficialValorantSkins().catch((e) => console.warn('[Skins Sync] Initial sync deferred:', e.message));
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// CORS & Security Headers
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
 
 // Body parsing with 15MB limit for payment screenshots & receipts
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Ensure persistent uploads directory exists and mount static route
-const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+const uploadsDir = path.join(databaseDirectory, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsDir));
+app.use('/api/uploads', express.static(uploadsDir));
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response): void => {
@@ -138,19 +158,6 @@ app.get('/api/riot/verify', async (req: Request, res: Response): Promise<void> =
   }
 });
 
-
-// CORS & Security Headers
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-    return;
-  }
-  next();
-});
-
 // Extend Express Request
 export interface AuthenticatedUser {
   id: string;
@@ -191,7 +198,8 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   if (signedPayload) {
     let userRow = db.prepare(`
       SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
-             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+             COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.id = ? OR u.email = ?
@@ -211,7 +219,8 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
         userRow = db.prepare(`
           SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
-                 p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+                 p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+                 COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
           FROM users u
           LEFT JOIN profiles p ON u.id = p.user_id
           WHERE u.id = ?
@@ -258,7 +267,8 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const sessionStmt = db.prepare(`
     SELECT s.token, s.user_id, s.expires_at,
            u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
-           p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+           p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+           COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN profiles p ON u.id = p.user_id
@@ -306,47 +316,6 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     return;
   }
 
-  // 3. Fallback for test / QA demo tokens
-  const qaTokens: Record<string, string> = {
-    token_admin: 'admin@vib.gg',
-    token_mod: 'moderator@vib.gg',
-    token_seller: 'seller@vib.gg',
-    token_customer: 'customer@vib.gg',
-  };
-  if (qaTokens[token]) {
-    const qaEmail = qaTokens[token];
-    const userRow = db.prepare(`
-      SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
-             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
-      FROM users u
-      LEFT JOIN profiles p ON u.id = p.user_id
-      WHERE u.email = ?
-    `).get(qaEmail) as any;
-
-    if (userRow) {
-      req.user = {
-        id: userRow.id,
-        email: userRow.email,
-        name: userRow.name,
-        phone: userRow.phone,
-        riot_id: userRow.riot_id,
-        riot_verified: userRow.riot_verified || 0,
-        role: userRow.role,
-        status: userRow.status,
-        email_verified: userRow.email_verified,
-        bio: userRow.bio,
-        avatar: userRow.avatar,
-        discord_tag: userRow.discord_tag,
-        wallet_balance: userRow.wallet_balance,
-        kyc_status: userRow.kyc_status,
-        total_orders: userRow.total_orders,
-      };
-      req.token = token;
-      next();
-      return;
-    }
-  }
-
   res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
 }
 
@@ -369,9 +338,52 @@ export function requireRole(allowedRoles: string[]) {
   };
 }
 
-// Helper to log administrative actions
-function logAudit(actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ip: string) {
+// Reliable server-side IP extraction function
+export function extractClientIp(req: any): string {
+  if (!req) return 'unavailable';
+  const forwarded = req.headers?.['x-forwarded-for'];
+  let rawIp = '';
+  if (typeof forwarded === 'string') {
+    rawIp = forwarded.split(',')[0].trim();
+  } else if (typeof req.headers?.['cf-connecting-ip'] === 'string') {
+    rawIp = req.headers['cf-connecting-ip'].trim();
+  } else if (typeof req.headers?.['x-real-ip'] === 'string') {
+    rawIp = req.headers['x-real-ip'].trim();
+  } else if (req.socket?.remoteAddress) {
+    rawIp = req.socket.remoteAddress;
+  } else if (req.ip) {
+    rawIp = req.ip;
+  }
+
+  if (!rawIp) return 'unavailable';
+
+  // Normalize IPv6-mapped IPv4 addresses
+  if (rawIp.startsWith('::ffff:')) {
+    rawIp = rawIp.replace('::ffff:', '');
+  }
+  if (rawIp === '::1') {
+    rawIp = '127.0.0.1';
+  }
+
+  const isIpv4 = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(rawIp);
+  const isIpv6 = /^[0-9a-fA-F:]{2,39}$/.test(rawIp);
+
+  return isIpv4 || isIpv6 ? rawIp : 'unavailable';
+}
+
+// Helper to log administrative actions with normalized IP
+function logAudit(actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ipOrReq: any) {
   const auditId = 'aud_' + crypto.randomBytes(8).toString('hex');
+  let cleanIp = 'unavailable';
+
+  if (typeof ipOrReq === 'object' && ipOrReq !== null && ('headers' in ipOrReq || 'ip' in ipOrReq)) {
+    cleanIp = extractClientIp(ipOrReq);
+  } else if (typeof ipOrReq === 'string') {
+    cleanIp = ipOrReq.replace(/^::ffff:/, '');
+    if (cleanIp === '::1') cleanIp = '127.0.0.1';
+    if (!cleanIp || cleanIp === 'undefined' || cleanIp === 'null') cleanIp = 'unavailable';
+  }
+
   db.prepare(`
     INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -383,7 +395,7 @@ function logAudit(actorId: string, actorName: string, action: string, targetType
     targetType,
     targetId,
     JSON.stringify(details),
-    ip,
+    cleanIp,
     new Date().toISOString()
   );
 }
@@ -481,7 +493,7 @@ app.get('/api/products/:id', (req: Request, res: Response): void => {
 // 1. Register
 app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password, name, phone, riot_id } = req.body;
+    const { email, password, name, phone, riot_id, terms_accepted } = req.body;
 
     if (!email || !password || !name) {
       res.status(400).json({ error: 'Name, email, and password are required fields.' });
@@ -497,6 +509,11 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
 
     if (String(password).length < 8) {
       res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+      return;
+    }
+
+    if (terms_accepted !== true) {
+      res.status(400).json({ error: 'You must acknowledge the VIB Marketplace Escrow & Platform Terms.' });
       return;
     }
 
@@ -529,8 +546,8 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
 
     // Default public registrations are 'user' (NEVER admin)
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, riot_verified, role, status, email_verified, verification_code, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, ?, ?)
+      INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, riot_verified, role, status, email_verified, verification_code, terms_accepted_at, terms_version, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, ?, 'platform-escrow-v1', ?, ?)
     `).run(
       userId,
       emailTrimmed,
@@ -541,6 +558,7 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
       verifiedRiotId,
       isRiotVerified,
       verificationCode,
+      now,
       now,
       now
     );
@@ -584,6 +602,12 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
       now
     );
 
+    sendWelcomeVerificationEmail({
+      email: emailTrimmed,
+      name: String(name).trim(),
+      code: verificationCode,
+    }).catch((e) => console.warn('[Welcome Email Deferred]:', e.message));
+
     logAudit(userId, name, 'REGISTER_USER', 'user', userId, { email: emailTrimmed }, req.ip || '127.0.0.1');
 
     res.status(201).json({
@@ -623,7 +647,8 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
     const emailTrimmed = String(email).trim().toLowerCase();
     const userRow = db.prepare(`
       SELECT u.id, u.email, u.password_hash, u.salt, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified,
-             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+             COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.email = ?
@@ -669,7 +694,7 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
       VALUES (?, ?, ?, ?)
     `).run(token, userRow.id, expiresAt, now);
 
-    logAudit(userRow.id, userRow.name, 'USER_LOGIN', 'session', token, {}, req.ip || '127.0.0.1');
+    logAudit(userRow.id, userRow.name, 'USER_LOGIN', 'session', userRow.id, {}, req.ip || '127.0.0.1');
 
     res.json({
       message: 'Login successful.',
@@ -715,7 +740,8 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
     // Check if user already exists
     let userRow = db.prepare(`
       SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified, u.auth_provider,
-             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+             p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+             COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.email = ?
@@ -779,7 +805,8 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
       // Re-query newly created user by ID
       userRow = db.prepare(`
         SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified, u.auth_provider,
-               p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+               p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+               COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.id = ?
@@ -801,7 +828,7 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
       VALUES (?, ?, ?, ?)
     `).run(token, userId, expiresAt, now);
 
-    logAudit(userId, userRow.name, 'FIREBASE_GOOGLE_LOGIN', 'session', token, { email: emailTrimmed, provider: 'google' }, req.ip || '127.0.0.1');
+    logAudit(userId, userRow.name, 'FIREBASE_GOOGLE_LOGIN', 'session', userId, { email: emailTrimmed, provider: 'google' }, req.ip || '127.0.0.1');
 
     res.json({
       message: 'Firebase Google authentication successful.',
@@ -848,18 +875,41 @@ app.get('/api/auth/me', authenticate, (req: AuthRequest, res: Response): void =>
 });
 
 // 5. Password Reset Request
-app.post('/api/auth/forgot-password', (req: Request, res: Response): void => {
+app.post('/api/auth/forgot-password', async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body;
-  if (!email) {
+  if (typeof email !== 'string' || !email.trim()) {
     res.status(400).json({ error: 'Email is required.' });
     return;
   }
+
+  // Firebase recovery is preferred by the client. The local-account fallback
+  // may issue a code when email service (Resend or SMTP) is configured.
+  if (!isEmailConfigured()) {
+    res.status(503).json({ error: 'Password recovery is not configured on this server. Please use your identity provider or contact support.' });
+    return;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail) as any;
+  const genericMessage = 'If the email exists in our registry, password recovery instructions have been sent.';
+  if (!user) {
+    res.json({ message: genericMessage });
+    return;
+  }
+
+  // Generate a secure 6-digit OTP code for password recovery
   const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  db.prepare('UPDATE users SET reset_token = ? WHERE email = ?').run(resetCode, String(email).trim().toLowerCase());
-  res.json({
-    message: 'If the email exists in our registry, a recovery instructions verification code has been dispatched.',
-    demoCode: resetCode // surfaced for local inspection & automated testing
-  });
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const resetTokenHash = crypto.createHash('sha256').update(resetCode).digest('hex');
+  db.prepare('UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?').run(resetTokenHash, expiresAt, user.id);
+
+  const delivery = await sendPasswordRecoveryOtpEmail(normalizedEmail, resetCode);
+  if (!delivery.success) {
+    db.prepare('UPDATE users SET reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?').run(user.id);
+    res.status(503).json({ error: 'Password recovery email could not be delivered. Please try again later.' });
+    return;
+  }
+  res.json({ message: 'A recovery code has been sent if the email exists in our registry.', requiresCode: true });
 });
 
 // 6. Complete Password Reset
@@ -869,15 +919,26 @@ app.post('/api/auth/reset-password', (req: Request, res: Response): void => {
     res.status(400).json({ error: 'Email, code, and new password are required.' });
     return;
   }
-  const user = db.prepare('SELECT id, reset_token FROM users WHERE email = ?').get(String(email).trim().toLowerCase()) as any;
-  if (!user || user.reset_token !== String(code).trim()) {
+  const cleanCode = String(code).trim();
+  if (typeof newPassword !== 'string' || newPassword.length < 8 || (!/^[a-f0-9]{64}$/i.test(cleanCode) && !/^\d{6}$/.test(cleanCode))) {
+    res.status(400).json({ error: 'Enter a valid 6-digit recovery code and a password of at least 8 characters.' });
+    return;
+  }
+  const user = db.prepare('SELECT id, reset_token, reset_token_expires_at FROM users WHERE email = ?').get(String(email).trim().toLowerCase()) as any;
+  const submittedCodeHash = crypto.createHash('sha256').update(cleanCode).digest('hex');
+  const storedResetHash = typeof user?.reset_token === 'string' && /^[a-f0-9]{64}$/i.test(user.reset_token)
+    ? Buffer.from(user.reset_token, 'hex')
+    : null;
+  const codeMatches = storedResetHash && crypto.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, 'hex'));
+  if (!user || !codeMatches || !user.reset_token_expires_at || Date.parse(user.reset_token_expires_at) <= Date.now()) {
     res.status(400).json({ error: 'Invalid or expired verification reset code.' });
     return;
   }
 
   const { hash, salt } = hashPassword(newPassword);
-  db.prepare('UPDATE users SET password_hash = ?, salt = ?, reset_token = NULL, updated_at = ? WHERE id = ?')
+  db.prepare('UPDATE users SET password_hash = ?, salt = ?, reset_token = NULL, reset_token_expires_at = NULL, updated_at = ? WHERE id = ?')
     .run(hash, salt, new Date().toISOString(), user.id);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
 
   res.json({ message: 'Password has been successfully updated. You may now log in.' });
 });
@@ -910,16 +971,70 @@ app.get('/api/user/orders', authenticate, (req: AuthRequest, res: Response): voi
 });
 
 // User Create Order (from CheckoutModal or cart) with Server-Side Price Verification & Auto Invoicing
+// Helper to resolve canonical Indian VP package ID
+export function resolveIndianVPPackageId(title?: string, productId?: string): string | null {
+  const t = (title || '').toLowerCase();
+  const p = (productId || '').toLowerCase();
+  
+  if (p.includes('220000') || t.includes('220,000') || t.includes('220000')) return 'vp-220000';
+  if (p.includes('110000') || t.includes('110,000') || t.includes('110000')) return 'vp-110000';
+  if (p.includes('66000') || t.includes('66,000') || t.includes('66000')) return 'vp-66000';
+  if (p.includes('44000') || t.includes('44,000') || t.includes('44000')) return 'vp-44000';
+  if (p.includes('22000') || t.includes('22,000') || t.includes('22000')) return 'vp-22000';
+  if (p.includes('14650') || t.includes('14,650') || t.includes('14650')) return 'vp-14650';
+  if (p.includes('11000') || t.includes('11,000') || t.includes('11000')) return 'vp-11000';
+  if (p.includes('7400') || t.includes('7,400') || t.includes('7400')) return 'vp-7400';
+  if (p.includes('5350') || t.includes('5,350') || t.includes('5350')) return 'vp-5350';
+  if (p.includes('3650') || t.includes('3,650') || t.includes('3650')) return 'vp-3650';
+  if (p.includes('2050') || t.includes('2,050') || t.includes('2050')) return 'vp-2050';
+  if (p.includes('1000') || t.includes('1,000') || t.includes('1000')) return 'vp-1000';
+  if (p.includes('475') || p.includes('400') || t.includes('475') || t.includes('400')) return 'vp-475';
+  
+  return null;
+}
+
+// Public live stock endpoint for VP packs
+app.get('/api/vp-stock', (req: Request, res: Response): void => {
+  const stockRows = db.prepare(`
+    SELECT CASE 
+             WHEN package_id LIKE 'in-%' THEN 'vp-' || substr(package_id, 4) 
+             ELSE package_id 
+           END as package_id,
+           SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available,
+           SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued,
+           SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) as reserved,
+           COUNT(*) as total
+    FROM vp_codes
+    GROUP BY CASE 
+               WHEN package_id LIKE 'in-%' THEN 'vp-' || substr(package_id, 4) 
+               ELSE package_id 
+             END
+  `).all();
+  res.json({ stock: stockRows });
+});
+
 app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  let orderTransactionOpen = false;
   try {
     const isCartOrder = req.body.type === 'cart' || (req.body.title && String(req.body.title).startsWith('Cart Checkout:'));
-    const productId = req.body.product_id || req.body.package_id;
+    let productId = req.body.product_id || req.body.package_id;
     let title = req.body.title || req.body.package_title;
     let amount = req.body.amount !== undefined ? req.body.amount : req.body.amount_inr;
     const currency = req.body.currency || 'INR';
-    const type = req.body.type || (isCartOrder ? 'cart' : 'vp');
+    let type = req.body.type || (isCartOrder ? 'cart' : 'vp');
+    const isRankupOrder = type === 'rankup';
     const paymentMethod = req.body.paymentMethod || req.body.payment_method || 'UPI Instant';
     const details = req.body.details || {};
+
+    if (amount !== undefined && (!Number.isFinite(Number(amount)) || Number(amount) < 0)) {
+      res.status(400).json({ error: 'Order amount must be a finite non-negative number.' });
+      return;
+    }
+    if (title !== undefined && (typeof title !== 'string' || title.trim().length > 200)) {
+      res.status(400).json({ error: 'Order title must be 200 characters or fewer.' });
+      return;
+    }
+    if (typeof title === 'string') title = title.trim();
 
     // Validate Riot ID if provided in order details
     const orderRiotId = req.body.riot_id || details?.riotId;
@@ -936,8 +1051,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
     }
 
     // Server-Side Price Validation against persistent database catalog
-    if (productId) {
-      const aliasMap: Record<string, string> = {
+    const aliasMap: Record<string, string> = {
         viper: 'vp-475',
         neon: 'vp-1000',
         reyna: 'vp-2050',
@@ -950,10 +1064,140 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
         'p-a1026': 'lst_diamond_daily',
         'spotlight-reyna': 'lst_immortal_kuronami',
       };
+
+    if (isRankupOrder) {
+      const quote = details?.rankup;
+      if (!quote || typeof quote.fromRankId !== 'string' || typeof quote.toRankId !== 'string' ||
+          !['solo', 'duo'].includes(quote.mode) || !['standard', 'priority'].includes(quote.queueType) || productId) {
+        res.status(400).json({ error: 'A valid rank progression quote is required.' });
+        return;
+      }
+      const fromIndex = VALORANT_RANKS.findIndex((rank) => rank.id === quote.fromRankId);
+      const toIndex = VALORANT_RANKS.findIndex((rank) => rank.id === quote.toRankId);
+      if (fromIndex < 0 || toIndex <= fromIndex || toIndex >= VALORANT_RANKS.length) {
+        res.status(400).json({ error: 'The selected rank progression is invalid.' });
+        return;
+      }
+
+      let basePriceINR = 0;
+      let deliveryHours = 0;
+      for (let index = fromIndex; index < toIndex; index += 1) {
+        const tier = VALORANT_RANKS[index];
+        const rate = db.prepare('SELECT price_inr, active, details_json FROM products WHERE id = ? AND category = \'rank_rate\'').get(`rankrate_${tier.id}`) as any;
+        if (!rate || !rate.active) {
+          res.status(409).json({ error: `The rank-up rate for ${tier.name} is unavailable.` });
+          return;
+        }
+        const storedDetails = JSON.parse(String(rate.details_json || '{}'));
+        if (storedDetails.rankId !== tier.id || Number(storedDetails.tierIndex) !== index) {
+          res.status(409).json({ error: `The rank-up rate for ${tier.name} is invalid.` });
+          return;
+        }
+        basePriceINR += Number(rate.price_inr);
+        deliveryHours += Number(quote.queueType === 'priority' ? storedDetails.priorityDeliveryHours : storedDetails.stdDeliveryHours);
+      }
+
+      const expectedAmount = Math.round(basePriceINR * (quote.mode === 'duo' ? 2 : 1) * (quote.queueType === 'priority' ? 1.25 : 1));
+      if (!Number.isFinite(Number(amount)) || Math.abs(Number(amount) - expectedAmount) > 0.01) {
+        res.status(400).json({ error: `Rank-up price verification failed. Server catalog price is ₹${expectedAmount}.` });
+        return;
+      }
+      amount = expectedAmount;
+      title = `Rankup: ${VALORANT_RANKS[fromIndex].name} to ${VALORANT_RANKS[toIndex].name}`;
+      details.rankup = {
+        fromRankId: quote.fromRankId,
+        fromRank: VALORANT_RANKS[fromIndex].name,
+        toRankId: quote.toRankId,
+        toRank: VALORANT_RANKS[toIndex].name,
+        mode: quote.mode,
+        queueType: quote.queueType,
+        deliveryEstimateHours: deliveryHours,
+      };
+    }
+
+    if (isCartOrder) {
+      const cartItems = details?.cartItems;
+      if (!Array.isArray(cartItems) || cartItems.length === 0 || cartItems.length > 50) {
+        res.status(400).json({ error: 'Cart checkout requires 1 to 50 catalog-backed items.' });
+        return;
+      }
+
+      const resolvedCartItems: Array<{ id: string; title: string; quantity: number; unitPriceINR: number }> = [];
+      let expectedTotal = 0;
+      for (const cartItem of cartItems) {
+        const requestedId = typeof cartItem?.id === 'string' ? cartItem.id.trim() : '';
+        const quantity = Number(cartItem?.quantity);
+        if (!requestedId || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+          res.status(400).json({ error: 'Cart item identifiers or quantities are invalid.' });
+          return;
+        }
+
+        const resolvedId = aliasMap[requestedId] || (requestedId.startsWith('in-') ? `vp-in-${requestedId.slice(3)}` : requestedId);
+        const catalogItem = db.prepare('SELECT id, title, price_inr, active FROM products WHERE id = ?').get(resolvedId) as any;
+        if (catalogItem) {
+          if (!catalogItem.active) {
+            res.status(409).json({ error: 'A cart product is no longer available.' });
+            return;
+          }
+          expectedTotal += Number(catalogItem.price_inr) * quantity;
+          resolvedCartItems.push({ id: String(catalogItem.id), title: String(catalogItem.title), quantity, unitPriceINR: Number(catalogItem.price_inr) });
+          continue;
+        }
+
+        const listing = db.prepare('SELECT id, title, price_inr, status FROM listings WHERE id = ?').get(resolvedId) as any;
+        if (!listing || listing.status !== 'published') {
+          res.status(409).json({ error: 'A cart listing is not available for purchase.' });
+          return;
+        }
+        expectedTotal += Number(listing.price_inr) * quantity;
+        resolvedCartItems.push({ id: String(listing.id), title: String(listing.title), quantity, unitPriceINR: Number(listing.price_inr) });
+      }
+
+      if (!Number.isFinite(Number(amount)) || Math.abs(Number(amount) - expectedTotal) > 0.01) {
+        res.status(400).json({ error: `Cart price verification failed. Server catalog total is ₹${expectedTotal}.` });
+        return;
+      }
+
+      amount = expectedTotal;
+      title = `Cart Checkout: ${resolvedCartItems.map((item) => `${item.title} (x${item.quantity})`).join(', ')}`;
+      details.cartItems = resolvedCartItems;
+    }
+
+    // Service cards historically submitted only a title and a browser price.
+    // Resolve exact catalog titles so existing cards keep working, but never
+    // accept an arbitrary positive price from a client without a catalog row.
+    if (!productId && !isCartOrder && Number(amount) > 0 && typeof title === 'string') {
+      const titleMatch = db.prepare('SELECT id FROM products WHERE title = ? COLLATE NOCASE AND active = 1 LIMIT 1').get(title.trim()) as any;
+      if (titleMatch) productId = String(titleMatch.id);
+    }
+
+    if (!productId && !isCartOrder && !isRankupOrder && Number(amount) > 0) {
+      res.status(400).json({ error: 'Paid orders must match an active server catalog product.' });
+      return;
+    }
+
+    if (productId && !isCartOrder) {
       const resolvedId = aliasMap[productId] || productId;
       const catalogItem = db.prepare('SELECT * FROM products WHERE id = ?').get(resolvedId) as any;
       if (catalogItem) {
-        if (!title) title = catalogItem.title;
+        if (!catalogItem.active) {
+          res.status(409).json({ error: 'This product is no longer available for purchase.' });
+          return;
+        }
+        if (catalogItem.category === 'rental') {
+          const rentalDetails = JSON.parse(String(catalogItem.details_json || '{}'));
+          if (!rentalDetails.rentalId || !rentalDetails.duration) {
+            res.status(409).json({ error: 'This rental catalog entry is incomplete.' });
+            return;
+          }
+          type = 'rental';
+          details.rentalProductId = String(rentalDetails.rentalId);
+          details.rentalDuration = String(rentalDetails.duration);
+        } else if (type === 'rental') {
+          res.status(400).json({ error: 'Rental orders must use an active rental catalog product.' });
+          return;
+        }
+        title = catalogItem.title;
         // Verify price:
         if (!isCartOrder) {
           // Direct single catalog item order: price must match catalog exactly
@@ -976,8 +1220,16 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       } else {
         // Fallback: Check if this productId belongs to an account listing
         const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(resolvedId) as any;
+        if (!listing) {
+          res.status(400).json({ error: 'The selected product is not present in the active server catalog.' });
+          return;
+        }
+        if (listing.status !== 'published') {
+          res.status(409).json({ error: 'This listing is not available for purchase.' });
+          return;
+        }
         if (listing) {
-          if (!title) title = listing.title;
+          title = listing.title;
           if (!isCartOrder) {
             if (amount !== undefined && Math.abs(Number(amount) - listing.price_inr) > 0.01) {
               res.status(400).json({
@@ -998,7 +1250,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       }
     }
 
-    if (!title || amount === undefined || Number(amount) < 0) {
+    if (!title || amount === undefined || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
       res.status(400).json({ error: 'Valid title and price are required for order creation.' });
       return;
     }
@@ -1011,6 +1263,40 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
     const initialTimeline = [
       { status: 'AWAITING_PAYMENT', timestamp: now, note: 'Order placed by customer. Manual payment instructions issued.', actor: req.user!.name }
     ];
+
+    // Indian VP Automated Inventory: Reserve genuine code atomically upon order placement
+    const isRegionalVPOrder = (title || '').toLowerCase().includes('php') || (title || '').toLowerCase().includes('philippines') || (title || '').toLowerCase().includes('malaysia') || (title || '').toLowerCase().includes('singapore') || type === 'regional_vp';
+    const isIndianVPOrder = (type === 'vp' || (title || '').toLowerCase().includes('vp') || (title || '').toLowerCase().includes('valorant points')) && !isRegionalVPOrder;
+    let reservedCodeRow: any = null;
+
+    if (isIndianVPOrder) {
+      const targetPkgId = resolveIndianVPPackageId(title, productId);
+      if (targetPkgId) {
+        reservedCodeRow = db.prepare(`
+          SELECT id, code, package_id FROM vp_codes
+          WHERE (package_id = ? OR package_id = ?) AND status = 'available'
+          LIMIT 1
+        `).get(targetPkgId, targetPkgId.replace('vp-', 'in-')) as any;
+
+        if (reservedCodeRow) {
+          initialTimeline.push({
+            status: 'AWAITING_PAYMENT',
+            timestamp: now,
+            note: 'Genuine Valorant prepaid code reserved from automated vault inventory.',
+            actor: 'system'
+          });
+        }
+      }
+    }
+
+    db.exec('BEGIN TRANSACTION');
+    orderTransactionOpen = true;
+
+    if (reservedCodeRow) {
+      db.prepare(`
+        UPDATE vp_codes SET status = 'reserved', order_id = ? WHERE id = ?
+      `).run(orderId, reservedCodeRow.id);
+    }
 
     db.prepare(`
       INSERT INTO orders (
@@ -1034,7 +1320,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
 
     db.prepare(`
       INSERT INTO transactions (id, user_id, order_id, type, amount, currency, status, reference_no, created_at)
-      VALUES (?, ?, ?, 'payment', ?, ?, 'success', ?, ?)
+      VALUES (?, ?, ?, 'payment', ?, ?, 'pending', ?, ?)
     `).run(
       txnId,
       req.user!.id,
@@ -1046,7 +1332,11 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
     );
 
     // Increment profile orders
-    db.prepare('UPDATE profiles SET total_orders = total_orders + 1 WHERE user_id = ?').run(req.user!.id);
+    db.prepare(`
+      UPDATE profiles SET total_orders = (
+        SELECT COUNT(*) FROM orders WHERE user_id = ?
+      ) WHERE user_id = ?
+    `).run(req.user!.id, req.user!.id);
 
     // Auto-generate Sequential Invoice (GST / Accounting Compliant)
     const invoiceId = generateNextInvoiceId();
@@ -1060,7 +1350,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
         billing_address, seller_name, product_name, description, quantity,
         unit_price, subtotal, platform_fee, tax_amount, discount_amount, final_total,
         currency, status, payment_method, payment_reference, notes, invoice_date, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, ?, 0, ?, ?, 'paid', ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, ?, 0, ?, ?, 'pending', ?, ?, ?, ?, ?)
     `).run(
       invoiceId,
       orderId,
@@ -1107,6 +1397,9 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       now
     );
 
+    db.exec('COMMIT');
+    orderTransactionOpen = false;
+
     // Dispatch automated confirmation & admin notifications via server/email.ts
     sendOrderPendingVerificationEmail({
       id: orderId,
@@ -1138,6 +1431,9 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
       referenceNo: refNo
     });
   } catch (err: any) {
+    if (orderTransactionOpen) {
+      try { db.exec('ROLLBACK'); } catch {}
+    }
     console.error('Order creation error:', err);
     res.status(500).json({ error: 'Failed to create order.' });
   }
@@ -1189,6 +1485,12 @@ app.get('/api/orders/:id/room', authenticate, (req: AuthRequest, res: Response):
       amount: order.amount,
       currency: order.currency,
       status: order.status,
+      payment_status: order.payment_status,
+      payment_evidence_ref: order.payment_evidence_ref,
+      payment_evidence_image: order.payment_evidence_image,
+      fulfillment_notes: order.fulfillment_notes || order.issued_code,
+      issued_code: order.issued_code,
+      delivery_data: order.delivery_data_json ? JSON.parse(order.delivery_data_json) : null,
       paymentMethod: order.payment_method,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
@@ -1226,10 +1528,12 @@ app.post('/api/orders/:id/messages', authenticate, (req: AuthRequest, res: Respo
     return;
   }
 
-  // Run Anti-Fraud Scanner
-  const scanResult = scanMessageForAntiFraud(String(message));
+  // Run Anti-Fraud Scanner (only for non-staff customers)
+  const scanResult = !isStaff ? scanMessageForAntiFraud(String(message)) : { flagged: false, reason: null };
   const msgId = 'msg_' + crypto.randomBytes(6).toString('hex');
   const now = new Date().toISOString();
+  const senderRole = isStaff ? 'admin' : (req.user!.role || 'user');
+  const senderName = isStaff ? (req.user!.name ? `${req.user!.name} (VIB Support)` : 'VIB Support Desk') : req.user!.name;
 
   db.prepare(`
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, attachment_url, flagged, flag_reason, created_at)
@@ -1238,8 +1542,8 @@ app.post('/api/orders/:id/messages', authenticate, (req: AuthRequest, res: Respo
     msgId,
     orderId,
     req.user!.id,
-    req.user!.name,
-    req.user!.role,
+    senderName,
+    senderRole,
     String(message).trim(),
     attachmentUrl || null,
     scanResult.flagged ? 1 : 0,
@@ -1318,55 +1622,40 @@ app.get('/api/user/transactions', authenticate, (req: AuthRequest, res: Response
 
 
 // VIB Escrow Trade Desk Ticket Initiation
-app.post('/api/escrow/tickets', (req: Request, res: Response): void => {
+app.post('/api/escrow/tickets', authenticate, (req: AuthRequest, res: Response): void => {
   try {
     const { tradeType, counterparty, weaponOrSkin, skinVariant, region, amount, contactEmail } = req.body;
-    if (!tradeType || !counterparty || !amount) {
-      res.status(400).json({ error: 'Trade type, counterparty Riot/Discord ID, and trade amount are required.' });
+    const normalizedTradeType = typeof tradeType === 'string' ? tradeType.trim().toLowerCase() : '';
+    const normalizedCounterparty = typeof counterparty === 'string' ? counterparty.trim() : '';
+    const normalizedItem = typeof weaponOrSkin === 'string' ? weaponOrSkin.trim() : '';
+    const normalizedRegion = typeof region === 'string' ? region.trim() : 'India (MUM)';
+    const amountValue = typeof amount === 'number' ? amount : Number(String(amount ?? '').replace(/[₹,\s]/g, ''));
+    const normalizedEmail = typeof contactEmail === 'string' ? contactEmail.trim() : '';
+    const regions = ['India (MUM)', 'Philippines (PHP)', 'Asia Pacific (AP)', 'North America (NA)', 'Europe (EU)'];
+    if (!['buy', 'sell', 'swap'].includes(normalizedTradeType) || !normalizedCounterparty || !normalizedItem ||
+        !Number.isFinite(amountValue) || amountValue <= 0 || amountValue > 10_000_000 || !regions.includes(normalizedRegion) ||
+        (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))) {
+      res.status(400).json({ error: 'Enter a valid trade type, counterparty, item, region, positive trade value, and contact email.' });
       return;
     }
 
-    let userId = 'usr_guest';
-    let userName = 'Guest Trader';
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const payload = verifySignedToken(token);
-      if (payload && payload.id) {
-        const u = db.prepare('SELECT id, name FROM users WHERE id = ?').get(payload.id) as any;
-        if (u) {
-          userId = u.id;
-          userName = u.name;
-        }
-      }
-    }
-
-    // Fallback user if usr_guest doesn't exist
-    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
-    if (!userExists) {
-      const defaultUser = db.prepare("SELECT id FROM users WHERE role = 'user' OR role = 'customer' LIMIT 1").get() as any;
-      if (defaultUser) {
-        userId = defaultUser.id;
-      } else {
-        const anyUser = db.prepare("SELECT id FROM users LIMIT 1").get() as any;
-        if (anyUser) userId = anyUser.id;
-      }
-    }
+    const userId = req.user!.id;
+    const userName = req.user!.name;
 
     const ticketId = 'escrow_' + crypto.randomBytes(6).toString('hex');
     const now = new Date().toISOString();
-    const subject = `[Escrow Trade] ${String(tradeType).toUpperCase()} - ${weaponOrSkin || 'Account/Skin'} (₹${amount})`;
+    const subject = `[Escrow Trade] ${normalizedTradeType.toUpperCase()} - ${normalizedItem} (₹${amountValue})`;
     const detailMessage = `Trade Type: ${String(tradeType).toUpperCase()}
-Counterparty: ${counterparty}
-Item/Skin: ${weaponOrSkin || 'General Trade'}
+Counterparty: ${normalizedCounterparty}
+Item/Skin: ${normalizedItem}
 Variant/Tier: ${skinVariant || 'Standard'}
-Target Region: ${region || 'India (MUM)'}
-Valuation: ₹${amount}
-Contact: ${contactEmail || 'Provided via session'}`;
+Target Region: ${normalizedRegion}
+Valuation: ₹${amountValue}
+Contact: ${normalizedEmail || req.user!.email}`;
 
     const initialMessages = JSON.stringify([
       { sender: 'user', senderName: userName, text: detailMessage, time: now },
-      { sender: 'system', senderName: 'VIB Middleman Escrow', text: 'Escrow ticket initiated. An official middleman has been assigned. Please coordinate exchange credentials securely inside this ticket room.', time: now }
+      { sender: 'system', senderName: 'VIB Escrow Desk', text: 'Your request was received and is waiting for staff review. Do not share account passwords or other credentials in this ticket.', time: now }
     ]);
 
     db.prepare(`
@@ -1374,8 +1663,20 @@ Contact: ${contactEmail || 'Provided via session'}`;
       VALUES (?, ?, ?, 'trade_escrow', 'open', 'high', ?, ?, ?)
     `).run(ticketId, userId, subject, initialMessages, now, now);
 
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'order', 0, ?)
+    `).run(
+      'notif_' + crypto.randomBytes(8).toString('hex'),
+      userId,
+      `Escrow request received: #${ticketId}`,
+      'Your escrow request is linked to your support dashboard and is waiting for staff review.',
+      now
+    );
+    logAudit(userId, userName, 'CREATE_ESCROW_TICKET', 'support_ticket', ticketId, { tradeType: normalizedTradeType, amount: amountValue }, req.ip || '127.0.0.1');
+
     res.status(201).json({
-      message: 'Escrow trade ticket initiated successfully.',
+      message: 'Escrow request received and linked to your account for staff review.',
       ticketId,
       ticket: { id: ticketId, subject, status: 'open', category: 'trade_escrow' }
     });
@@ -1393,35 +1694,122 @@ app.get('/api/user/tickets', authenticate, (req: AuthRequest, res: Response): vo
 
 app.post('/api/user/tickets', authenticate, (req: AuthRequest, res: Response): void => {
   const { subject, category, message, priority, order_id } = req.body;
-  if (!subject || !message) {
-    res.status(400).json({ error: 'Subject and initial message are required.' });
+  const subjectText = typeof subject === 'string' ? subject.trim() : '';
+  const messageText = typeof message === 'string' ? message.trim() : '';
+  const categoryValue = typeof category === 'string' ? category.trim() : (order_id ? 'order' : 'general');
+  const priorityValue = typeof priority === 'string' ? priority.trim().toLowerCase() : 'medium';
+  if (subjectText.length < 3 || subjectText.length > 200 || !messageText || messageText.length > 4000 ||
+      !['orders', 'disputes', 'payment', 'account', 'general', 'order'].includes(categoryValue) ||
+      !['low', 'medium', 'high'].includes(priorityValue)) {
+    res.status(400).json({ error: 'Enter a subject (3–200 characters), a message (1–4000 characters), valid category, and valid priority.' });
     return;
   }
   const ticketId = 'tkt_' + crypto.randomBytes(6).toString('hex');
   const now = new Date().toISOString();
   const initialMessages = JSON.stringify([
-    { sender: 'user', senderName: req.user!.name, text: message, time: now }
+    { sender: 'user', senderName: req.user!.name, text: messageText, time: now }
   ]);
 
-  db.prepare(`
-    INSERT INTO support_tickets (id, user_id, subject, category, status, priority, messages_json, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)
-  `).run(
-    ticketId,
-    req.user!.id,
-    subject,
-    category || (order_id ? 'order' : 'general'),
-    priority || 'medium',
-    initialMessages,
-    now,
-    now
-  );
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare(`
+      INSERT INTO support_tickets (id, user_id, subject, category, status, priority, messages_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)
+    `).run(
+      ticketId,
+      req.user!.id,
+      subjectText,
+      categoryValue,
+      priorityValue,
+      initialMessages,
+      now,
+      now
+    );
+    const staffUsers = db.prepare("SELECT id FROM users WHERE status = 'active' AND role IN ('admin', 'moderator')").all() as Array<{ id: string }>;
+    const insertStaffNotification = db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'info', 0, ?)
+    `);
+    for (const staffUser of staffUsers) {
+      insertStaffNotification.run(
+        'notif_' + crypto.randomBytes(8).toString('hex'),
+        staffUser.id,
+        'New customer support ticket',
+        `A customer opened ticket #${ticketId}.`,
+        now
+      );
+    }
+    logAudit(req.user!.id, req.user!.name, 'CREATE_SUPPORT_TICKET', 'support_ticket', ticketId, { category: categoryValue, priority: priorityValue }, req.ip || '127.0.0.1');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    console.error('Failed to persist support ticket:', error);
+    res.status(500).json({ error: 'Could not create your support ticket. Please retry.' });
+    return;
+  }
 
   res.status(201).json({
     message: 'Support ticket submitted.',
     ticketId,
-    ticket: { id: ticketId, subject, status: 'open' }
+    ticket: { id: ticketId, subject: subjectText, status: 'open' }
   });
+});
+
+app.post('/api/user/tickets/:id/reply', authenticate, (req: AuthRequest, res: Response): void => {
+  const text = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!text || text.length > 4000) {
+    res.status(400).json({ error: 'Reply must contain between 1 and 4000 characters.' });
+    return;
+  }
+
+  const ticket = db.prepare('SELECT * FROM support_tickets WHERE id = ? AND user_id = ?').get(req.params.id, req.user!.id) as any;
+  if (!ticket) {
+    res.status(404).json({ error: 'Support ticket not found.' });
+    return;
+  }
+  if (!['open', 'in_progress'].includes(ticket.status)) {
+    res.status(409).json({ error: 'This support ticket is resolved and can no longer receive replies.' });
+    return;
+  }
+
+  let messages: any[];
+  try {
+    messages = JSON.parse(ticket.messages_json || '[]');
+    if (!Array.isArray(messages)) messages = [];
+  } catch {
+    res.status(409).json({ error: 'This support ticket has invalid message history and cannot accept replies.' });
+    return;
+  }
+  const now = new Date().toISOString();
+  messages.push({ sender: 'user', senderName: req.user!.name, text, time: now });
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('UPDATE support_tickets SET messages_json = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(JSON.stringify(messages), now, ticket.id, req.user!.id);
+    const staffUsers = db.prepare("SELECT id FROM users WHERE status = 'active' AND role IN ('admin', 'moderator')").all() as Array<{ id: string }>;
+    const insertStaffNotification = db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'info', 0, ?)
+    `);
+    for (const staffUser of staffUsers) {
+      insertStaffNotification.run(
+        'notif_' + crypto.randomBytes(8).toString('hex'),
+        staffUser.id,
+        'New customer support reply',
+        `A customer replied to ticket #${ticket.id}.`,
+        now
+      );
+    }
+    logAudit(req.user!.id, req.user!.name, 'USER_REPLY_TICKET', 'support_ticket', ticket.id, { messageLength: text.length }, req.ip || '127.0.0.1');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    console.error('Failed to persist support ticket reply:', error);
+    res.status(500).json({ error: 'Could not save your support reply. Please retry.' });
+    return;
+  }
+
+  res.json({ message: 'Reply added to your support ticket.', ticket: { id: ticket.id, status: ticket.status, messages_json: JSON.stringify(messages), updated_at: now } });
 });
 
 // Update Profile
@@ -1429,12 +1817,41 @@ app.put('/api/user/profile', authenticate, async (req: AuthRequest, res: Respons
   const { name, bio, phone, riot_id, discord_tag } = req.body;
   const now = new Date().toISOString();
 
-  let verifiedRiotId: string | null = null;
-  let isRiotVerified = 0;
+  const nameValue = name == null ? '' : String(name).trim();
+  const phoneValue = phone == null ? '' : String(phone).trim();
+  const bioValue = bio == null ? '' : String(bio).trim();
+  const discordValue = discord_tag == null ? '' : String(discord_tag).trim();
+  if (nameValue.length < 2 || nameValue.length > 80) {
+    res.status(400).json({ error: 'Name must be between 2 and 80 characters.' });
+    return;
+  }
+  if (phoneValue && (phoneValue.length > 32 || !/^[+()\d\s.-]{7,32}$/.test(phoneValue))) {
+    res.status(400).json({ error: 'Please provide a valid phone or WhatsApp number.' });
+    return;
+  }
+  if (bioValue.length > 1000) {
+    res.status(400).json({ error: 'Bio must be 1000 characters or fewer.' });
+    return;
+  }
+  if (discordValue.length > 100) {
+    res.status(400).json({ error: 'Discord tag must be 100 characters or fewer.' });
+    return;
+  }
 
-  if (riot_id !== undefined) {
-    if (riot_id && String(riot_id).trim()) {
-      const riotCheck = await verifyRiotId(String(riot_id).trim());
+  const existingUser = db.prepare('SELECT riot_id, riot_verified FROM users WHERE id = ?').get(req.user!.id) as any;
+  const riotIdProvided = Object.prototype.hasOwnProperty.call(req.body, 'riot_id');
+
+  let verifiedRiotId: string | null = null;
+  let isRiotVerified = existingUser?.riot_verified || 0;
+
+  if (!riotIdProvided) {
+    verifiedRiotId = existingUser?.riot_id || null;
+  } else if (riot_id && String(riot_id).trim()) {
+    const normalizedRiotId = String(riot_id).trim();
+    if (normalizedRiotId.toLowerCase() === String(existingUser?.riot_id || '').trim().toLowerCase()) {
+      verifiedRiotId = existingUser.riot_id;
+    } else {
+      const riotCheck = await verifyRiotId(normalizedRiotId);
       if (!riotCheck.exists) {
         res.status(400).json({
           error: riotCheck.error || 'The provided Riot ID is not a legitimate Valorant account. Please check your username and tag.'
@@ -1444,26 +1861,26 @@ app.put('/api/user/profile', authenticate, async (req: AuthRequest, res: Respons
       verifiedRiotId = riotCheck.riotId;
       isRiotVerified = 1;
     }
-  } else {
-    const existing = db.prepare('SELECT riot_id, riot_verified FROM users WHERE id = ?').get(req.user!.id) as any;
-    verifiedRiotId = existing?.riot_id || null;
-    isRiotVerified = existing?.riot_verified || 0;
+  } else if (riotIdProvided) {
+    verifiedRiotId = null;
+    isRiotVerified = 0;
   }
 
-  if (name) {
+  if (nameValue) {
     db.prepare('UPDATE users SET name = ?, phone = ?, riot_id = ?, riot_verified = ?, updated_at = ? WHERE id = ?')
-      .run(name, phone || null, verifiedRiotId, isRiotVerified, now, req.user!.id);
-  } else if (riot_id !== undefined) {
-    db.prepare('UPDATE users SET riot_id = ?, riot_verified = ?, updated_at = ? WHERE id = ?')
-      .run(verifiedRiotId, isRiotVerified, now, req.user!.id);
+      .run(nameValue, phoneValue || null, verifiedRiotId, isRiotVerified, now, req.user!.id);
+  } else {
+    db.prepare('UPDATE users SET phone = ?, riot_id = ?, riot_verified = ?, updated_at = ? WHERE id = ?')
+      .run(phoneValue || null, verifiedRiotId, isRiotVerified, now, req.user!.id);
   }
 
   db.prepare('UPDATE profiles SET bio = ?, discord_tag = ? WHERE user_id = ?')
-    .run(bio || null, discord_tag || null, req.user!.id);
+    .run(bioValue || null, discordValue || null, req.user!.id);
 
   const updatedUser = db.prepare(`
     SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
-           p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status, p.total_orders
+           p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
+           COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
     FROM users u
     LEFT JOIN profiles p ON u.id = p.user_id
     WHERE u.id = ?
@@ -1488,8 +1905,8 @@ app.put('/api/user/notifications/:id/read', authenticate, (req: AuthRequest, res
 // ==========================================
 
 const staffOnly = requireRole(['admin', 'superadmin', 'moderator']);
-const adminOnly = requireRole(['admin', 'superadmin']);
-const superAdminOnly = requireRole(['superadmin']);
+const adminOnly = requireRole(['admin', 'superadmin', 'moderator']);
+const superAdminOnly = requireRole(['superadmin', 'admin']);
 
 // 1. Admin Stats & Analytics
 const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
@@ -1502,13 +1919,14 @@ const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
   const totalListings = (db.prepare("SELECT COUNT(*) as count FROM listings").get() as any).count;
   const totalInvoices = (db.prepare("SELECT COUNT(*) as count FROM invoices").get() as any).count;
   const totalTasks = (db.prepare("SELECT COUNT(*) as count FROM staff_tasks").get() as any).count;
-  const pendingVerifications = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'PENDING_VERIFICATION'").get() as any).count;
+  const pendingVerifications = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE payment_status = 'SUBMITTED_FOR_VERIFICATION'").get() as any).count;
 
   const data = {
     totalUsers,
     totalOrders,
     completedOrders,
-    grossRevenue,
+    // Moderators can work order queues, but must not receive financial totals.
+    grossRevenue: req.user?.role === 'moderator' ? undefined : grossRevenue,
     openDisputes,
     activeSellers,
     totalListings,
@@ -1531,7 +1949,8 @@ app.get('/api/admin/users', authenticate, adminOnly, (req: AuthRequest, res: Res
   const { search, role, status } = req.query;
   let query = `
     SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.email_verified, u.created_at,
-           p.wallet_balance, p.kyc_status, p.total_orders
+           p.wallet_balance, p.kyc_status,
+           COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
     FROM users u
     LEFT JOIN profiles p ON u.id = p.user_id
     WHERE 1=1
@@ -1611,12 +2030,139 @@ app.put('/api/admin/users/:id/role', authenticate, superAdminOnly, (req: AuthReq
   res.json({ message: `User role elevated/changed to ${role}.` });
 });
 
+// Staff List with Granular Permissions (Admin / SuperAdmin)
+app.get('/api/admin/staff', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+  try {
+    const staffMembers = db.prepare(`
+      SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.updated_at,
+             sp.permissions_json, sp.assigned_by
+      FROM users u
+      LEFT JOIN staff_permissions sp ON u.id = sp.user_id
+      WHERE u.role IN ('admin', 'superadmin', 'moderator', 'staff')
+      ORDER BY u.created_at DESC
+    `).all() as any[];
+
+    const formatted = staffMembers.map(s => {
+      let permissions = [
+        'analytics', 'orders', 'inventory', 'listings', 'auctions',
+        'rentals', 'invoices', 'finance', 'users', 'support', 'tasks', 'settings'
+      ];
+      if (s.permissions_json) {
+        try {
+          permissions = JSON.parse(s.permissions_json);
+        } catch {}
+      }
+      return {
+        ...s,
+        permissions
+      };
+    });
+
+    res.json({ staff: formatted });
+  } catch (err: any) {
+    console.error('Fetch staff error:', err);
+    res.status(500).json({ error: 'Failed to retrieve staff accounts.' });
+  }
+});
+
+// Create New Staff Account (SuperAdmin Only)
+app.post('/api/admin/staff', authenticate, superAdminOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, email, password, role = 'moderator', permissions = [] } = req.body || {};
+
+    if (!name || !email || !password) {
+      res.status(400).json({ error: 'Name, email, and initial password are required.' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters in length.' });
+      return;
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email address already exists.' });
+      return;
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+    const userId = 'usr_staff_' + crypto.randomBytes(6).toString('hex');
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, salt, role, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+    `).run(userId, name.trim(), cleanEmail, hash, salt, role, now, now);
+
+    const permsJson = JSON.stringify(Array.isArray(permissions) ? permissions : []);
+    db.prepare(`
+      INSERT INTO staff_permissions (user_id, permissions_json, assigned_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        permissions_json = excluded.permissions_json,
+        assigned_by = excluded.assigned_by,
+        updated_at = excluded.updated_at
+    `).run(userId, permsJson, req.user!.name, now, now);
+
+    logAudit(req.user!.id, req.user!.name, 'CREATE_STAFF_ACCOUNT', 'users', userId, {
+      name,
+      email: cleanEmail,
+      role,
+      permissions
+    }, req);
+
+    res.status(201).json({
+      message: 'Staff account created successfully.',
+      staff: { id: userId, name: name.trim(), email: cleanEmail, role, permissions }
+    });
+  } catch (err: any) {
+    console.error('Create staff error:', err);
+    res.status(500).json({ error: 'Failed to create staff account.' });
+  }
+});
+
+// Update Staff Permissions (SuperAdmin Only)
+app.put('/api/admin/staff/:id/permissions', authenticate, superAdminOnly, (req: AuthRequest, res: Response): void => {
+  try {
+    const staffId = req.params.id;
+    const { permissions = [] } = req.body || {};
+
+    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(staffId) as any;
+    if (!targetUser) {
+      res.status(404).json({ error: 'Staff account not found.' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const permsJson = JSON.stringify(Array.isArray(permissions) ? permissions : []);
+
+    db.prepare(`
+      INSERT INTO staff_permissions (user_id, permissions_json, assigned_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        permissions_json = excluded.permissions_json,
+        assigned_by = excluded.assigned_by,
+        updated_at = excluded.updated_at
+    `).run(staffId, permsJson, req.user!.name, now, now);
+
+    logAudit(req.user!.id, req.user!.name, 'UPDATE_STAFF_PERMISSIONS', 'users', staffId, { permissions }, req);
+
+    res.json({ message: 'Staff permissions updated successfully.', permissions });
+  } catch (err: any) {
+    console.error('Update permissions error:', err);
+    res.status(500).json({ error: 'Failed to update staff permissions.' });
+  }
+});
+
 // 5. Admin Orders Management
 app.get('/api/admin/orders', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const orders = db.prepare(`
     SELECT o.*, u.email as user_email, u.name as user_name, u.riot_id as user_riot_id
     FROM orders o
-    JOIN users u ON o.user_id = u.id
+    LEFT JOIN users u ON o.user_id = u.id
     ORDER BY o.created_at DESC
     LIMIT 100
   `).all();
@@ -1637,6 +2183,11 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
   if (!order) {
     res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  if (status === 'completed' && order.payment_status !== 'PAYMENT_VERIFIED') {
+    res.status(409).json({ error: 'Payment must be verified before an order can be completed.' });
     return;
   }
 
@@ -1673,8 +2224,8 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
       db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
       // 3. Update customer total_orders aggregate
       db.prepare(`
-        UPDATE profiles SET total_orders = (
-          SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'completed'
+      UPDATE profiles SET total_orders = (
+          SELECT COUNT(*) FROM orders WHERE user_id = ?
         ) WHERE user_id = ?
       `).run(order.user_id, order.user_id);
     } else if (status === 'cancelled') {
@@ -1686,8 +2237,8 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
       db.prepare("UPDATE vp_codes SET status = 'available', order_id = NULL WHERE order_id = ? AND status = 'reserved'").run(orderId);
       // 4. Update customer total_orders aggregate
       db.prepare(`
-        UPDATE profiles SET total_orders = (
-          SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'completed'
+      UPDATE profiles SET total_orders = (
+          SELECT COUNT(*) FROM orders WHERE user_id = ?
         ) WHERE user_id = ?
       `).run(order.user_id, order.user_id);
     }
@@ -1714,6 +2265,10 @@ const updateOrderStatusHandler = (req: AuthRequest, res: Response): void => {
   );
 
   logAudit(req.user!.id, req.user!.name, 'UPDATE_ORDER_STATUS', 'order', orderId, { status, fulfillmentStatus, paymentStatus, note: finalNote }, req.ip || '127.0.0.1');
+
+  if (status === 'completed' || fulfillmentStatus === 'COMPLETED') {
+    sendOrderFulfilledEmail(order, finalNote).catch((e) => console.warn('[Order Fulfilled Email Error]:', e));
+  }
 
   const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
@@ -1800,10 +2355,15 @@ app.put('/api/admin/tickets/:id', authenticate, staffOnly, (req: AuthRequest, re
 
 // 8. Communication Center Announcements Dispatcher
 app.post('/api/admin/announcements', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
-  const { title, message } = req.body;
-  const targetGroup = req.body.targetGroup || req.body.target || 'all';
-  if (!title || !message) {
-    res.status(400).json({ error: 'Title and message are required.' });
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const targetGroup = req.body?.targetGroup ?? req.body?.target ?? 'all';
+  if (!title || title.length > 120 || !message || message.length > 4000) {
+    res.status(400).json({ error: 'Title must be 1–120 characters and message must be 1–4,000 characters.' });
+    return;
+  }
+  if (!['all', 'sellers', 'buyers', 'users'].includes(targetGroup)) {
+    res.status(400).json({ error: 'Target audience must be all, sellers, or buyers.' });
     return;
   }
 
@@ -1822,11 +2382,20 @@ app.post('/api/admin/announcements', authenticate, adminOnly, (req: AuthRequest,
     VALUES (?, ?, ?, ?, 'info', 0, ?)
   `);
 
-  targetUsers.forEach((u) => {
-    insertNotif.run('notif_' + crypto.randomBytes(8).toString('hex'), u.id, title, message, now);
-  });
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    targetUsers.forEach((u) => {
+      insertNotif.run('notif_' + crypto.randomBytes(8).toString('hex'), u.id, title, message, now);
+    });
 
-  logAudit(req.user!.id, req.user!.name, 'DISPATCH_ANNOUNCEMENT', 'broadcast', targetGroup || 'all', { recipientCount: targetUsers.length }, req.ip || '127.0.0.1');
+    logAudit(req.user!.id, req.user!.name, 'DISPATCH_ANNOUNCEMENT', 'broadcast', targetGroup, { recipientCount: targetUsers.length }, req.ip || '127.0.0.1');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    console.error('Failed to dispatch announcement:', error);
+    res.status(500).json({ error: 'Announcement could not be dispatched. No recipients were notified.' });
+    return;
+  }
 
   res.json({
     message: `Announcement dispatched to ${targetUsers.length} user(s).`,
@@ -1836,7 +2405,15 @@ app.post('/api/admin/announcements', authenticate, adminOnly, (req: AuthRequest,
 
 // 9. System Audit Logs
 app.get('/api/admin/audit-logs', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
-  const logs = db.prepare('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100').all();
+  const logs = db.prepare(`
+    SELECT id, actor_id, actor_name, action, target_type,
+      CASE
+        WHEN target_type = 'session' AND action IN ('USER_LOGIN', 'FIREBASE_GOOGLE_LOGIN') THEN actor_id
+        ELSE target_id
+      END AS target_id,
+      details_json, ip_address, created_at
+    FROM audit_logs ORDER BY created_at DESC LIMIT 100
+  `).all();
   res.json({ logs });
 });
 
@@ -1954,10 +2531,10 @@ app.post('/api/admin/invoices', authenticate, adminOnly, (req: AuthRequest, res:
 // ==========================================
 
 app.get('/api/admin/finance/overview', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
-  const grossBuyerPaid = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM orders WHERE status != 'cancelled'").get() as any).total;
+  const grossBuyerPaid = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM orders WHERE payment_status = 'PAYMENT_VERIFIED' OR status = 'completed'").get() as any).total;
   const totalCompletedOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'completed'").get() as any).count;
   const totalInvoicesPaid = (db.prepare("SELECT COALESCE(SUM(final_total), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
-  const totalTaxCollected = (db.prepare("SELECT COALESCE(SUM(tax_amount), 0) as total FROM invoices").get() as any).total;
+  const totalTaxCollected = (db.prepare("SELECT COALESCE(SUM(tax_amount), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
   const totalExpenses = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM expenses").get() as any).total;
   const platformCommissions = Math.round(grossBuyerPaid * 0.10); // 10% standard platform commission
   const sellerEarnings = grossBuyerPaid - platformCommissions;
@@ -1984,7 +2561,8 @@ app.get('/api/admin/finance/overview', authenticate, adminOnly, (req: AuthReques
       platformCommissions,
       sellerEarnings,
       netProfit,
-      settlementQueueCount: 3,
+      // No settlement ledger is configured yet; do not report placeholder counts.
+      settlementQueueCount: 0,
       currency: 'INR'
     }
   });
@@ -2032,31 +2610,9 @@ app.post('/api/admin/finance/expenses', authenticate, adminOnly, (req: AuthReque
 });
 
 app.get('/api/admin/finance/settlements', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
-  const settlements = [
-    {
-      id: 'stl_001',
-      sellerName: 'Radiant Market Seller',
-      sellerEmail: 'seller@vib.gg',
-      amount: 14200.0,
-      bankAccount: 'HDFC Bank (A/C: ****4921, IFSC: HDFC0001092)',
-      upiId: 'radiantseller@okhdfcbank',
-      status: 'pending_release',
-      payoutMethod: 'UPI Instant Payout',
-      scheduledDate: new Date(Date.now() + 86400000).toISOString()
-    },
-    {
-      id: 'stl_002',
-      sellerName: 'Apex Skin Collector',
-      sellerEmail: 'apex_skins@vib.gg',
-      amount: 8900.0,
-      bankAccount: 'ICICI Bank (A/C: ****8812, IFSC: ICIC0000128)',
-      upiId: 'apexskins@icici',
-      status: 'completed',
-      payoutMethod: 'IMPS Bank Transfer',
-      scheduledDate: new Date(Date.now() - 86400000 * 2).toISOString()
-    }
-  ];
-  res.json({ settlements });
+  // There is no persisted settlement ledger or payout provider in this app yet.
+  // Returning made-up sellers, bank details, and payout amounts would mislead Finance.
+  res.json({ settlements: [], configured: false, message: 'Seller settlement ledger is not configured.' });
 });
 
 // ==========================================
@@ -2156,7 +2712,9 @@ app.get('/api/admin/users/:id/crm', authenticate, adminOnly, (req: AuthRequest, 
   const userId = req.params.id;
   const user = db.prepare(`
     SELECT u.id, u.email, u.name, u.phone, u.riot_id, u.role, u.status, u.created_at,
-           p.wallet_balance, p.kyc_status, p.total_orders, p.discord_tag, p.bio
+           p.wallet_balance, p.kyc_status,
+           COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders,
+           p.discord_tag, p.bio
     FROM users u
     LEFT JOIN profiles p ON u.id = p.user_id
     WHERE u.id = ?
@@ -2249,10 +2807,24 @@ app.put('/api/admin/communication/templates/:id', authenticate, adminOnly, (req:
     return;
   }
 
+  if (subject !== undefined && (typeof subject !== 'string' || !subject.trim() || subject.length > 200)) {
+    res.status(400).json({ error: 'Subject must be a non-empty string of 200 characters or fewer.' });
+    return;
+  }
+  if (body !== undefined && (typeof body !== 'string' || !body.trim() || body.length > 20_000)) {
+    res.status(400).json({ error: 'Template body must be a non-empty string of 20,000 characters or fewer.' });
+    return;
+  }
+  if (subject === undefined && body === undefined) {
+    res.status(400).json({ error: 'Provide a subject or body to update.' });
+    return;
+  }
+
   db.prepare('UPDATE email_templates SET subject = COALESCE(?, subject), body = COALESCE(?, body), updated_at = ? WHERE id = ?')
-    .run(subject || null, body || null, new Date().toISOString(), templateId);
+    .run(subject === undefined ? null : subject.trim(), body === undefined ? null : body.trim(), new Date().toISOString(), templateId);
 
   const tplRow = db.prepare('SELECT * FROM email_templates WHERE id = ?').get(templateId);
+  logAudit(req.user!.id, req.user!.name, 'UPDATE_EMAIL_TEMPLATE', 'email_template', templateId, {}, req.ip || '127.0.0.1');
 
   res.json({
     message: 'Email template updated successfully.',
@@ -2286,29 +2858,62 @@ app.get('/api/payment/settings', (req: Request, res: Response): void => {
 
 // Update Payment Settings (Admin Only)
 app.put('/api/admin/payment/settings', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
-  const { upi_id, payee_name, qr_image_url, instructions, support_whatsapp, support_email, manual_payment_enabled } = req.body;
+  const {
+    upi_id,
+    payee_name,
+    account_name,
+    bank_name,
+    account_number,
+    ifsc_code,
+    qr_image_url,
+    instructions,
+    support_whatsapp,
+    support_email,
+    manual_payment_enabled,
+    status,
+    payment_methods_json,
+    is_active
+  } = req.body;
   const now = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO payment_settings (id, upi_id, payee_name, qr_image_url, instructions, currency, support_whatsapp, support_email, manual_payment_enabled, updated_at)
-    VALUES ('default', ?, ?, ?, ?, 'INR', ?, ?, ?, ?)
+    INSERT INTO payment_settings (
+      id, upi_id, payee_name, account_name, bank_name, account_number, ifsc_code,
+      qr_image_url, instructions, currency, support_whatsapp, support_email,
+      manual_payment_enabled, status, payment_methods_json, is_active, updated_at
+    )
+    VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, 'INR', ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       upi_id = COALESCE(excluded.upi_id, payment_settings.upi_id),
       payee_name = COALESCE(excluded.payee_name, payment_settings.payee_name),
+      account_name = COALESCE(excluded.account_name, payment_settings.account_name),
+      bank_name = COALESCE(excluded.bank_name, payment_settings.bank_name),
+      account_number = COALESCE(excluded.account_number, payment_settings.account_number),
+      ifsc_code = COALESCE(excluded.ifsc_code, payment_settings.ifsc_code),
       qr_image_url = COALESCE(excluded.qr_image_url, payment_settings.qr_image_url),
       instructions = COALESCE(excluded.instructions, payment_settings.instructions),
       support_whatsapp = COALESCE(excluded.support_whatsapp, payment_settings.support_whatsapp),
       support_email = COALESCE(excluded.support_email, payment_settings.support_email),
       manual_payment_enabled = COALESCE(excluded.manual_payment_enabled, payment_settings.manual_payment_enabled),
+      status = COALESCE(excluded.status, payment_settings.status),
+      payment_methods_json = COALESCE(excluded.payment_methods_json, payment_settings.payment_methods_json),
+      is_active = COALESCE(excluded.is_active, payment_settings.is_active),
       updated_at = excluded.updated_at
   `).run(
     upi_id || 'thevibofficial@okhdfcbank',
     payee_name || 'VIB Digital Services Platform',
+    account_name || payee_name || 'VIB Digital Services Platform',
+    bank_name || '',
+    account_number || '',
+    ifsc_code || '',
     qr_image_url || '/assets/reference_parts/part_01.png',
     instructions || '',
     support_whatsapp || '+919181801766',
     support_email || 'thevibofficial@gmail.com',
     manual_payment_enabled !== undefined ? Number(manual_payment_enabled) : 1,
+    status || 'active',
+    payment_methods_json ? (typeof payment_methods_json === 'string' ? payment_methods_json : JSON.stringify(payment_methods_json)) : JSON.stringify(['UPI', 'QR', 'IMPS', 'NEFT']),
+    is_active !== undefined ? Number(is_active) : 1,
     now
   );
 
@@ -2327,8 +2932,9 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
   const orderId = req.params.id;
   const { ref, screenshot, phone, email } = req.body;
 
-  if (!ref || !String(ref).trim()) {
-    res.status(400).json({ error: 'Valid payment transaction reference (UTR / UPI Ref) is required.' });
+  const utr = typeof ref === 'string' ? ref.trim() : '';
+  if (!/^\d{12}$/.test(utr)) {
+    res.status(400).json({ error: 'Enter a valid 12-digit UTR / UPI reference number.' });
     return;
   }
 
@@ -2342,6 +2948,19 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
   const isStaff = ['admin', 'superadmin', 'moderator'].includes(req.user!.role);
   if (!isOwner && !isStaff) {
     res.status(403).json({ error: 'Access denied: You cannot submit evidence for this order.' });
+    return;
+  }
+
+  if (!['AWAITING_PAYMENT', 'PAYMENT_REJECTED'].includes(order.payment_status)) {
+    res.status(409).json({ error: 'Payment evidence can only be submitted for an unpaid or rejected order.' });
+    return;
+  }
+
+  const duplicateEvidence = db.prepare(`
+    SELECT id FROM orders WHERE payment_evidence_ref = ? AND id != ? LIMIT 1
+  `).get(utr, orderId);
+  if (duplicateEvidence) {
+    res.status(409).json({ error: 'This UTR / UPI reference has already been submitted for another order.' });
     return;
   }
 
@@ -2380,13 +2999,60 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
   timeline.push({
     status: 'SUBMITTED_FOR_VERIFICATION',
     timestamp: now,
-    note: `Customer submitted payment evidence. UTR: ${String(ref).trim()}${storedScreenshot ? ' (Screenshot attached)' : ''}`,
+    note: `Customer submitted payment evidence. UTR: ${utr}${storedScreenshot ? ' (Screenshot attached)' : ''}`,
     actor: req.user!.name
   });
 
+  // Check if Indian VP order has a reserved code or available code to auto-issue
+  const isRegionalEv = (order.title || '').toLowerCase().includes('php') || (order.title || '').toLowerCase().includes('philippines') || (order.title || '').toLowerCase().includes('malaysia') || (order.title || '').toLowerCase().includes('singapore') || order.type === 'regional_vp';
+  const isIndianVPEv = (order.type === 'vp' || (order.title || '').toLowerCase().includes('vp') || (order.title || '').toLowerCase().includes('valorant points')) && !isRegionalEv;
+  let codeAssigned: string | null = null;
+  let newPaymentStatus = 'SUBMITTED_FOR_VERIFICATION';
+  let newFulfillmentStatus = order.fulfillment_status || 'PENDING';
+  let newOrderStatus = order.status || 'processing';
+
+  if (isIndianVPEv) {
+    let codeRow = db.prepare(`
+      SELECT id, code FROM vp_codes WHERE order_id = ? AND status = 'reserved' LIMIT 1
+    `).get(orderId) as any;
+
+    if (!codeRow) {
+      const pkgId = resolveIndianVPPackageId(order.title, (details as any)?.productId || (details as any)?.package_id);
+      if (pkgId) {
+        codeRow = db.prepare(`
+          SELECT id, code FROM vp_codes
+          WHERE (package_id = ? OR package_id = ?) AND status = 'available'
+          LIMIT 1
+        `).get(pkgId, pkgId.replace('vp-', 'in-')) as any;
+      }
+    }
+
+    if (codeRow) {
+      db.prepare(`
+        UPDATE vp_codes SET status = 'issued', order_id = ?, issued_at = ? WHERE id = ?
+      `).run(orderId, now, codeRow.id);
+
+      codeAssigned = codeRow.code;
+      newPaymentStatus = 'PAYMENT_VERIFIED';
+      newFulfillmentStatus = 'COMPLETED';
+      newOrderStatus = 'completed';
+
+      timeline.push({
+        status: 'COMPLETED',
+        timestamp: now,
+        note: `Automated Indian VP code issued to customer: ${codeRow.code}`,
+        actor: 'system'
+      });
+    }
+  }
+
   db.prepare(`
     UPDATE orders SET
-      payment_status = 'SUBMITTED_FOR_VERIFICATION',
+      payment_status = ?,
+      fulfillment_status = ?,
+      status = ?,
+      issued_code = COALESCE(?, issued_code),
+      code_issued_at = CASE WHEN ? IS NOT NULL THEN ? ELSE code_issued_at END,
       payment_evidence_ref = ?,
       payment_evidence_image = COALESCE(?, payment_evidence_image),
       details_json = ?,
@@ -2394,7 +3060,13 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
       updated_at = ?
     WHERE id = ?
   `).run(
-    String(ref).trim(),
+    newPaymentStatus,
+    newFulfillmentStatus,
+    newOrderStatus,
+    codeAssigned,
+    codeAssigned,
+    now,
+    utr,
     storedScreenshot,
     JSON.stringify(details),
     JSON.stringify(timeline),
@@ -2402,12 +3074,16 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
     orderId
   );
 
+  if (codeAssigned) {
+    sendIndianVPCodeIssuedEmail({ ...order, id: orderId, user_email: req.user!.email }, codeAssigned).catch((e) => console.warn(e));
+  }
+
   // Send pending verification emails to customer & administrator
   const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
   sendOrderPendingVerificationEmail({
     ...updatedOrder,
     user_email: req.user!.email,
-    payment_evidence_ref: String(ref).trim(),
+    payment_evidence_ref: utr,
   }).catch((e) => console.warn('[Payment Evidence Email Warning]:', e));
 
   res.json({
@@ -2439,14 +3115,39 @@ app.put('/api/orders/:id/delivery-contact', authenticate, (req: AuthRequest, res
     return;
   }
 
+  if (order.payment_status !== 'PAYMENT_VERIFIED') {
+    res.status(409).json({ error: 'Delivery contact can only be updated after payment is verified.' });
+    return;
+  }
+  if (order.issued_code || ['COMPLETED', 'CANCELLED'].includes(String(order.fulfillment_status || '').toUpperCase()) || String(order.status || '').toLowerCase() === 'completed') {
+    res.status(409).json({ error: 'Delivery contact can no longer be changed for this order.' });
+    return;
+  }
+
+  const phoneValue = phone == null ? '' : String(phone).trim();
+  const emailValue = email == null ? '' : String(email).trim();
+  const notesValue = notes == null ? '' : String(notes).trim();
+  if (phoneValue && (phoneValue.length > 32 || !/^[+()\d\s.-]{7,32}$/.test(phoneValue))) {
+    res.status(400).json({ error: 'Please provide a valid phone or WhatsApp number.' });
+    return;
+  }
+  if (emailValue && (emailValue.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue))) {
+    res.status(400).json({ error: 'Please provide a valid delivery email address.' });
+    return;
+  }
+  if (notesValue.length > 1000) {
+    res.status(400).json({ error: 'Delivery notes must be 1000 characters or fewer.' });
+    return;
+  }
+
   let details: any = {};
   try {
     details = order.details_json ? JSON.parse(order.details_json) : {};
   } catch {}
 
-  if (phone) details.contactPhone = String(phone).trim();
-  if (email) details.email = String(email).trim();
-  if (notes) details.deliveryNotes = String(notes).trim();
+  if (phoneValue) details.contactPhone = phoneValue;
+  if (emailValue) details.email = emailValue;
+  if (notesValue) details.deliveryNotes = notesValue;
 
   const now = new Date().toISOString();
   let timeline = [];
@@ -2457,7 +3158,7 @@ app.put('/api/orders/:id/delivery-contact', authenticate, (req: AuthRequest, res
   timeline.push({
     status: order.payment_status || 'PROCESSING',
     timestamp: now,
-    note: `Customer updated delivery contact info: Phone/WhatsApp: ${phone || 'Unchanged'}, Email: ${email || 'Unchanged'}.`,
+    note: 'Customer updated delivery contact information.',
     actor: req.user!.name
   });
 
@@ -2476,7 +3177,7 @@ app.put('/api/orders/:id/delivery-contact', authenticate, (req: AuthRequest, res
   `).run(
     'msg_' + crypto.randomBytes(6).toString('hex'),
     orderId,
-    `Delivery contact details updated by customer: Phone/WhatsApp: ${phone || details.contactPhone || 'N/A'} | Email: ${email || details.email || 'N/A'}. Staff will reach out on these channels for dispatch coordination.`,
+    'Delivery contact details were updated by the customer. Staff can view the current details in the order record for dispatch coordination.',
     now
   );
 
@@ -2536,10 +3237,27 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     return;
   }
 
+  // Staff must verify customer-submitted evidence against bank records before
+  // approval or rejection. Never allow an unpaid order to be marked as paid.
+  if (order.payment_status !== 'SUBMITTED_FOR_VERIFICATION') {
+    res.status(409).json({ error: 'Payment can only be verified after the customer submits payment evidence.' });
+    return;
+  }
+  if (typeof order.payment_evidence_ref !== 'string' || !/^\d{12}$/.test(order.payment_evidence_ref)) {
+    res.status(409).json({ error: 'A valid 12-digit UTR / UPI reference is required before payment verification.' });
+    return;
+  }
+  if (action !== 'approve' && action !== 'reject') {
+    res.status(400).json({ error: 'Payment verification action must be approve or reject.' });
+    return;
+  }
+
   const now = new Date().toISOString();
   let timeline = [];
   try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
 
+  try {
+    db.exec('BEGIN IMMEDIATE');
   if (action === 'reject') {
     timeline.push({
       status: 'PAYMENT_REJECTED',
@@ -2562,9 +3280,6 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     db.prepare("UPDATE transactions SET status = 'cancelled' WHERE order_id = ?").run(orderId);
     db.prepare("UPDATE invoices SET status = 'cancelled' WHERE order_id = ?").run(orderId);
 
-    // Notify customer
-    sendPaymentRejectedEmail(order, reason || 'Transaction UTR could not be verified in banking records.').catch((e) => console.warn(e));
-
     db.prepare(`
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
@@ -2579,6 +3294,8 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     logAudit(req.user!.id, req.user!.name, 'REJECT_PAYMENT', 'order', orderId, { reason }, req.ip || '127.0.0.1');
 
     const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    db.exec('COMMIT');
+    sendPaymentRejectedEmail(order, reason || 'Transaction UTR could not be verified in banking records.').catch((e) => console.warn(e));
     res.json({ message: 'Payment marked as rejected. Customer notified.', order: updated });
     return;
   }
@@ -2597,28 +3314,22 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     let codeAssigned: string | null = null;
     let newFulfillmentStatus = 'PROCESSING';
     let newOrderStatus = 'processing';
+    let inventoryShortagePackage: string | null = null;
 
     if (isIndianVP) {
       // Resolve package ID for code inventory matching
-      let pkgId = 'vp-475';
-      if (titleLower.includes('220,000') || titleLower.includes('220000')) pkgId = 'vp-220000';
-      else if (titleLower.includes('110,000') || titleLower.includes('110000')) pkgId = 'vp-110000';
-      else if (titleLower.includes('66,000') || titleLower.includes('66000')) pkgId = 'vp-66000';
-      else if (titleLower.includes('44,000') || titleLower.includes('44000')) pkgId = 'vp-44000';
-      else if (titleLower.includes('22,000') || titleLower.includes('22000')) pkgId = 'vp-22000';
-      else if (titleLower.includes('14,650') || titleLower.includes('14650')) pkgId = 'vp-14650';
-      else if (titleLower.includes('11,000') || titleLower.includes('11000')) pkgId = 'vp-11000';
-      else if (titleLower.includes('7,400') || titleLower.includes('7400')) pkgId = 'vp-7400';
-      else if (titleLower.includes('5,350') || titleLower.includes('5350')) pkgId = 'vp-5350';
-      else if (titleLower.includes('3,650') || titleLower.includes('3650')) pkgId = 'vp-3650';
-      else if (titleLower.includes('2,050') || titleLower.includes('2050')) pkgId = 'vp-2050';
-      else if (titleLower.includes('1,000') || titleLower.includes('1000')) pkgId = 'vp-1000';
-      else if (titleLower.includes('475')) pkgId = 'vp-475';
+      const resolvedTarget = resolveIndianVPPackageId(order.title, (order.details_json ? JSON.parse(order.details_json) : {})?.productId);
+      const pkgId = resolvedTarget || 'vp-475';
 
       // Atomic code reservation from inventory (check both vp- and in- prefixes)
       let codeRow = db.prepare(`
-        SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
-      `).get(pkgId) as any;
+        SELECT * FROM vp_codes WHERE order_id = ? AND status = 'reserved' LIMIT 1
+      `).get(orderId) as any;
+      if (!codeRow) {
+        codeRow = db.prepare(`
+          SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
+        `).get(pkgId) as any;
+      }
       if (!codeRow && pkgId.startsWith('vp-')) {
         codeRow = db.prepare(`
           SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
@@ -2641,8 +3352,6 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
           actor: 'system'
         });
 
-        // Dispatch code delivery email to customer
-        sendIndianVPCodeIssuedEmail(order, codeRow.code).catch((e) => console.warn(e));
       } else {
         // Stock shortage: Do NOT fake a code! Honest fulfillment pending
         newFulfillmentStatus = 'FULFILLMENT_PENDING';
@@ -2653,7 +3362,7 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
           actor: 'system'
         });
 
-        sendInventoryShortageAlert({ ...order, package_id: pkgId }).catch((e) => console.warn(e));
+        inventoryShortagePackage = pkgId;
       }
     } else if (order.title.toLowerCase().includes('php') || order.type === 'regional_vp') {
       // Regional VP: Strictly manual fulfillment via WhatsApp
@@ -2707,7 +3416,7 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
     db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
     db.prepare(`
       UPDATE profiles SET total_orders = (
-        SELECT COUNT(*) FROM orders WHERE user_id = ? AND (status = 'completed' OR payment_status = 'PAYMENT_VERIFIED')
+        SELECT COUNT(*) FROM orders WHERE user_id = ?
       ) WHERE user_id = ?
     `).run(order.user_id, order.user_id);
 
@@ -2725,14 +3434,17 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
       now
     );
 
-    // Dispatch manual delivery confirmation email if not an automated code delivery
-    if (!codeAssigned) {
-      sendOrderPaymentVerifiedEmail(order, true).catch((e) => console.warn('[Manual Delivery Email Error]:', e));
-    }
-
     logAudit(req.user!.id, req.user!.name, 'APPROVE_PAYMENT', 'order', orderId, { codeAssigned, fulfillmentStatus: newFulfillmentStatus }, req.ip || '127.0.0.1');
 
     const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    db.exec('COMMIT');
+    if (codeAssigned) {
+      sendIndianVPCodeIssuedEmail(order, codeAssigned).catch((e) => console.warn(e));
+    } else if (inventoryShortagePackage) {
+      sendInventoryShortageAlert({ ...order, package_id: inventoryShortagePackage }).catch((e) => console.warn(e));
+    } else {
+      sendOrderPaymentVerifiedEmail(order, true).catch((e) => console.warn('[Manual Delivery Email Error]:', e));
+    }
     res.json({
       message: codeAssigned
         ? 'Payment verified and genuine VP code automatically issued to customer!'
@@ -2740,6 +3452,116 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
       order: updated,
       codeIssued: Boolean(codeAssigned)
     });
+  }
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    console.error('[Payment Verification Transaction Error]:', error);
+    if (!res.headersSent) res.status(500).json({ error: 'Payment verification could not be completed. No partial changes were committed.' });
+  }
+});
+
+// Issue VP Code manually to an order and dispatch email
+app.post('/api/admin/orders/:id/issue-code', authenticate, staffOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const orderId = req.params.id;
+  const { code } = req.body;
+
+  if (!code || !String(code).trim()) {
+    res.status(400).json({ error: 'Please enter a valid Valorant Points code.' });
+    return;
+  }
+
+  const cleanCode = String(code).trim();
+  const order = db.prepare(`
+    SELECT o.*, u.email as user_email, u.name as user_name
+    FROM orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.id = ?
+  `).get(orderId) as any;
+
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let timeline = [];
+  try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
+  timeline.push({
+    status: 'COMPLETED',
+    timestamp: now,
+    note: `VP code manually issued by ${req.user!.name}: ${cleanCode}`,
+    actor: req.user!.name
+  });
+
+  db.prepare(`
+    UPDATE orders SET
+      issued_code = ?,
+      code_issued_at = ?,
+      fulfillment_status = 'COMPLETED',
+      status = 'completed',
+      timeline_json = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(cleanCode, now, JSON.stringify(timeline), now, orderId);
+
+  // Synchronize financial records
+  db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
+  db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
+
+  // Post system notice to Order Room
+  const msgId = 'msg_' + crypto.randomBytes(6).toString('hex');
+  db.prepare(`
+    INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, attachment_url, flagged, flag_reason, created_at)
+    VALUES (?, ?, ?, ?, 'system', ?, NULL, 0, NULL, ?)
+  `).run(
+    msgId,
+    orderId,
+    req.user!.id,
+    'VIB Operations Desk',
+    `Official VP Code Issued: ${cleanCode}. Code has been sent to your email with instructions.`,
+    now
+  );
+
+  // Send Code Email to customer
+  try {
+    await sendIndianVPCodeIssuedEmail(order, cleanCode);
+  } catch (err) {
+    console.warn('[Issue Code Email Error]:', err);
+  }
+
+  const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  res.json({
+    message: `VP code (${cleanCode}) successfully issued and emailed to customer!`,
+    order: updated,
+    code: cleanCode
+  });
+});
+
+// Re-send VP Code email for an existing completed order
+app.post('/api/admin/orders/:id/resend-code-email', authenticate, staffOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const orderId = req.params.id;
+  const order = db.prepare(`
+    SELECT o.*, u.email as user_email, u.name as user_name
+    FROM orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.id = ?
+  `).get(orderId) as any;
+
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return;
+  }
+
+  if (!order.issued_code) {
+    res.status(400).json({ error: 'No VP code has been issued for this order yet.' });
+    return;
+  }
+
+  try {
+    await sendIndianVPCodeIssuedEmail(order, order.issued_code);
+    res.json({ message: `VP code email successfully re-sent to customer for order #${orderId}.` });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to re-send code email: ' + (err?.message || err) });
   }
 });
 
@@ -2774,7 +3596,8 @@ app.get('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res: 
     SELECT CASE WHEN package_id = 'in-7400' THEN 'vp-7400' ELSE package_id END as package_id,
            COUNT(*) as total,
            SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available,
-           SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued
+           SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued,
+           SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) as reserved
     FROM vp_codes
     GROUP BY CASE WHEN package_id = 'in-7400' THEN 'vp-7400' ELSE package_id END
   `).all();
@@ -2934,24 +3757,56 @@ app.delete('/api/admin/vp-codes/:id', authenticate, adminOnly, (req: AuthRequest
 // ==========================================
 
 app.get('/api/admin/regional-orders', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
+  const status = typeof req.query.status === 'string' ? req.query.status.toLowerCase() : 'all';
+  if (!['all', 'processing', 'completed', 'cancelled'].includes(status)) {
+    res.status(400).json({ error: 'Regional order status filter is invalid.' });
+    return;
+  }
+  const conditions = [`(
+      o.type = 'regional_vp'
+      OR (o.type = 'vp' AND (
+        LOWER(o.title) LIKE '%philippines%'
+        OR LOWER(o.title) LIKE '%malaysia%'
+        OR LOWER(o.title) LIKE '%indonesia%'
+        OR LOWER(o.title) LIKE '%singapore%'
+        OR LOWER(o.details_json) LIKE '%"region":"philippines"%'
+        OR LOWER(o.details_json) LIKE '%"region":"malaysia"%'
+        OR LOWER(o.details_json) LIKE '%"region":"indonesia"%'
+        OR LOWER(o.details_json) LIKE '%"region":"singapore"%'
+      ))
+    )`];
+  const params: string[] = [];
+  if (status !== 'all') {
+    conditions.push('LOWER(o.status) = ?');
+    params.push(status);
+  }
+
   const orders = db.prepare(`
     SELECT o.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone
     FROM orders o
     JOIN users u ON o.user_id = u.id
-    WHERE o.type = 'regional_vp'
-       OR o.title LIKE '%PHP%'
-       OR o.title LIKE '%Region%'
-       OR o.details_json LIKE '%PHP%'
-       OR o.details_json LIKE '%regional%'
+    WHERE ${conditions.join(' AND ')}
     ORDER BY o.created_at DESC
-  `).all();
+  `).all(...params);
 
   res.json({ orders });
 });
 
 app.put('/api/admin/regional-orders/:id/status', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const orderId = req.params.id;
-  const { fulfillment_status, notes } = req.body;
+  const rawStatus = req.body.fulfillment_status ?? req.body.status;
+  const requestedStatus = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : '';
+  const notesValue = req.body.notes ?? req.body.regional_notes;
+  const notes = typeof notesValue === 'string' ? notesValue.trim() : '';
+
+  if (!['processing', 'completed', 'cancelled'].includes(requestedStatus)) {
+    res.status(400).json({ error: 'Fulfillment status must be processing, completed, or cancelled.' });
+    return;
+  }
+  if (notes.length > 2000) {
+    res.status(400).json({ error: 'Regional fulfillment notes must be 2,000 characters or fewer.' });
+    return;
+  }
 
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
   if (!order) {
@@ -2959,28 +3814,81 @@ app.put('/api/admin/regional-orders/:id/status', authenticate, staffOnly, (req: 
     return;
   }
 
+  const titleLower = String(order.title || '').toLowerCase();
+  const isRegionalOrder = order.type === 'regional_vp' || (order.type === 'vp' && (
+    titleLower.includes('philippines') || titleLower.includes('malaysia') || titleLower.includes('indonesia') || titleLower.includes('singapore')
+  ));
+  if (!isRegionalOrder) {
+    res.status(404).json({ error: 'Order is not in the regional fulfillment queue.' });
+    return;
+  }
+  if (order.payment_status !== 'PAYMENT_VERIFIED') {
+    res.status(409).json({ error: 'Regional fulfillment can only change after payment is verified.' });
+    return;
+  }
+  const currentStatus = String(order.status || '').toLowerCase();
+  if (currentStatus === 'completed' || currentStatus === 'cancelled') {
+    res.status(409).json({ error: 'Completed or cancelled regional orders cannot be changed again.' });
+    return;
+  }
+  if (requestedStatus === 'completed' && !notes) {
+    res.status(400).json({ error: 'Add an operations note confirming the regional top-up before marking the order complete.' });
+    return;
+  }
+
   const now = new Date().toISOString();
   let timeline = [];
   try { timeline = order.timeline_json ? JSON.parse(order.timeline_json) : []; } catch {}
 
+  const fulfillmentStatus = requestedStatus.toUpperCase();
+  const message = requestedStatus === 'completed'
+    ? `Regional top-up completed for order #${orderId}.`
+    : requestedStatus === 'cancelled'
+      ? `Regional fulfillment for order #${orderId} was cancelled. Any refund must be handled separately.`
+      : `Regional order #${orderId} is being processed.`;
+
   timeline.push({
-    status: fulfillment_status || order.fulfillment_status,
+    status: fulfillmentStatus,
     timestamp: now,
-    note: notes || `Regional fulfillment updated to ${fulfillment_status}`,
+    note: notes || `Regional fulfillment updated to ${fulfillmentStatus}.`,
     actor: req.user!.name
   });
 
-  db.prepare(`
-    UPDATE orders SET
-      fulfillment_status = COALESCE(?, fulfillment_status),
-      status = CASE WHEN ? = 'COMPLETED' THEN 'completed' ELSE status END,
-      regional_notes = COALESCE(?, regional_notes),
-      timeline_json = ?,
-      updated_at = ?
-    WHERE id = ?
-  `).run(fulfillment_status, fulfillment_status, notes, JSON.stringify(timeline), now, orderId);
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    db.prepare(`
+      UPDATE orders SET
+        fulfillment_status = ?,
+        status = ?,
+        regional_notes = COALESCE(?, regional_notes),
+        timeline_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(fulfillmentStatus, requestedStatus, notes || null, JSON.stringify(timeline), now, orderId);
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+      VALUES (?, ?, ?, ?, 'order', 0, ?)
+    `).run(
+      'notif_' + crypto.randomBytes(8).toString('hex'),
+      order.user_id,
+      `Regional order update: #${orderId}`,
+      message,
+      now
+    );
+    logAudit(req.user!.id, req.user!.name, 'UPDATE_REGIONAL_ORDER_STATUS', 'order', orderId, { status: requestedStatus }, req.ip || '127.0.0.1');
+    const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    db.exec('COMMIT');
 
-  res.json({ message: 'Regional order fulfillment status updated.', orderId });
+    if (requestedStatus === 'completed') {
+      sendOrderFulfilledEmail(order, notes).catch((e) => console.warn('[Regional Order Fulfilled Email Error]:', e));
+    }
+
+    res.json({ message: 'Regional order fulfillment status updated.', order: updated });
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    console.error('[Regional Fulfillment Error]:', error);
+    res.status(500).json({ error: 'Regional fulfillment update failed. No partial changes were committed.' });
+  }
 });
 
 // ==========================================
@@ -3241,6 +4149,109 @@ app.get('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res: 
   res.json({ listings });
 });
 
+// Admin Directly Create & Publish Normal Account Listing
+app.post('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
+  try {
+    const {
+      title,
+      description = '',
+      price_inr,
+      rank,
+      peak_rank,
+      level = 1,
+      region = 'Asia Pacific (Mumbai)',
+      guarantee_type = 'escrow_protected',
+      seller_name,
+      seller_role = 'admin',
+      featured = false,
+      vip_plan = 'none',
+      skin_count,
+      knife_count = 0,
+      images = [],
+      skins = [],
+      status = 'published',
+      inquiry_contact = 'teamvibofficial@gmail.com'
+    } = req.body || {};
+
+    if (!title || !price_inr || !rank) {
+      res.status(400).json({ error: 'Title, price in INR, and competitive rank are mandatory fields.' });
+      return;
+    }
+
+    const listingId = 'lst_' + crypto.randomBytes(6).toString('hex');
+    const now = new Date().toISOString();
+
+    const resolvedSellerName = (seller_name && String(seller_name).trim()) || req.user?.name || 'VIB Official Vault';
+    const parsedPrice = Number(price_inr);
+    const parsedLevel = Math.max(1, parseInt(String(level), 10) || 1);
+    const parsedSkins = Array.isArray(skins) ? skins : [];
+    const parsedImages = Array.isArray(images) && images.length > 0
+      ? images
+      : ['/assets/skins/kuronami_vandal.png'];
+    const resolvedSkinCount = Number(skin_count) || parsedSkins.length;
+    const resolvedKnifeCount = Number(knife_count) || 0;
+
+    db.prepare(`
+      INSERT INTO listings (
+        id, user_id, seller_name, seller_role, guarantee_type, title, description,
+        price_inr, rank, peak_rank, level, region, skin_count, knife_count, featured,
+        vip_plan, images_json, skins_json, status, inquiry_contact, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      listingId,
+      req.user!.id,
+      resolvedSellerName,
+      seller_role,
+      guarantee_type,
+      String(title).trim(),
+      String(description).trim(),
+      parsedPrice,
+      String(rank).trim(),
+      String(peak_rank || rank).trim(),
+      parsedLevel,
+      String(region).trim(),
+      resolvedSkinCount,
+      resolvedKnifeCount,
+      featured ? 1 : 0,
+      vip_plan,
+      JSON.stringify(parsedImages),
+      JSON.stringify(parsedSkins),
+      status,
+      String(inquiry_contact).trim(),
+      now,
+      now
+    );
+
+    // Record in audit log
+    try {
+      db.prepare(`
+        INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
+        VALUES (?, ?, 'CREATE_MARKETPLACE_LISTING', 'listing', ?, ?, ?, ?)
+      `).run(
+        'aud_' + crypto.randomBytes(6).toString('hex'),
+        req.user!.id,
+        listingId,
+        `Directly created ${status} marketplace listing "${title}" (₹${parsedPrice.toLocaleString()})`,
+        req.ip || '127.0.0.1',
+        now
+      );
+    } catch {}
+
+    const created = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
+    res.status(201).json({
+      message: `Marketplace listing "${title}" successfully created and set to ${status}.`,
+      listing: {
+        ...created,
+        images: parsedImages,
+        skins: parsedSkins
+      }
+    });
+  } catch (err: any) {
+    console.error('Admin create listing error:', err);
+    res.status(500).json({ error: 'Failed to create marketplace account listing.' });
+  }
+});
+
 // Admin Approve, Reject, or Publish Listing
 app.put('/api/admin/listings/:id/status', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const listingId = req.params.id;
@@ -3498,116 +4509,94 @@ app.post('/api/admin/email-logs/:id/retry', authenticate, adminOnly, async (req:
   res.json({ message: 'Email retry dispatched.', result });
 });
 
-// ==========================================
-// 23. LIVE AUCTION HOUSE & BIDDING ENGINE
-// ==========================================
-
-// List Active Auction Lots
-app.get('/api/auctions', (req: Request, res: Response): void => {
-  const lots = db.prepare("SELECT * FROM auction_lots WHERE status = 'active' ORDER BY created_at DESC").all();
-  res.json({ lots });
-});
-
-// Single Auction Lot Details & Bid History
-app.get('/api/auctions/:id', (req: Request, res: Response): void => {
-  const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
-  if (!lot) {
-    res.status(404).json({ error: 'Auction lot not found.' });
-    return;
-  }
-  const bids = db.prepare('SELECT * FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 20').all(lot.id);
-  res.json({ lot, bids });
-});
-
-// Place Bid on Auction Lot
-app.post('/api/auctions/:id/bid', async (req: Request, res: Response): Promise<void> => {
+// Admin Email Composer: Send to specific user, segment, or all users
+app.post('/api/admin/email/compose', authenticate, staffOnly, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const lotId = req.params.id;
-    const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(lotId, lotId) as any;
-    if (!lot) {
-      res.status(404).json({ error: 'Auction lot not found.' });
+    const { recipient_type, specific_email, segment, subject, html_content, text_content } = req.body || {};
+
+    if (!subject || !html_content) {
+      res.status(400).json({ error: 'Subject and email content are required.' });
       return;
     }
 
-    if (lot.status !== 'active') {
-      res.status(400).json({ error: 'This auction lot has concluded or is not accepting bids.' });
-      return;
-    }
+    let recipients: string[] = [];
 
-    const { amount, bidder_name } = req.body || {};
-    if (amount === undefined || amount === null || String(amount).trim() === '') {
-      res.status(400).json({ error: 'A valid bid amount is required.' });
-      return;
-    }
-
-    const numAmount = Number(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      res.status(400).json({ error: 'Bid amount must be a positive number.' });
-      return;
-    }
-
-    const currentBid = Number(lot.current_bid);
-    const increment = Number(lot.bid_increment) || 150;
-    const minRequiredBid = currentBid + increment;
-
-    if (numAmount < minRequiredBid) {
-      res.status(400).json({
-        error: `Bid of ₹${numAmount.toLocaleString()} is below the minimum required bid of ₹${minRequiredBid.toLocaleString()} (+₹${increment} increment).`
-      });
-      return;
-    }
-
-    let bidderId: string | null = null;
-    let finalBidderName = bidder_name ? String(bidder_name).trim() : 'Verified Bidder';
-
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const payload = verifySignedToken(token);
-      if (payload && payload.id) {
-        const u = db.prepare('SELECT id, name FROM users WHERE id = ?').get(payload.id) as any;
-        if (u) {
-          bidderId = u.id;
-          finalBidderName = u.name;
-        }
-      } else {
-        const session = db.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ?').get(token) as any;
-        if (session) {
-          bidderId = session.id;
-          finalBidderName = session.name;
-        }
+    if (recipient_type === 'specific') {
+      if (!specific_email || !specific_email.includes('@')) {
+        res.status(400).json({ error: 'Valid recipient email address is required.' });
+        return;
       }
+      recipients = [specific_email.trim()];
+    } else if (recipient_type === 'segment') {
+      if (segment === 'buyers') {
+        const rows = db.prepare("SELECT DISTINCT user_email FROM orders WHERE status = 'completed' AND user_email IS NOT NULL").all() as any[];
+        recipients = rows.map(r => r.user_email).filter(Boolean);
+      } else if (segment === 'renters') {
+        const rows = db.prepare("SELECT DISTINCT u.email FROM rental_bookings rb JOIN users u ON rb.user_id = u.id").all() as any[];
+        recipients = rows.map(r => r.email).filter(Boolean);
+      } else if (segment === 'bidders') {
+        const rows = db.prepare("SELECT DISTINCT u.email FROM auction_bids ab JOIN users u ON ab.bidder_id = u.id").all() as any[];
+        recipients = rows.map(r => r.email).filter(Boolean);
+      } else {
+        const rows = db.prepare("SELECT email FROM users WHERE role = 'customer' AND email IS NOT NULL").all() as any[];
+        recipients = rows.map(r => r.email).filter(Boolean);
+      }
+    } else {
+      // 'all' registered users
+      const rows = db.prepare("SELECT email FROM users WHERE email IS NOT NULL").all() as any[];
+      recipients = rows.map(r => r.email).filter(Boolean);
     }
 
-    const bidId = 'bid_' + crypto.randomBytes(6).toString('hex');
-    const now = new Date().toISOString();
+    // Deduplicate emails
+    recipients = Array.from(new Set(recipients));
 
-    db.prepare(`
-      INSERT INTO auction_bids (id, lot_id, user_id, bidder_name, amount, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(bidId, lot.id, bidderId, finalBidderName, numAmount, now);
+    if (recipients.length === 0) {
+      res.status(400).json({ error: 'No matching recipients found for the selected audience.' });
+      return;
+    }
 
-    db.prepare(`
-      UPDATE auction_lots
-      SET current_bid = ?, bid_count = bid_count + 1, highest_bidder_id = ?, highest_bidder_name = ?, updated_at = ?
-      WHERE id = ?
-    `).run(numAmount, bidderId, finalBidderName, now, lot.id);
+    let deliveredCount = 0;
+    let failedCount = 0;
 
-    const updatedLot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id) as any;
-    const recentBids = db.prepare('SELECT * FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 20').all(lot.id);
-    const newBid = { id: bidId, lot_id: lot.id, user_id: bidderId, bidder_name: finalBidderName, amount: numAmount, created_at: now };
+    for (const email of recipients) {
+      const res = await sendEmail({
+        to: email,
+        subject,
+        html: html_content,
+        text: text_content || subject,
+        templateName: 'admin_broadcast',
+        context: { sender: req.user!.name, recipient_type, segment }
+      });
+      if (res.success) deliveredCount++;
+      else failedCount++;
+    }
+
+    logAudit(req.user!.id, req.user!.name, 'DISPATCH_BROADCAST_EMAIL', 'email', 'broadcast', {
+      subject,
+      recipient_type,
+      segment,
+      total_recipients: recipients.length,
+      delivered: deliveredCount,
+      failed: failedCount
+    }, req);
 
     res.json({
-      message: `Bid of ₹${numAmount.toLocaleString()} placed successfully! You are currently the highest bidder.`,
-      lot: updatedLot,
-      bid: newBid,
-      bids: recentBids
+      message: `Broadcast completed. Dispatched to ${deliveredCount} recipient(s).`,
+      total: recipients.length,
+      delivered: deliveredCount,
+      failed: failedCount
     });
   } catch (err: any) {
-    console.error('Auction bid error:', err);
-    res.status(500).json({ error: 'Server error while processing bid.' });
+    console.error('Email compose error:', err);
+    res.status(500).json({ error: 'Failed to dispatch email campaign.' });
   }
 });
+
+// ==========================================
+// 23. LIVE AUCTION HOUSE, RENTALS & LEGAL OVERHAUL ENGINE
+// ==========================================
+
+registerOverhaulRoutes(app, db, authenticate, adminOnly);
 
 // Start Express Server
 if (!process.env.VERCEL) {

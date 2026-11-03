@@ -14,14 +14,17 @@ import {
   Loader2,
   Edit2,
   Trash2,
+  Plus,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { AdminCreateListingSection } from './AdminCreateListingSection';
 
 export const AdminListingsModeration: React.FC = () => {
   const { token, isAdmin } = useAuth();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('submitted');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Rejection modal
   const [selectedRejectListing, setSelectedRejectListing] = useState<any | null>(null);
@@ -194,7 +197,16 @@ export const AdminListingsModeration: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-rajdhani font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(147,51,234,0.4)]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Normal Account</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchListings}
@@ -279,7 +291,7 @@ export const AdminListingsModeration: React.FC = () => {
                         <div className="text-gray-400 font-mono text-[11px]">
                           Seller: {item.seller_name || item.seller_id}
                         </div>
-                        <div className="text-gray-500 text-[10px]">Level {item.account_level || 1}</div>
+                        <div className="text-gray-500 text-[10px]">Level {item.level ?? item.account_level ?? 1}</div>
                       </td>
 
                       <td className="p-3.5">
@@ -467,7 +479,7 @@ export const AdminListingsModeration: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-white/5 p-3 rounded-xl">
                 <div>Rank: <strong className="text-white">{selectedPreviewListing.rank_tier}</strong></div>
-                <div>Level: <strong className="text-white">{selectedPreviewListing.account_level}</strong></div>
+                <div>Level: <strong className="text-white">{selectedPreviewListing.level ?? selectedPreviewListing.account_level ?? 1}</strong></div>
                 <div>Region: <strong className="text-white uppercase">{selectedPreviewListing.region}</strong></div>
                 <div>VIP Plan: <strong className="text-amber-400">{selectedPreviewListing.vip_plan_id || 'None'}</strong></div>
               </div>
@@ -630,6 +642,23 @@ export const AdminListingsModeration: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DIRECT CREATE MARKETPLACE ACCOUNT LISTING MODAL */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-4xl bg-[#0c081b] border border-purple-500/40 rounded-3xl overflow-hidden shadow-2xl">
+            <AdminCreateListingSection
+              isModal
+              onClose={() => setShowCreateModal(false)}
+              onSuccess={() => {
+                setShowCreateModal(false);
+                setStatusFilter('published');
+                fetchListings();
+              }}
+            />
           </div>
         </div>
       )}

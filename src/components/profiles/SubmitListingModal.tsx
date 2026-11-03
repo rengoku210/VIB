@@ -269,11 +269,7 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
           skin_count: selectedSkins.length,
           knife_count: Number(knifeCount) || 0,
           vip_plan: vipPlan,
-          images: images.length > 0
-            ? images
-            : (initialListing?.images && initialListing.images.length > 0
-                ? initialListing.images
-                : ['/assets/hires/profiles/card1_omen.jpg']),
+          images,
           skins: selectedSkins,
           submitForReview
         })

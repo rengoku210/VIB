@@ -16,53 +16,11 @@ export interface RiotVerificationResult {
   error?: string;
 }
 
-// Known verified professional / benchmark players and platform test accounts
-const PRESEEDED_ACCOUNTS = [
-  { name: 'TenZ', tag: '0001', region: 'na', level: 245, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'ShahZaM', tag: '1111', region: 'na', level: 198, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'Chronicle', tag: '1337', region: 'eu', level: 210, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'Boaster', tag: 'EUW', region: 'eu', level: 260, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'Derke', tag: 'EU1', region: 'eu', level: 220, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'cNed', tag: 'TR1', region: 'eu', level: 195, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'ScreaM', tag: 'EUW', region: 'eu', level: 230, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'yay', tag: '0001', region: 'na', level: 250, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'forsaken', tag: 'PRX', region: 'ap', level: 215, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'Jinggg', tag: 'PRX', region: 'ap', level: 205, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'something', tag: 'PRX', region: 'ap', level: 210, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'Phantom', tag: 'VIB', region: 'ap', level: 140, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'ValorantPlayer', tag: '1234', region: 'ap', level: 68, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-  { name: 'PhoenixAim', tag: 'IND1', region: 'ap', level: 85, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'VIB_Director', tag: 'EXEC', region: 'ap', level: 300, card: 'https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png' },
-  { name: 'AlexMercer', tag: '0001', region: 'ap', level: 112, card: 'https://media.valorant-api.com/playercards/33857e4e-4e4b-9e45-d41c-389d380e9222/smallart.png' },
-];
-
 // Explicit blacklisted fake / mock terms that represent invalid Valorant IDs
 const KNOWN_INVALID_NAMES = new Set([
   'fake', 'fakeid', 'invalid', 'test', 'tester', 'none', 'null', 'undefined',
   'asdf', 'qwerty', '12345', 'noone', 'nobody', 'sample'
 ]);
-
-/**
- * Pre-seed known benchmark accounts into sqlite cache table
- */
-export function seedRiotAccounts(): void {
-  try {
-    const now = new Date().toISOString();
-    const insertStmt = db.prepare(`
-      INSERT OR IGNORE INTO riot_accounts (id, game_name, tag_line, riot_id, puuid, region, account_level, card_small, verified, source, verified_at, last_checked_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'preseeded', ?, ?)
-    `);
-
-    for (const acc of PRESEEDED_ACCOUNTS) {
-      const riotId = `${acc.name}#${acc.tag}`;
-      const id = 'riot_' + crypto.createHash('md5').update(riotId.toLowerCase()).digest('hex').substring(0, 12);
-      const mockPuuid = 'puuid_' + crypto.createHash('sha256').update(riotId.toLowerCase()).digest('hex');
-      insertStmt.run(id, acc.name, acc.tag, riotId, mockPuuid, acc.region, acc.level, acc.card, now, now);
-    }
-  } catch (err) {
-    console.warn('[Riot] Error seeding riot_accounts:', err);
-  }
-}
 
 /**
  * Parse and validate Riot Games syntax
@@ -171,7 +129,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
   if (KNOWN_INVALID_NAMES.has(lowerName) || KNOWN_INVALID_NAMES.has(lowerTag)) {
     return {
       exists: false,
-      verified: true,
+      verified: false,
       gameName,
       tagLine,
       riotId,
@@ -190,7 +148,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
     `).get(riotId) as any;
 
     if (cached) {
-      if (cached.verified === 1) {
+      if (cached.verified === 1 && ['riot_official_api', 'henrik_api'].includes(cached.source)) {
         return {
           exists: true,
           verified: true,
@@ -204,7 +162,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
           source: 'verified_registry',
           message: `Legitimate Valorant account confirmed (Region: ${String(cached.region).toUpperCase()}, Level: ${cached.account_level || 'Active'}).`
         };
-      } else {
+      } else if (cached.verified === 0) {
         return {
           exists: false,
           verified: true,
@@ -226,6 +184,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
     const regionalShards = ['asia', 'americas', 'europe', 'esports'];
     let riotMatch: any = null;
     let foundShard = 'global';
+    let requestFailed = false;
 
     for (const shard of regionalShards) {
       try {
@@ -244,9 +203,11 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
         } else if (response.status === 404) {
           // Not in this regional shard, try next
           continue;
+        } else {
+          requestFailed = true;
         }
       } catch (e) {
-        // Network timeout / connection error on shard
+        requestFailed = true;
       }
     }
 
@@ -272,6 +233,19 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
         message: `Real Valorant ID verified directly through Riot Games API (${foundShard.toUpperCase()}).`
       };
     } else {
+      if (requestFailed) {
+        return {
+          exists: false,
+          verified: false,
+          gameName,
+          tagLine,
+          riotId,
+          source: 'riot_official_api',
+          error: 'Riot verification could not be completed. Check the API key and service connection, then try again.',
+          message: 'Riot ID verification is temporarily unavailable.'
+        };
+      }
+
       // 404 across all Riot regional shards
       return {
         exists: false,
@@ -339,7 +313,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
     }
   }
 
-  // 4. Check if existing user in the database already has this registered and verified Riot ID
+  // 4. Check if existing user in the database already has this registered Riot ID
   try {
     const existingUser = db.prepare(`
       SELECT riot_id, name FROM users WHERE riot_id = ? COLLATE NOCASE
@@ -353,7 +327,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
         tagLine,
         riotId,
         source: 'verified_registry',
-        message: `Legitimate Valorant account recognized on VIB platform (${riotId}).`
+        message: `Valorant account recognized on VIB platform (${riotId}).`
       };
     }
   } catch {}
@@ -362,16 +336,13 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
   // Ensures legitimate format, region prefix recognition, and non-random generation
   const knownRegionPrefixes = ['ind', 'ap', 'na', 'eu', 'kr', 'br', 'latam', 'oce', 'sea', 'lan', 'las', 'tr', 'ru'];
   const hasRegionTag = knownRegionPrefixes.some(p => lowerTag.startsWith(p));
-  const isNumericTag = /^\d{3,5}$/.test(tagLine);
 
-  // If tagline matches valid regional or standard numeric identifier, or custom alphanumeric tag
   const regionInferred = hasRegionTag
     ? (lowerTag.startsWith('ind') || lowerTag.startsWith('ap') || lowerTag.startsWith('sea') ? 'ap'
       : lowerTag.startsWith('na') ? 'na'
       : lowerTag.startsWith('eu') || lowerTag.startsWith('tr') ? 'eu' : 'global')
     : 'ap';
 
-  // Cache legitimate player
   const generatedPuuid = 'puuid_' + crypto.createHash('sha256').update(riotId.toLowerCase()).digest('hex').substring(0, 32);
   const recordId = 'riot_' + crypto.createHash('md5').update(riotId.toLowerCase()).digest('hex').substring(0, 12);
 

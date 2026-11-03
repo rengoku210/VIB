@@ -91,7 +91,8 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
   const handleBuy = (vp: string, price: number, region: string, productId?: string) => {
     const vpClean = vp.replace(/[^0-9]/g, '');
-    const mappedId = productId || `vp-${vpClean}`;
+    const regionPrefix = region.toLowerCase().startsWith('philippines') ? 'vp-ph' : 'vp-in';
+    const mappedId = productId || `${regionPrefix}-${vpClean}`;
     onOpenCheckout(`${vp} (${region} Top-Up)`, price, mappedId);
   };
 
@@ -295,121 +296,119 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
         {/* 2 Regional Cards Grid (Indian vs PHP) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Indian Region Card */}
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#120d28] via-[#0c091a] to-[#070510] border border-purple-500/30 p-6 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-purple-500/50 transition-all">
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 relative z-10">
-              <div className="space-y-3 max-w-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-900/40 border border-purple-500/30 flex items-center justify-center flex-shrink-0 shadow-md">
-                    <IndiaFlag className="w-6 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black uppercase text-white font-rajdhani tracking-wide">
-                      INDIAN REGION VP
-                    </h3>
-                    <p className="text-[11px] text-gray-400">
-                      Top up your Indian region account at the best rates.
-                    </p>
-                  </div>
+          <div className="relative rounded-2xl bg-[#0c081b] border border-purple-500/30 p-5 sm:p-7 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-purple-500/50 transition-all min-h-[260px]">
+            {/* Full-bleed Reference Part 09 (Indian Agent + Taj Mahal Glow) */}
+            <img
+              src="/assets/reference_parts/part_09.png"
+              alt="Indian VP Agent Part 09"
+              className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-70 sm:opacity-85"
+            />
+            {/* Seamless background gradient - dark on left for text legibility, transparent on right for agent artwork */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0c081b] via-[#0c081b]/95 to-transparent sm:via-[#0c081b]/80 z-0 pointer-events-none" />
+
+            <div className="relative z-10 space-y-3.5 max-w-sm sm:max-w-md w-full">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-900/60 border border-purple-400/40 flex items-center justify-center flex-shrink-0 shadow-md">
+                  <IndiaFlag className="w-6 h-4" />
                 </div>
-
-                <ul className="space-y-1.5 pt-2 text-xs text-gray-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Official Region Top Ups</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Competitive Pricing</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Instant Delivery</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Multiple Packs Available</span>
-                  </li>
-                </ul>
-
-                <div className="pt-3">
-                  <button
-                    onClick={() => onNavigate('vp-catalog')}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)] flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>View Indian VP Packs</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black uppercase text-white font-rajdhani tracking-wide drop-shadow-md">
+                    INDIAN REGION VP
+                  </h3>
+                  <p className="text-xs text-purple-200/90 font-medium">
+                    Top up your Indian region account at the best rates.
+                  </p>
                 </div>
               </div>
 
-              {/* Full-bleed Reference Part 09 (Indian Agent + Taj Mahal Glow) */}
-              <img
-                src="/assets/reference_parts/part_09.png"
-                alt="Indian VP Agent Part 09"
-                className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-85"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#12081f] via-[#12081f]/75 to-transparent z-[1] pointer-events-none" />
+              <ul className="space-y-1.5 pt-1 text-xs text-gray-200 font-medium">
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>Official Region Top Ups</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>Competitive Pricing</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>Instant Delivery</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>Multiple Packs Available</span>
+                </li>
+              </ul>
+
+              <div className="pt-2">
+                <button
+                  onClick={() => onNavigate('vp-catalog')}
+                  className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(147,51,234,0.4)] flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400"
+                >
+                  <span>View Indian VP Packs</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* PHP Region Card */}
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#0c1328] via-[#090d1c] to-[#050810] border border-blue-500/30 p-6 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-blue-500/50 transition-all">
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 relative z-10">
-              <div className="space-y-3 max-w-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-900/40 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-md">
-                    <PhilippinesFlag className="w-6 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black uppercase text-white font-rajdhani tracking-wide">
-                      PHP REGION VP
-                    </h3>
-                    <p className="text-[11px] text-gray-400">
-                      Top up your Philippines region account with ease.
-                    </p>
-                  </div>
+          <div className="relative rounded-2xl bg-[#070b1a] border border-blue-500/30 p-5 sm:p-7 overflow-hidden shadow-xl flex flex-col justify-between group hover:border-blue-500/50 transition-all min-h-[260px]">
+            {/* Full-bleed Reference Part 11 (PHP Agent + Manila Skyline) */}
+            <img
+              src="/assets/reference_parts/part_11.png"
+              alt="PHP VP Agent Part 11"
+              className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-70 sm:opacity-85"
+            />
+            {/* Seamless background gradient - dark on left for text legibility, transparent on right for agent artwork */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#070b1a] via-[#070b1a]/95 to-transparent sm:via-[#070b1a]/80 z-0 pointer-events-none" />
+
+            <div className="relative z-10 space-y-3.5 max-w-sm sm:max-w-md w-full">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-900/60 border border-blue-400/40 flex items-center justify-center flex-shrink-0 shadow-md">
+                  <PhilippinesFlag className="w-6 h-4" />
                 </div>
-
-                <ul className="space-y-1.5 pt-2 text-xs text-gray-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Official Region Top Ups</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Better Pricing Options</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Instant Delivery</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Wide Pack Selection</span>
-                  </li>
-                </ul>
-
-                <div className="pt-3">
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('php-packs-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-600 hover:to-cyan-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>View PHP VP Packs</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black uppercase text-white font-rajdhani tracking-wide drop-shadow-md">
+                    PHP REGION VP
+                  </h3>
+                  <p className="text-xs text-blue-200/90 font-medium">
+                    Top up your Philippines region account with ease.
+                  </p>
                 </div>
               </div>
 
-              {/* Full-bleed Reference Part 11 (PHP Agent + Manila Skyline) */}
-              <img
-                src="/assets/reference_parts/part_11.png"
-                alt="PHP VP Agent Part 11"
-                className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-85"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#090d1c] via-[#090d1c]/85 to-[#090d1c]/15 z-[1] pointer-events-none" />
+              <ul className="space-y-1.5 pt-1 text-xs text-gray-200 font-medium">
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                  <span>Official Region Top Ups</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                  <span>Better Pricing Options</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                  <span>Instant Delivery</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                  <span>Wide Pack Selection</span>
+                </li>
+              </ul>
+
+              <div className="pt-2">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('php-packs-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-600 hover:to-cyan-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.4)] flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400"
+                >
+                  <span>View PHP VP Packs</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -507,7 +506,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           <div className="absolute right-10 top-0 w-80 h-full bg-fuchsia-600/20 blur-3xl pointer-events-none" />
 
           {/* Left Content */}
-          <div className="space-y-4 max-w-xl z-10">
+          <div className="space-y-4 max-w-xl relative z-10">
             <div className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest text-[#e879f9] uppercase font-bold">
               <Sparkles className="w-3.5 h-3.5 text-[#e879f9]" />
               <span>VIB EXPERIENCE PROGRAM</span>

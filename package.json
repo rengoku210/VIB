@@ -8,12 +8,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "server": "tsx server/index.ts",
+    "server": "tsx watch server/index.ts",
     "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"magenta,cyan\" \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:order-flow": "tsx scripts/test-order-data-flow.ts",
+    "test:vercel-api": "tsx scripts/test-vercel-api-adapter.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

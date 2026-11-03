@@ -28,7 +28,7 @@ import { EscrowModal } from '../home/EscrowModal';
 interface ClientRankupPageProps {
   currency: Currency;
   onNavigate: (page: ClientPage) => void;
-  onOpenCheckout: (title: string, price: number) => void;
+  onOpenCheckout: (title: string, price: number, productId?: string, rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' }) => void;
 }
 
 const RANK_TIERS = [
@@ -52,26 +52,34 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const rankBadges = useRankBadges();
 
+  const handleSelectJourney = (type: 'rankup' | 'derank') => {
+    setJourneyType(type);
+    const el = document.getElementById('rank-calculator');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white space-y-12 pb-20 font-sans">
       {/* ========================================================================= */}
       {/* 1. HERO HEADER: RANKUP & DERANK SERVICES (Matching Reference 3)            */}
       {/* ========================================================================= */}
-      <section className="relative w-full min-h-[280px] sm:min-h-[340px] flex items-center pt-8 pb-6 border-b border-white/5">
-        {/* Atmospheric Ambient Glows */}
-        <div className="absolute top-1/4 left-1/4 w-[550px] h-[320px] bg-purple-600/15 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[250px] bg-cyan-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10 space-y-6">
-          {/* Full-bleed Reference Part 14 background with gradient overlay */}
+      <section className="relative w-full min-h-[280px] sm:min-h-[340px] flex items-center pt-8 pb-6 border-b border-white/5 overflow-hidden">
+        {/* Full-bleed Reference Part 14 background with gradient overlay */}
         <img
           src="/assets/reference_parts/part_14.png"
           alt="Esports Champion Trophy"
-          className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-90"
+          className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-80"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#05040a] via-[#05040a]/85 to-[#05040a]/15 z-[1]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#05040a] via-[#05040a]/85 to-[#05040a]/20 z-[1]" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#05040a] via-transparent to-transparent z-[1]" />
 
+        {/* Atmospheric Ambient Glows */}
+        <div className="absolute top-1/4 left-1/4 w-[550px] h-[320px] bg-purple-600/15 rounded-full blur-[120px] pointer-events-none z-[1]" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[250px] bg-cyan-600/10 rounded-full blur-[100px] pointer-events-none z-[1]" />
+
+        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10 space-y-6">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-xs text-gray-400 font-mono relative z-10">
             <button
@@ -108,7 +116,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Card 1: RANKUP SERVICES (Blue / Cyan Glow) */}
               <div
-                onClick={() => setJourneyType('rankup')}
+                onClick={() => handleSelectJourney('rankup')}
                 className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                   journeyType === 'rankup'
                     ? 'bg-gradient-to-br from-[#0b1426] via-[#0d1b33] to-[#070b16] border-cyan-500/60 shadow-[0_0_25px_rgba(6,182,212,0.25)]'
@@ -150,7 +158,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
 
               {/* Card 2: DERANK SERVICES (Red / Rose Glow) */}
               <div
-                onClick={() => setJourneyType('derank')}
+                onClick={() => handleSelectJourney('derank')}
                 className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                   journeyType === 'derank'
                     ? 'bg-gradient-to-br from-[#260b14] via-[#330d1b] to-[#16070b] border-rose-500/60 shadow-[0_0_25px_rgba(244,63,94,0.25)]'
@@ -185,16 +193,8 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
                 </div>
 
                 <div className="pt-4 mt-3 border-t border-rose-500/20 flex items-center justify-between text-xs font-bold text-rose-400 font-rajdhani">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenCheckout('Valorant Derank Service Consultation', 499);
-                    }}
-                    className="hover:underline flex items-center gap-1.5"
-                  >
-                    <span>Book Derank Service (From ₹499)</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  <span>Configure D-Rank Journey</span>
+                  <ArrowRight className="w-4 h-4" />
                 </div>
               </div>
             </div>
@@ -322,7 +322,12 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
       {/* 3. INTERACTIVE RANK PROGRESSION CALCULATOR                                 */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <RankProgressionCalculator currency={currency} />
+        <RankProgressionCalculator
+          currency={currency}
+          journeyType={journeyType}
+          onJourneyTypeChange={setJourneyType}
+          onBook={(quote, title, price) => onOpenCheckout(title, price, undefined, quote)}
+        />
       </section>
 
       {/* ========================================================================= */}
@@ -600,9 +605,9 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 font-black text-base flex items-center justify-center font-rajdhani">
               02
             </div>
-            <h3 className="font-bold text-base text-white font-rajdhani">Direct WhatsApp Booking</h3>
+            <h3 className="font-bold text-base text-white font-rajdhani">Secure Checkout & Order Tracking</h3>
             <p className="text-xs text-gray-400 leading-relaxed">
-              Click Book on WhatsApp to connect with our dispatch team. Submit payment proof via UPI/QR and receive your assigned booster details.
+              Review your server-priced quote at checkout, place your order, and track payment verification and fulfillment from your account dashboard.
             </p>
           </div>
 

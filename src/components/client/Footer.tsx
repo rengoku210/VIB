@@ -3,7 +3,7 @@ import { Instagram, Disc as Discord, Youtube, Send, ArrowUp, Heart } from 'lucid
 import { ClientPage } from './Header';
 
 interface FooterProps {
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, slug?: string) => void;
   onOpenTracking?: () => void;
 }
 
@@ -40,50 +40,50 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTracking }) =>
           <nav aria-label="Footer Navigation" className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[12px]">
             <button
               type="button"
-              onClick={() => onNavigate('services')}
-              className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-            >
-              About Us
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('services')}
+              onClick={() => onNavigate('legal', 'terms-of-service')}
               className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               Terms of Service
             </button>
             <button
               type="button"
-              onClick={() => onNavigate('services')}
+              onClick={() => onNavigate('legal', 'privacy-policy')}
               className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
-              Privacy Policy
+              Privacy (DPDPA)
             </button>
             <button
               type="button"
-              onClick={() => onNavigate('services')}
+              onClick={() => onNavigate('legal', 'refund-policy')}
               className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               Refund Policy
             </button>
             <button
               type="button"
-              onClick={() => onNavigate('community')}
+              onClick={() => onNavigate('legal', 'auction-rules')}
               className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
-              Community Guidelines
+              Auction Rules
             </button>
             <button
               type="button"
-              onClick={() => onNavigate('support')}
+              onClick={() => onNavigate('legal', 'account-rental-agreement')}
               className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
-              Contact
+              Rental Agreement
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('legal', 'grievance-redressal')}
+              className="min-h-[40px] px-2 py-1 flex items-center hover:text-white transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            >
+              Grievance Officer
             </button>
             {onOpenTracking && (
               <button
                 type="button"
-                onClick={onOpenTracking}
+                onClick={() => onOpenTracking()}
                 className="min-h-[40px] px-2.5 py-1 flex items-center text-emerald-400 hover:text-emerald-300 font-bold transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
               >
                 Track Live Order

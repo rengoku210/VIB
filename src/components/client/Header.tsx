@@ -35,6 +35,7 @@ export type ClientPage =
   | 'rentals'
   | 'coaching'
   | 'auctions'
+  | 'legal'
   | 'community'
   | 'support'
   | 'dashboard'
@@ -183,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
           isHeaderVisible ? 'translate-y-0 shadow-lg' : '-translate-y-full pointer-events-none'
         }`}
       >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
+        <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
         {/* Left: Brand & Navigation Links grouped together */}
         <div className="flex items-center gap-3 sm:gap-4 xl:gap-6 shrink-0">
           {/* Hamburger & Brand */}
@@ -454,49 +455,55 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Authenticated Controls vs Login/Sign Up */}
           {user ? (
             <div className="hidden sm:flex items-center gap-2">
-              {isStaff && (
+              {isStaff ? (
                 <button
                   type="button"
                   onClick={() => handleNav('admin')}
-                  className={`min-h-[44px] text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`min-h-[44px] text-xs font-bold px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-2 ${
                     currentPage === 'admin'
                       ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.5)]'
-                      : 'border-amber-500/30 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60'
+                      : 'border-amber-500/40 bg-amber-950/60 text-amber-200 hover:bg-amber-900/80 hover:border-amber-400/60'
+                  }`}
+                  title="VIB Staff Administration Console"
+                >
+                  <div className="w-5 h-5 rounded-full overflow-hidden border border-amber-400/60 flex-shrink-0 bg-amber-600/30 flex items-center justify-center">
+                    <Award className="w-3 h-3 text-amber-300" />
+                  </div>
+                  <span>Admin Console</span>
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-900/90 text-amber-300 uppercase">
+                    {user.role}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleNav('dashboard')}
+                  className={`min-h-[44px] text-xs font-bold px-3.5 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-2 ${
+                    currentPage === 'dashboard'
+                      ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'
+                      : 'border-purple-500/30 bg-[#120f26] text-purple-200 hover:bg-purple-950/70 hover:border-purple-500/60'
                   }`}
                 >
-                  <Award className="w-3.5 h-3.5" />
-                  <span>Admin Console</span>
+                  <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-400/40 flex-shrink-0">
+                    <img
+                      src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span>{user.name.split(' ')[0]}</span>
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-900/80 text-purple-300 uppercase">
+                    {user.role}
+                  </span>
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={() => handleNav('dashboard')}
-                className={`min-h-[44px] text-xs font-bold px-3.5 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-2 ${
-                  currentPage === 'dashboard'
-                    ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'
-                    : 'border-purple-500/30 bg-[#120f26] text-purple-200 hover:bg-purple-950/70 hover:border-purple-500/60'
-                }`}
-              >
-                <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-400/40 flex-shrink-0">
-                  <img
-                    src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
-                    alt={user.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span>{user.name.split(' ')[0]}</span>
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-900/80 text-purple-300 uppercase">
-                  {user.role}
-                </span>
-              </button>
 
               <button
                 type="button"
                 onClick={logout}
                 aria-label="Logout"
                 title="Logout"
-                className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                className="hidden lg:flex min-h-[44px] min-w-[44px] p-2 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -707,23 +714,31 @@ export const Header: React.FC<HeaderProps> = ({
 
             {user ? (
               <div className="flex items-center gap-1.5 flex-wrap">
-                {isStaff && (
+                {isStaff ? (
                   <button
                     type="button"
-                    onClick={() => handleNav('admin')}
-                    className="min-h-[44px] px-2.5 py-1.5 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-bold font-rajdhani uppercase"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleNav('admin');
+                    }}
+                    className="min-h-[44px] px-3 py-1.5 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-bold font-rajdhani uppercase flex items-center gap-1.5"
                   >
-                    Admin
+                    <Award className="w-3.5 h-3.5" />
+                    <span>Admin Console</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleNav('dashboard');
+                    }}
+                    className="min-h-[44px] px-3 py-1.5 rounded-lg bg-purple-950/80 border border-purple-500/40 text-purple-200 text-xs font-bold font-rajdhani uppercase flex items-center gap-1.5"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <span>Dashboard</span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleNav('dashboard')}
-                  className="min-h-[44px] px-3 py-1.5 rounded-lg bg-purple-950/80 border border-purple-500/40 text-purple-200 text-xs font-bold font-rajdhani uppercase flex items-center gap-1.5"
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                  <span>Dashboard</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => {

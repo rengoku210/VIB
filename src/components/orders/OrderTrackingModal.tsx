@@ -39,7 +39,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   onOpenOrderRoom,
 }) => {
   const { token, user } = useAuth();
-  const [searchOrderId, setSearchOrderId] = useState(initialOrderId || '');
+  const [searchOrderId, setSearchOrderId] = useState(typeof initialOrderId === 'string' ? initialOrderId : '');
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,14 +85,14 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   }, []);
 
   useEffect(() => {
-    if (initialOrderId && isOpen) {
+    if (typeof initialOrderId === 'string' && initialOrderId && isOpen) {
       setSearchOrderId(initialOrderId);
       fetchOrderTracking(initialOrderId);
     }
   }, [initialOrderId, isOpen]);
 
   const fetchOrderTracking = async (id: string) => {
-    if (!id || !id.trim()) return;
+    if (typeof id !== 'string' || !id.trim()) return;
     setLoading(true);
     setError(null);
     try {
@@ -159,7 +159,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 
   const handleSubmitEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!utrRef.trim() || !order) return;
+    if (!/^\d{12}$/.test(utrRef) || !order) return;
     setIsSubmittingEvidence(true);
     setEvidenceError(null);
 
@@ -269,9 +269,13 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isPaymentVerified = order?.payment_status === 'PAYMENT_VERIFIED' || order?.status === 'completed';
+  const isPaymentVerified = order?.payment_status === 'PAYMENT_VERIFIED';
   const isAutomaticDelivery = Boolean(order?.issued_code);
-  const isManualDelivery = isPaymentVerified && !isAutomaticDelivery;
+  const isFulfillmentTerminal = ['COMPLETED', 'CANCELLED'].includes(
+    String(order?.fulfillment_status || '').toUpperCase()
+  ) || String(order?.status || '').toLowerCase() === 'completed';
+  const isManualDelivery = isPaymentVerified && !isAutomaticDelivery && !isFulfillmentTerminal;
+  const isValidUtr = /^\d{12}$/.test(utrRef);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
@@ -453,7 +457,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                 </div>
 
                 <p className="text-[11px] text-emerald-300/90 font-rajdhani">
-                  ✓ An official confirmation email with this PIN has also been sent to your registered email address.
+                  ✓ This code is saved with your order and remains available here in live tracking.
                 </p>
 
                 {/* In-game redemption instructions */}
@@ -640,17 +644,28 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                     <input
                       type="text"
                       required
+                      inputMode="numeric"
+                      pattern="[0-9]{12}"
+                      maxLength={12}
                       value={utrRef}
-                      onChange={(e) => setUtrRef(e.target.value)}
+                      onChange={(e) => setUtrRef(e.target.value.replace(/\D/g, '').slice(0, 12))}
                       placeholder="e.g. 428190184712"
                       className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs focus:ring-2 focus:ring-purple-400"
                     />
+                    <div className="flex items-center justify-between text-[11px] font-mono mt-1 px-1">
+                      <span className={isValidUtr ? 'text-emerald-400' : 'text-gray-400'}>
+                        {isValidUtr ? '✓ 12-digit UTR ready' : '12-digit numeric bank reference'}
+                      </span>
+                      <span className={isValidUtr ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                        {utrRef.length}/12
+                      </span>
+                    </div>
                   </div>
 
                   {/* Drag-and-drop or select Screenshot */}
                   <div>
                     <label className="block text-[11px] font-mono text-gray-300 uppercase mb-1">
-                      Payment Screenshot *
+                      Payment Screenshot (Optional)
                     </label>
 
                     <input
@@ -734,7 +749,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 
                   <button
                     type="submit"
-                    disabled={isSubmittingEvidence || !utrRef.trim()}
+                    disabled={isSubmittingEvidence || !isValidUtr}
                     className="w-full min-h-[44px] py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold font-rajdhani uppercase text-sm text-black transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2 shadow-lg"
                   >
                     {isSubmittingEvidence ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -813,19 +828,48 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
             onClick={() => setZoomScreenshot(null)}
             className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer"
           >
-            <div className="relative max-w-3xl max-h-[85vh] p-2 bg-[#0c0d1c] border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
-              <button
-                type="button"
-                onClick={() => setZoomScreenshot(null)}
-                className="absolute top-4 right-4 p-2 rounded-lg bg-black/60 text-white hover:bg-black/80 cursor-pointer z-10"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <img
-                src={zoomScreenshot}
-                alt="Payment Receipt Zoom"
-                className="max-h-[80vh] w-auto object-contain rounded-xl mx-auto"
-              />
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-3xl w-full max-h-[88vh] bg-[#0c0d1c] border border-white/20 rounded-2xl overflow-hidden shadow-2xl flex flex-col cursor-default"
+            >
+              <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-white/[0.03]">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-mono font-bold text-gray-200">Submitted Receipt Screenshot</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={zoomScreenshot}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-rajdhani font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Full Image</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setZoomScreenshot(null)}
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
+                    aria-label="Close Preview"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
+                <img
+                  src={zoomScreenshot}
+                  alt="Payment Receipt Zoom"
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.src.includes(':5000') && zoomScreenshot.startsWith('/uploads')) {
+                      img.src = `${zoomScreenshot}`;
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}

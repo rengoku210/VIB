@@ -16,6 +16,6 @@ Method 1 (Instant 1-Click - Recommended):
 
 Method 2 (Manual Dev Server):
   1. Open a terminal in this folder.
-  2. Run: npm run dev
+  2. Run: npm run dev:all
   3. Open http://localhost:3000 in your browser.
 ========================================================

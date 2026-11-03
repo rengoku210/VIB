@@ -20,13 +20,15 @@ import { OrderTrackingModal } from './components/orders/OrderTrackingModal';
 import { DiscordModal } from './components/home/DiscordModal';
 import { EscrowModal } from './components/home/EscrowModal';
 import { ListingDetailPage } from './components/profiles/ListingDetailPage';
+import { LegalPage } from './components/legal/LegalPage';
+import { CookieConsentBanner } from './components/legal/CookieConsentBanner';
 import { VP_PACKAGES } from './data/packages';
 import { Currency, CartItem, VPPackage } from './types';
 import { soundFx } from './utils/audio';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 function AppContent() {
-  const { user, loading, isAdmin, isStaff, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
+  const { user, loading, isStaff, isAuthModalOpen, authModalMode, openAuthModal, closeAuthModal } = useAuth();
 
   const getInitialPage = (): ClientPage => {
     try {
@@ -45,6 +47,7 @@ function AppContent() {
           'rentals',
           'coaching',
           'auctions',
+          'legal',
           'dashboard',
           'admin',
         ].includes(p)
@@ -63,14 +66,32 @@ function AppContent() {
     return '';
   };
 
+  const getInitialLegalSlug = (): string => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('slug') || 'terms-and-conditions';
+    } catch {}
+    return 'terms-and-conditions';
+  };
+
   const [currentPage, setCurrentPage] = useState<ClientPage>(getInitialPage);
   const [selectedListingId, setSelectedListingId] = useState<string>(getInitialListingId);
+  const [selectedLegalSlug, setSelectedLegalSlug] = useState<string>(getInitialLegalSlug);
   const [currency, setCurrency] = useState<Currency>('INR');
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Handle URL history state & back/forward navigation
   useEffect(() => {
+    // Sanitize any malformed duplicate slashes in pathname (e.g. //?page=...)
+    try {
+      if (window.location.pathname.includes('//')) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.pathname = cleanUrl.pathname.replace(/\/+/g, '/') || '/';
+        window.history.replaceState(null, '', cleanUrl.toString());
+      }
+    } catch {}
+
     const onPopState = () => {
       const params = new URLSearchParams(window.location.search);
       const p = (params.get('page') as ClientPage) || 'home';
@@ -124,10 +145,24 @@ function AppContent() {
     if (loading) return;
     if (currentPage === 'admin' && user && !isStaff) {
       setCurrentPage('dashboard');
+      try {
+        const url = new URL(window.location.href);
+        url.pathname = url.pathname.replace(/\/+/g, '/') || '/';
+        url.searchParams.set('page', 'dashboard');
+        url.searchParams.delete('id');
+        window.history.replaceState({ page: 'dashboard' }, '', url.toString());
+      } catch {}
     }
     if (currentPage === 'dashboard' && !user) {
       // If user logs out while on protected dashboard, return to home
       setCurrentPage('home');
+      try {
+        const url = new URL(window.location.href);
+        url.pathname = url.pathname.replace(/\/+/g, '/') || '/';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        window.history.replaceState({ page: 'home' }, '', url.toString());
+      } catch {}
     }
   }, [user, isStaff, currentPage, loading]);
 
@@ -139,7 +174,7 @@ function AppContent() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutPackage, setCheckoutPackage] = useState<VPPackage | null>(null);
   const [checkoutCustomItem, setCheckoutCustomItem] = useState<
-    { title: string; priceINR: number; productId?: string; id?: string } | undefined
+    { title: string; priceINR: number; productId?: string; id?: string; cartItems?: Array<Pick<CartItem, 'id' | 'quantity'>>; rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' }; rentalDuration?: string } | undefined
   >(undefined);
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
@@ -175,8 +210,10 @@ function AppContent() {
     setCartItems([]);
   };
 
-  const handleOpenCustomCheckout = (title: string, price: number, productId?: string) => {
-    setCheckoutCustomItem({ title, priceINR: price, id: productId, productId });
+  const handleOpenCustomCheckout = (title: string, price: number, productId?: string, rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' } | string) => {
+    const rentalDuration = typeof rankup === 'string' ? rankup : undefined;
+    const rankupQuote = typeof rankup === 'string' ? undefined : rankup;
+    setCheckoutCustomItem({ title, priceINR: price, id: productId, productId, rankup: rankupQuote, rentalDuration });
     const matchedPkg = VP_PACKAGES.find(
       (p) => p.id === productId || p.vpLabel === title || title.includes(p.vpLabel)
     );
@@ -189,8 +226,13 @@ function AppContent() {
     const totalINR = cartItems.reduce((sum, item) => sum + item.priceINR * item.quantity, 0);
     const itemNames = cartItems.map((i) => `${i.title} (x${i.quantity})`).join(', ');
     setIsCartOpen(false);
-    const singleProductId = cartItems.length === 1 && cartItems[0].quantity === 1 ? cartItems[0].id : undefined;
-    handleOpenCustomCheckout(`Cart Checkout: ${itemNames}`, totalINR, singleProductId);
+    setCheckoutCustomItem({
+      title: `Cart Checkout: ${itemNames}`,
+      priceINR: totalINR,
+      cartItems: cartItems.map(({ id, quantity }) => ({ id, quantity })),
+    });
+    setCheckoutPackage(null);
+    setIsCheckoutOpen(true);
   };
 
   const handleNavigate = (page: ClientPage, id?: string) => {
@@ -207,14 +249,14 @@ function AppContent() {
       return;
     }
 
-    // Role-based route guard: Admin Console requires admin/superadmin role
+    // Staff console is available to moderators, admins, and superadmins.
     if (page === 'admin') {
       if (!user) {
         openAuthModal('login');
         return;
       }
-      if (!isAdmin) {
-        alert('Access Restricted: Administrative privileges required.');
+      if (!isStaff) {
+        alert('Access Restricted: Staff privileges required.');
         return;
       }
     }
@@ -222,19 +264,29 @@ function AppContent() {
     if (page === 'listing' && id) {
       setSelectedListingId(id);
     }
+    if (page === 'legal' && id) {
+      setSelectedLegalSlug(id);
+    }
 
     setCurrentPage(page);
     try {
       const url = new URL(window.location.href);
+      url.pathname = url.pathname.replace(/\/+/g, '/') || '/';
       if (page === 'home') {
         url.searchParams.delete('page');
         url.searchParams.delete('id');
+        url.searchParams.delete('slug');
       } else {
         url.searchParams.set('page', page);
         if (page === 'listing' && id) {
           url.searchParams.set('id', id);
         } else if (page !== 'listing') {
           url.searchParams.delete('id');
+        }
+        if (page === 'legal' && id) {
+          url.searchParams.set('slug', id);
+        } else if (page !== 'legal') {
+          url.searchParams.delete('slug');
         }
       }
       window.history.pushState({ page, id }, '', url.toString());
@@ -347,7 +399,13 @@ function AppContent() {
           <ClientAuctionsPage
             currency={currency}
             onNavigate={handleNavigate}
-            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'legal' && (
+          <LegalPage
+            initialSlug={selectedLegalSlug}
+            onNavigate={handleNavigate}
           />
         )}
 
@@ -501,6 +559,9 @@ function AppContent() {
         isOpen={isEscrowModalOpen}
         onClose={() => setIsEscrowModalOpen(false)}
       />
+
+      {/* Statutory Cookie & DPDPA Consent Banner */}
+      <CookieConsentBanner onNavigate={handleNavigate} />
     </div>
   );
 }

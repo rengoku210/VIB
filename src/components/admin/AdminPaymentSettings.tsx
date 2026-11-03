@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   QrCode,
+  CreditCard,
+  Building2,
+  Trash2,
+  Upload,
   ShieldCheck,
   CheckCircle2,
   XCircle,
@@ -18,15 +22,24 @@ import { useAuth } from '../../context/AuthContext';
 
 export const AdminPaymentSettings: React.FC = () => {
   const { token, user } = useAuth();
-  const isModerator = user?.role === 'moderator';
   const [settings, setSettings] = useState({
     upi_id: '',
     payee_name: '',
+    account_name: '',
+    bank_name: '',
+    account_number: '',
+    ifsc_code: '',
     qr_image_url: '',
     instructions: '',
     support_phone: '',
+    support_whatsapp: '',
+    support_email: '',
+    status: 'active',
+    payment_methods: ['UPI', 'QR', 'IMPS', 'NEFT'],
     is_active: 1,
   });
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const qrFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -54,7 +67,22 @@ export const AdminPaymentSettings: React.FC = () => {
       const res = await fetch('/api/payment/settings');
       if (res.ok) {
         const data = await res.json();
-        setSettings(data);
+        let methods = ['UPI', 'QR', 'IMPS', 'NEFT'];
+        if (data.payment_methods_json) {
+          try {
+            methods = JSON.parse(data.payment_methods_json);
+          } catch {}
+        }
+        setSettings({
+          ...data,
+          account_name: data.account_name || data.payee_name || '',
+          bank_name: data.bank_name || '',
+          account_number: data.account_number || '',
+          ifsc_code: data.ifsc_code || '',
+          status: data.status || 'active',
+          payment_methods: methods,
+          is_active: data.is_active !== undefined ? Number(data.is_active) : 1,
+        });
       }
     } catch (err) {
       console.warn('Failed to fetch payment settings:', err);
@@ -79,24 +107,78 @@ export const AdminPaymentSettings: React.FC = () => {
     }
   };
 
+    const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(png|jpeg|webp)$/)) {
+      alert('Only PNG, JPG, or WebP images are permitted for QR codes.');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image exceeds 10MB maximum file size limit.');
+      return;
+    }
+
+    setUploadingQr(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result as string;
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64, filename: file.name }),
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          setSettings(prev => ({ ...prev, qr_image_url: data.url }));
+        } else {
+          alert(data.error || 'Failed to upload QR image.');
+        }
+      } catch {
+        alert('Network error while uploading QR image.');
+      } finally {
+        setUploadingQr(false);
+        if (qrFileInputRef.current) qrFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveQr = () => {
+    setSettings(prev => ({ ...prev, qr_image_url: '' }));
+  };
+
+  const handleToggleMethod = (method: string) => {
+    setSettings(prev => {
+      const current = prev.payment_methods || [];
+      const updated = current.includes(method)
+        ? current.filter(m => m !== method)
+        : [...current, method];
+      return { ...prev, payment_methods: updated };
+    });
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    if (isModerator) {
-      alert('Access Denied: Least-privilege policy restricts payment settings modification to Administrators.');
-      return;
-    }
     setSavingSettings(true);
     setSaveSuccess(false);
 
     try {
+      const payload = {
+        ...settings,
+        payment_methods_json: JSON.stringify(settings.payment_methods || []),
+      };
       const res = await fetch('/api/admin/payment/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -185,121 +267,255 @@ export const AdminPaymentSettings: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSaveSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
+        <form onSubmit={handleSaveSettings} className="space-y-6">
+          <input
+            type="file"
+            ref={qrFileInputRef}
+            onChange={handleQrUpload}
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+          />
+
+          {/* Master Gateway Toggle & Status Strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-black/30 border border-white/10">
             <div>
-              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
-                Official Business UPI ID (VPA) *
-              </label>
-              <input
-                type="text"
-                required
-                value={settings.upi_id}
-                onChange={(e) => setSettings({ ...settings, upi_id: e.target.value })}
-                placeholder="thevibofficial@okhdfcbank"
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-sm focus:ring-2 focus:ring-amber-400"
-              />
+              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Gateway Status</label>
+              <select
+                value={settings.status || 'active'}
+                onChange={(e) => setSettings({ ...settings, status: e.target.value })}
+                className="w-full px-3.5 py-2 rounded-xl bg-[#111220] border border-white/15 text-white text-xs font-mono focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="active">Active (Accepting Payments)</option>
+                <option value="maintenance">Maintenance (Queue Paused)</option>
+                <option value="disabled">Disabled (Offline)</option>
+              </select>
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
-                Payee / Business Display Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={settings.payee_name}
-                onChange={(e) => setSettings({ ...settings, payee_name: e.target.value })}
-                placeholder="VIB Digital Services"
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:ring-2 focus:ring-amber-400"
-              />
+              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Active / Inactive Toggle</label>
+              <button
+                type="button"
+                onClick={() => setSettings({ ...settings, is_active: settings.is_active ? 0 : 1 })}
+                className={`w-full px-3.5 py-2 rounded-xl font-bold font-rajdhani text-xs uppercase transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  settings.is_active
+                    ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50'
+                    : 'bg-red-600/30 text-red-300 border border-red-500/50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${settings.is_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <span>{settings.is_active ? 'Gateway Enabled' : 'Gateway Suspended'}</span>
+              </button>
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
-                Support Phone / WhatsApp Contact
-              </label>
-              <input
-                type="text"
-                value={settings.support_phone || ''}
-                onChange={(e) => setSettings({ ...settings, support_phone: e.target.value })}
-                placeholder="+91 9181801766"
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-sm focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
-                Custom Static QR Code Image URL (Optional)
-              </label>
-              <input
-                type="url"
-                value={settings.qr_image_url || ''}
-                onChange={(e) => setSettings({ ...settings, qr_image_url: e.target.value })}
-                placeholder="https://... (leave empty to use auto-generated UPI QR)"
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
-              />
+              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Supported Methods</label>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['UPI', 'QR', 'IMPS', 'NEFT'].map(method => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => handleToggleMethod(method)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                      (settings.payment_methods || []).includes(method)
+                        ? 'bg-amber-500/30 text-amber-300 border border-amber-500/60'
+                        : 'bg-white/5 text-gray-400 border border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
-                Payment Instructions for Customer
-              </label>
-              <textarea
-                rows={4}
-                value={settings.instructions || ''}
-                onChange={(e) => setSettings({ ...settings, instructions: e.target.value })}
-                placeholder="Scan QR with any UPI app and enter 12-digit UTR..."
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Column: UPI & Banking Credentials */}
+            <div className="space-y-4">
+              <div className="text-xs font-mono text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <QrCode className="w-4 h-4" />
+                <span>UPI Configuration</span>
+              </div>
 
-            {/* QR Code Live Preview */}
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center gap-4">
-              <div className="p-2 bg-white rounded-xl shrink-0">
-                <img
-                  src={
-                    settings.qr_image_url ||
-                    `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                      `upi://pay?pa=${settings.upi_id}&pn=${encodeURIComponent(settings.payee_name)}`
-                    )}`
-                  }
-                  alt="QR Preview"
-                  className="w-20 h-20 object-contain"
+              <div>
+                <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
+                  Official Business UPI ID (VPA) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.upi_id || ''}
+                  onChange={(e) => setSettings({ ...settings, upi_id: e.target.value })}
+                  placeholder="thevibofficial@okhdfcbank"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-sm focus:ring-2 focus:ring-amber-400"
                 />
               </div>
-              <div className="space-y-1 text-xs">
-                <div className="font-bold text-white font-rajdhani text-sm">Customer QR Preview</div>
-                <div className="text-gray-400 font-mono">{settings.upi_id || 'No UPI ID set'}</div>
-                <div className="text-emerald-400 font-mono">Dynamic UPI intent enabled</div>
+
+              <div>
+                <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
+                  Payee / Account Holder Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.payee_name || ''}
+                  onChange={(e) => setSettings({ ...settings, payee_name: e.target.value, account_name: e.target.value })}
+                  placeholder="VIB Digital Services"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div className="pt-2 text-xs font-mono text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-4 h-4" />
+                <span>Bank Account Information (Optional / IMPS)</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Bank Name</label>
+                  <input
+                    type="text"
+                    value={settings.bank_name || ''}
+                    onChange={(e) => setSettings({ ...settings, bank_name: e.target.value })}
+                    placeholder="HDFC Bank Ltd."
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-gray-300 uppercase mb-1">IFSC Code</label>
+                  <input
+                    type="text"
+                    value={settings.ifsc_code || ''}
+                    onChange={(e) => setSettings({ ...settings, ifsc_code: e.target.value })}
+                    placeholder="HDFC0001234"
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-xs focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Bank Account Number</label>
+                <input
+                  type="text"
+                  value={settings.account_number || ''}
+                  onChange={(e) => setSettings({ ...settings, account_number: e.target.value })}
+                  placeholder="50200012345678"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-sm focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Support WhatsApp</label>
+                  <input
+                    type="text"
+                    value={settings.support_whatsapp || settings.support_phone || ''}
+                    onChange={(e) => setSettings({ ...settings, support_whatsapp: e.target.value, support_phone: e.target.value })}
+                    placeholder="+91 9181801766"
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-xs focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-gray-300 uppercase mb-1">Support Email</label>
+                  <input
+                    type="email"
+                    value={settings.support_email || ''}
+                    onChange={(e) => setSettings({ ...settings, support_email: e.target.value })}
+                    placeholder="support@vib.gg"
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              {isModerator ? (
-                <div className="text-xs text-amber-400 font-mono bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-lg">
-                  Payment QR &amp; UPI configuration is view-only for Moderators.
+            {/* Right Column: Direct QR Code Upload, Preview & Instructions */}
+            <div className="space-y-4">
+              <div className="text-xs font-mono text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4" />
+                <span>Static UPI QR Code Image Management</span>
+              </div>
+
+              {/* QR Upload & Preview Card */}
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="p-2.5 bg-white rounded-2xl shrink-0 shadow-lg">
+                    <img
+                      src={
+                        settings.qr_image_url ||
+                        `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                          `upi://pay?pa=${settings.upi_id}&pn=${encodeURIComponent(settings.payee_name || 'VIB')}`
+                        )}`
+                      }
+                      alt="Customer QR Preview"
+                      className="w-28 h-28 object-contain"
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
+                    <div className="font-bold text-white font-rajdhani text-base">
+                      {settings.qr_image_url ? 'Custom Static QR Active' : 'Auto-Generated Dynamic QR'}
+                    </div>
+                    <div className="text-gray-400 font-mono text-xs truncate">
+                      {settings.qr_image_url || settings.upi_id || 'No UPI ID configured'}
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Upload your official bank / merchant static QR image (PNG, JPG, WebP) up to 10MB.
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={uploadingQr}
+                        onClick={() => qrFileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {uploadingQr ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        <span>{settings.qr_image_url ? 'Replace QR Image' : 'Upload QR Image'}</span>
+                      </button>
+
+                      {settings.qr_image_url && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveQr}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  {saveSuccess && (
-                    <span className="text-xs text-emerald-400 font-mono flex items-center gap-1 animate-in fade-in">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Settings Updated!</span>
-                    </span>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={savingSettings}
-                    className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold font-rajdhani uppercase text-sm text-black transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-600/30 disabled:opacity-50"
-                  >
-                    {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>Save Payment Settings</span>
-                  </button>
-                </>
-              )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-gray-300 uppercase mb-1">
+                  Payment Instructions for Customer
+                </label>
+                <textarea
+                  rows={4}
+                  value={settings.instructions || ''}
+                  onChange={(e) => setSettings({ ...settings, instructions: e.target.value })}
+                  placeholder="Scan QR with any UPI app, enter exact amount, and provide 12-digit UTR proof..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                {saveSuccess && (
+                  <span className="text-xs text-emerald-400 font-mono flex items-center gap-1 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Configuration Saved &amp; Live!</span>
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  disabled={savingSettings || uploadingQr}
+                  className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold font-rajdhani uppercase text-sm text-black transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-600/30 disabled:opacity-50"
+                >
+                  {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Save Configuration</span>
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -471,7 +687,7 @@ export const AdminPaymentSettings: React.FC = () => {
                         {/* Actions */}
                         <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {!isVerified && (
+                            {isSubmitted && (
                               <button
                                 type="button"
                                 disabled={verifyingAction === ord.id}
@@ -487,7 +703,7 @@ export const AdminPaymentSettings: React.FC = () => {
                               </button>
                             )}
 
-                            {!isRejected && (
+                            {isSubmitted && !isRejected && (
                               <button
                                 type="button"
                                 disabled={verifyingAction === ord.id}

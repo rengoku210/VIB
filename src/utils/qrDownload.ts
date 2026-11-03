@@ -106,7 +106,7 @@ export async function downloadBrandedQrCard({
 
   ctx.font = 'bold 12px "Rajdhani", sans-serif';
   ctx.fillStyle = '#f59e0b';
-  ctx.fillText(`⚡ Amount ₹${Number(amount).toLocaleString('en-IN')} will auto-fill in your UPI app!`, 250, 600);
+  ctx.fillText(`Amount ₹${Number(amount).toLocaleString('en-IN')} will auto-fill in your UPI app!`, 250, 600);
 
   // Export & Download
   const link = document.createElement('a');

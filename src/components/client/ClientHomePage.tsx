@@ -41,6 +41,8 @@ import { ClientPage } from './Header';
 import { soundFx } from '../../utils/audio';
 import { FlagIcon } from '../common/FlagIcon';
 import { useRankBadges, getRankBadgeUrl } from '../../utils/valorantRanks';
+import { useAuth } from '../../context/AuthContext';
+import { getAuctionTimeLeft } from '../../utils/auction';
 
 interface ClientHomePageProps {
   currency: Currency;
@@ -67,6 +69,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
   onAddToCart,
   onOpenCheckout,
 }) => {
+  const { user, token } = useAuth();
   const rankBadges = useRankBadges();
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<'guaranteed' | 'public'>('guaranteed');
@@ -84,40 +87,75 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     }
   };
 
-  const [timeLeft, setTimeLeft] = useState({ hours: 2, minutes: 14, seconds: 36 });
+  const [auctionEndsAt, setAuctionEndsAt] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(null));
   const [currentBid, setCurrentBid] = useState(4850);
   const [bidCount, setBidCount] = useState(18);
   const [userBidInput, setUserBidInput] = useState('5000');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
+  const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const isAuctionExpired = !auctionEndsAt || Date.parse(auctionEndsAt) <= Date.now();
+
+  const fetchFeaturedAuction = async () => {
+    try {
+      const response = await fetch('/api/auctions');
+      if (!response.ok) return;
+      const data = await response.json();
+      const activeLot = (Array.isArray(data.lots) ? data.lots : []).find(l => l.status === 'active') || data.lot || (data.lots && data.lots[0]) || null;
+      if (activeLot) {
+        const lot = activeLot;
+        setCurrentBid(Number(data.lot.current_bid));
+        setBidCount(Number(data.lot.bid_count));
+        setAuctionEndsAt(String(data.lot.ends_at || ''));
+      }
+    } catch (error) {
+      console.warn('Could not fetch featured auction:', error);
+    }
+  };
+
+  useEffect(() => { void fetchFeaturedAuction(); }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev.seconds > 0) {
-          return { ...prev, seconds: prev.seconds - 1 };
-        } else if (prev.minutes > 0) {
-          return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
-        } else if (prev.hours > 0) {
-          return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        }
-        return { hours: 2, minutes: 30, seconds: 0 };
-      });
-    }, 1000);
+    const updateCountdown = () => setTimeLeft(getAuctionTimeLeft(auctionEndsAt));
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [auctionEndsAt]);
 
-  const handlePlaceBid = (e: React.FormEvent) => {
+  const handlePlaceBid = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBidErrorMessage(null);
+    setBidSuccessMessage(null);
     const bidVal = parseInt(userBidInput, 10);
-    if (isNaN(bidVal) || bidVal <= currentBid) {
-      alert(`Bid must be greater than current bid of ₹${currentBid.toLocaleString()}`);
+    const minRequired = currentBid + 150;
+    if (!Number.isFinite(bidVal) || bidVal < minRequired) {
+      setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()}.`);
       return;
     }
-    setCurrentBid(bidVal);
-    setBidCount((c) => c + 1);
-    setUserBidInput(String(bidVal + 250));
-    setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully! You are the highest bidder.`);
-    setTimeout(() => setBidSuccessMessage(null), 5000);
+    setIsPlacingBid(true);
+    try {
+      const response = await fetch('/api/auctions/' + (lot?.id || 'lot_1938918fb9d6') + '/bid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ amount: bidVal, bidder_name: user?.name || undefined }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setBidErrorMessage(data.error || 'Failed to place bid. Please retry.');
+        return;
+      }
+      setCurrentBid(Number(data.lot?.current_bid));
+      setBidCount(Number(data.lot?.bid_count));
+      if (data.lot?.ends_at) setAuctionEndsAt(String(data.lot.ends_at));
+      setUserBidInput('');
+      setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully.`);
+      await fetchFeaturedAuction();
+    } catch {
+      setBidErrorMessage('Network error while placing bid. Please try again.');
+    } finally {
+      setIsPlacingBid(false);
+    }
   };
 
   const toggleFav = (id: string) => {
@@ -1761,6 +1799,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   <span>{bidSuccessMessage}</span>
                 </div>
               )}
+              {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
 
               <form onSubmit={handlePlaceBid} className="space-y-4">
                 <div className="space-y-1.5">
@@ -1776,16 +1815,17 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                         type="number"
                         value={userBidInput}
                         onChange={(e) => setUserBidInput(e.target.value)}
-                        min={currentBid + 1}
+                        min={currentBid + 150}
                         className="w-full pl-8 pr-4 py-3 sm:py-3.5 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
                         placeholder="Enter amount"
                       />
                     </div>
                     <button
                       type="submit"
+                      disabled={isPlacingBid || isAuctionExpired}
                       className="min-h-[44px] px-8 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
                     >
-                      PLACE BID
+                      {isPlacingBid ? 'PLACING BID…' : isAuctionExpired && auctionEndsAt ? 'AUCTION ENDED' : 'PLACE BID'}
                     </button>
                   </div>
                 </div>

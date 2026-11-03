@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import nodemailer, { Transporter } from 'nodemailer';
 import { db } from './db.js';
 import crypto from 'node:crypto';
@@ -21,6 +22,13 @@ const SENDER_EMAIL = process.env.SMTP_FROM || 'support@vib.gg';
 
 // Nodemailer transport initialization
 let transporter: Transporter | null = null;
+
+export function isEmailConfigured(): boolean {
+  return Boolean(
+    process.env.RESEND_API_KEY ||
+    (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+  );
+}
 
 export function getTransporter(): Transporter | null {
   if (!transporter && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -59,7 +67,45 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
   let status: 'delivered' | 'failed' | 'mock_logged' = 'mock_logged';
   let errorMessage: string | null = null;
 
-  if (transport) {
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const rawFrom = (process.env.RESEND_FROM_EMAIL || 'noreply@huxzain.shop').trim();
+      let fromAddr = rawFrom;
+      if (fromAddr.startsWith('<') && fromAddr.endsWith('>')) {
+        fromAddr = fromAddr.slice(1, -1).trim();
+      }
+      if (!fromAddr.includes('<')) {
+        fromAddr = `VIB <${fromAddr}>`;
+      }
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromAddr,
+          to: [options.to],
+          subject: options.subject,
+          html: options.html,
+          text: options.text || options.subject,
+        }),
+      });
+      const data: any = await res.json().catch(() => ({}));
+      if (res.ok) {
+        status = 'delivered';
+        console.log(`[Email Service - Resend] Email sent to ${options.to} (${options.subject}) - ID: ${data.id}`);
+      } else {
+        status = 'failed';
+        errorMessage = data.message || JSON.stringify(data);
+        console.error(`[Email Service - Resend] Delivery failed to ${options.to}:`, data);
+      }
+    } catch (err: any) {
+      status = 'failed';
+      errorMessage = err.message || String(err);
+      console.error(`[Email Service - Resend] Network error:`, err);
+    }
+  } else if (transport) {
     try {
       await transport.sendMail({
         from: `"${PLATFORM_NAME}" <${SENDER_EMAIL}>`,
@@ -69,14 +115,14 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
         text: options.text || options.subject,
       });
       status = 'delivered';
-      console.log(`[Email Service] Email sent successfully to ${options.to} (${options.subject})`);
+      console.log(`[Email Service - SMTP] Email sent successfully to ${options.to} (${options.subject})`);
     } catch (err: any) {
       status = 'failed';
       errorMessage = err.message || String(err);
-      console.error(`[Email Service] Failed to deliver email to ${options.to}:`, err);
+      console.error(`[Email Service - SMTP] Failed to deliver email to ${options.to}:`, err);
     }
   } else {
-    // Graceful Diagnostic Mode (when SMTP credentials not yet provided in .env)
+    // Graceful Diagnostic Mode (when neither Resend nor SMTP credentials provided)
     status = 'mock_logged';
     console.log(`[Email Service Mock] Logged email to ${options.to} [Template: ${options.templateName || 'custom'}]: ${options.subject}`);
   }
@@ -149,8 +195,10 @@ export async function sendOrderPendingVerificationEmail(order: any): Promise<voi
     </div>
   `;
 
+  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
+
   await sendEmail({
-    to: details.email || order.user_email || 'customer@vib.gg',
+    to: targetEmail,
     subject: `Order Received & Awaiting Verification: #${order.id}`,
     html: customerHtml,
     templateName: 'order_pending_verification',
@@ -161,7 +209,7 @@ export async function sendOrderPendingVerificationEmail(order: any): Promise<voi
   const adminHtml = `
     <div style="font-family: Arial, sans-serif; background-color: #1e1b2e; color: #ffffff; padding: 20px; border-radius: 8px;">
       <h2 style="color: #f59e0b;">ACTION REQUIRED: New Order #${order.id}</h2>
-      <p>A customer has placed an order and submitted payment verification evidence.</p>
+      <p>A customer has created an order. Payment evidence may arrive separately before staff review.</p>
       
       <ul>
         <li><strong>Order ID:</strong> #${order.id}</li>
@@ -233,8 +281,10 @@ export async function sendIndianVPCodeIssuedEmail(order: any, vpCode: string): P
     </div>
   `;
 
+  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
+
   await sendEmail({
-    to: details.email || order.user_email || 'customer@vib.gg',
+    to: targetEmail,
     subject: `Your Valorant Points Code for Order #${order.id} [${order.title}]`,
     html,
     templateName: 'vp_code_delivered',
@@ -287,8 +337,10 @@ export async function sendPaymentRejectedEmail(order: any, reason: string): Prom
     </div>
   `;
 
+  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
+
   await sendEmail({
-    to: details.email || order.user_email || 'customer@vib.gg',
+    to: targetEmail,
     subject: `Payment Verification Update for Order #${order.id}`,
     html,
     templateName: 'payment_rejected',
@@ -298,7 +350,7 @@ export async function sendPaymentRejectedEmail(order: any, reason: string): Prom
 
 export async function sendOrderPaymentVerifiedEmail(order: any, isManualDelivery: boolean = true): Promise<void> {
   const details = typeof order.details_json === 'string' ? JSON.parse(order.details_json) : (order.details || {});
-  const customerEmail = details.email || order.user_email || 'customer@vib.gg';
+  const customerEmail = details.email || order.user_email || order.buyer_email || ADMIN_EMAIL;
   const trackUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?page=track&orderId=${order.id}`;
   const phone = details.contactPhone || details.phone || order.phone || 'Not specified';
 
@@ -347,6 +399,121 @@ export async function sendOrderPaymentVerifiedEmail(order: any, isManualDelivery
     html,
     templateName: 'order_payment_verified_manual',
     context: { orderId: order.id, amount: order.amount, title: order.title, isManualDelivery },
+  });
+}
+
+export async function sendPasswordRecoveryOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB ACCOUNT PASSWORD RECOVERY</h2>
+      <p>Hello,</p>
+      <p>We received a request to reset your password on VIB Digital Services. Use the recovery code below to choose a new password:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #9333ea; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 28px; font-weight: bold; color: #ffffff; letter-spacing: 4px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        Enter this code in the password reset window. This code will expire in 15 minutes.
+      </p>
+      <p style="color: #94a3b8; font-size: 12px;">
+        If you did not request this password reset, please ignore this email or contact support if you suspect unauthorized activity.
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Security Desk | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Your VIB Password Recovery Code: ${code}`,
+    html,
+    text: `Your VIB password recovery code is: ${code}. It expires in 15 minutes.`,
+    templateName: 'password_recovery_otp',
+    context: { email, code },
+  });
+}
+
+export async function sendWelcomeVerificationEmail(user: { email: string; name?: string; code: string }): Promise<void> {
+  const code = user.code;
+  const name = user.name || 'Gamer';
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">WELCOME TO VIB DIGITAL SERVICES</h2>
+      <p>Hello ${name},</p>
+      <p>Thank you for creating your account on VIB. Your verification code is below:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #a855f7; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 28px; font-weight: bold; color: #ffffff; letter-spacing: 4px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        Your account is active. You can now browse verified Valorant listings, top up genuine VP, and track orders securely with Escrow protection.
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Escrow Platform | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: user.email,
+    subject: `Welcome to VIB! Your Verification Code: ${code}`,
+    html,
+    text: `Welcome to VIB! Your verification code is: ${code}`,
+    templateName: 'welcome_verification',
+    context: { email: user.email, code },
+  });
+}
+
+export async function sendOrderFulfilledEmail(order: any, fulfillmentNote?: string): Promise<void> {
+  const details = typeof order.details_json === 'string' ? JSON.parse(order.details_json) : (order.details || {});
+  const customerEmail = details.email || order.user_email || order.buyer_email || ADMIN_EMAIL;
+  const trackUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?page=track&orderId=${order.id}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #10b981; border-bottom: 2px solid #064e3b; padding-bottom: 8px;">ORDER COMPLETED &amp; FULFILLED!</h2>
+      <p>Hello,</p>
+      <p>Great news! Your order <strong>#${order.id}</strong> (<strong>${order.title}</strong>) has been fully completed by our operations team.</p>
+      
+      <div style="background-color: #064e3b; border: 1px solid #10b981; padding: 16px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin: 0; color: #ecfdf5; font-size: 14px;">
+          <strong>Status:</strong> COMPLETED<br/>
+          <strong>Product:</strong> ${order.title}<br/>
+          <strong>Amount:</strong> ₹${Number(order.amount).toLocaleString('en-IN')}<br/>
+          ${fulfillmentNote ? `<strong>Delivery Notes:</strong> ${fulfillmentNote}` : ''}
+        </p>
+      </div>
+
+      <p style="margin: 20px 0;">
+        <a href="${trackUrl}" style="background-color: #10b981; color: #022c22; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+          View Confirmed Order Summary
+        </a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 13px;">
+        Order #${order.id} | Thank you for choosing VIB Digital Services! | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: customerEmail,
+    subject: `Order Fulfilled: #${order.id} [${order.title}]`,
+    html,
+    templateName: 'order_fulfilled',
+    context: { orderId: order.id, title: order.title, fulfillmentNote },
   });
 }
 

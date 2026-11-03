@@ -32,6 +32,8 @@ import {
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
 import { ClientPage } from './Header';
+import { useAuth } from '../../context/AuthContext';
+import { getAuctionTimeLeft } from '../../utils/auction';
 
 interface ClientServicesPageProps {
   currency: Currency;
@@ -48,49 +50,89 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   onOpenCheckout,
   initialSection,
 }) => {
+  const { user, token } = useAuth();
   // ---------------------------------------------------------------------------
   // LIVE AUCTION COUNTDOWN TIMER (Real-time ticking state)
   // ---------------------------------------------------------------------------
-  const [timeLeft, setTimeLeft] = useState({
-    hours: 2,
-    minutes: 14,
-    seconds: 36,
-  });
-
-  const [currentBid, setCurrentBid] = useState(4850);
-  const [bidCount, setBidCount] = useState(18);
-  const [userBidInput, setUserBidInput] = useState('5000');
+  const [auctionEndsAt, setAuctionEndsAt] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(null));
+  const [isAuctionLoading, setIsAuctionLoading] = useState(true);
+  const [isAuctionUnavailable, setIsAuctionUnavailable] = useState(false);
+  const [currentBid, setCurrentBid] = useState(0);
+  const [bidCount, setBidCount] = useState(0);
+  const [userBidInput, setUserBidInput] = useState('');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
+  const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const isAuctionExpired = !isAuctionLoading && (!auctionEndsAt || Date.parse(auctionEndsAt) <= Date.now());
+
+  const fetchFeaturedAuction = async () => {
+    try {
+      const response = await fetch('/api/auctions');
+      if (!response.ok) {
+        setIsAuctionUnavailable(true);
+        return;
+      }
+      const data = await response.json();
+      const activeLot = (Array.isArray(data.lots) ? data.lots : []).find(l => l.status === 'active') || data.lot || (data.lots && data.lots[0]) || null;
+      if (activeLot) {
+        const lot = activeLot;
+        setCurrentBid(Number(data.lot.current_bid));
+        setBidCount(Number(data.lot.bid_count));
+        setAuctionEndsAt(String(data.lot.ends_at || ''));
+      } else {
+        setIsAuctionUnavailable(true);
+      }
+    } catch (error) {
+      console.warn('Could not fetch featured auction:', error);
+      setIsAuctionUnavailable(true);
+    } finally {
+      setIsAuctionLoading(false);
+    }
+  };
+
+  useEffect(() => { void fetchFeaturedAuction(); }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev.seconds > 0) {
-          return { ...prev, seconds: prev.seconds - 1 };
-        } else if (prev.minutes > 0) {
-          return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
-        } else if (prev.hours > 0) {
-          return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        }
-        return { hours: 2, minutes: 30, seconds: 0 }; // Loop reset for demo
-      });
-    }, 1000);
-
+    const updateCountdown = () => setTimeLeft(getAuctionTimeLeft(auctionEndsAt));
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [auctionEndsAt]);
 
-  const handlePlaceBid = (e: React.FormEvent) => {
+  const handlePlaceBid = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBidErrorMessage(null);
+    setBidSuccessMessage(null);
     const bidVal = parseInt(userBidInput, 10);
-    if (isNaN(bidVal) || bidVal <= currentBid) {
-      alert(`Bid must be greater than current bid of ₹${currentBid.toLocaleString()}`);
+    const minRequired = currentBid + 150;
+    if (!Number.isFinite(bidVal) || bidVal < minRequired) {
+      setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()}.`);
       return;
     }
-    setCurrentBid(bidVal);
-    setBidCount((c) => c + 1);
-    setUserBidInput(String(bidVal + 250));
-    setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully! You are the highest bidder.`);
-    setTimeout(() => setBidSuccessMessage(null), 5000);
+    setIsPlacingBid(true);
+    try {
+      const response = await fetch('/api/auctions/' + (lot?.id || 'lot_1938918fb9d6') + '/bid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ amount: bidVal, bidder_name: user?.name || undefined }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setBidErrorMessage(data.error || 'Failed to place bid. Please retry.');
+        return;
+      }
+      setCurrentBid(Number(data.lot?.current_bid));
+      setBidCount(Number(data.lot?.bid_count));
+      if (data.lot?.ends_at) setAuctionEndsAt(String(data.lot.ends_at));
+      setUserBidInput('');
+      setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully.`);
+      await fetchFeaturedAuction();
+    } catch {
+      setBidErrorMessage('Network error while placing bid. Please try again.');
+    } finally {
+      setIsPlacingBid(false);
+    }
   };
 
   // Scroll to initial section if provided
@@ -405,7 +447,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                <span className="text-rose-400">LIVE TIMED AUCTION</span>
+                <span className="text-rose-400">{isAuctionLoading ? 'LOADING AUCTION' : isAuctionUnavailable ? 'AUCTION UNAVAILABLE' : isAuctionExpired ? 'AUCTION ENDED' : 'LIVE TIMED AUCTION'}</span>
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
                 VIB AUCTIONS: <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-400 to-amber-300">BID. WIN. OWN.</span>
@@ -419,7 +461,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             <div className="p-3.5 rounded-xl bg-[#090615] border border-fuchsia-500/30 flex items-center gap-3 shadow-lg">
               <div className="text-right">
                 <div className="text-[9px] font-mono text-fuchsia-300 uppercase font-bold tracking-wider">AUCTION CLOSES IN</div>
-                <div className="text-xs text-gray-400 font-mono">Live Sync Active</div>
+                <div className="text-xs text-gray-400 font-mono">{isAuctionLoading ? 'Syncing persisted lot…' : isAuctionUnavailable ? 'Auction data unavailable' : isAuctionExpired ? 'Bidding is closed' : 'Live Sync Active'}</div>
               </div>
 
               <div className="flex items-center gap-1.5 font-mono font-black text-lg sm:text-xl">
@@ -502,6 +544,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
                   <span>{bidSuccessMessage}</span>
                 </div>
               )}
+              {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
 
               {/* Interactive Bid Form */}
               <form onSubmit={handlePlaceBid} className="space-y-3">
@@ -509,7 +552,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
                   <label className="text-xs font-mono text-gray-300 font-bold uppercase">
                     Enter Your Maximum Bid (INR)
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                     <div className="relative flex-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold">
                         ₹
@@ -518,16 +561,17 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
                         type="number"
                         value={userBidInput}
                         onChange={(e) => setUserBidInput(e.target.value)}
-                        min={currentBid + 1}
+                        min={currentBid + 150}
                         className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
                         placeholder="Enter amount"
                       />
                     </div>
                     <button
                       type="submit"
-                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap"
+                      disabled={isPlacingBid || isAuctionLoading || isAuctionUnavailable || isAuctionExpired}
+                      className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center disabled:opacity-50"
                     >
-                      PLACE BID
+                      {isPlacingBid ? 'PLACING BID…' : isAuctionLoading ? 'LOADING…' : isAuctionUnavailable ? 'UNAVAILABLE' : isAuctionExpired ? 'AUCTION ENDED' : 'PLACE BID'}
                     </button>
                   </div>
                 </div>
@@ -540,51 +584,15 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
           </div>
 
           {/* Exclusive Deals Strip */}
-          <div className="pt-2 border-t border-white/[0.08] relative z-10 space-y-3">
-            <div className="text-[10px] font-mono tracking-[0.2em] text-gray-400 uppercase font-bold">
-              EXCLUSIVE FLASH AUCTIONS
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-xl bg-[#0a0717] border border-white/10 hover:border-fuchsia-500/30 flex items-center justify-between transition-colors">
-                <div>
-                  <h4 className="font-bold text-xs text-white font-rajdhani">Reaver 2.0 Karambit Bundle</h4>
-                  <div className="text-[10px] text-gray-400 font-mono">Current: ₹2,900 • 00:45:12 left</div>
-                </div>
-                <button
-                  onClick={() => onOpenCheckout('Bid on Reaver 2.0 Karambit Bundle', 3100)}
-                  className="px-3 py-1.5 rounded-lg bg-fuchsia-950/60 hover:bg-fuchsia-900 border border-fuchsia-500/40 text-[11px] font-bold text-fuchsia-300 font-rajdhani uppercase cursor-pointer"
-                >
-                  Bid Now
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[#0a0717] border border-white/10 hover:border-fuchsia-500/30 flex items-center justify-between transition-colors">
-                <div>
-                  <h4 className="font-bold text-xs text-white font-rajdhani">Prime Vandal + Singularity</h4>
-                  <div className="text-[10px] text-gray-400 font-mono">Current: ₹3,400 • 01:12:05 left</div>
-                </div>
-                <button
-                  onClick={() => onOpenCheckout('Bid on Prime + Singularity Combo', 3600)}
-                  className="px-3 py-1.5 rounded-lg bg-fuchsia-950/60 hover:bg-fuchsia-900 border border-fuchsia-500/40 text-[11px] font-bold text-fuchsia-300 font-rajdhani uppercase cursor-pointer"
-                >
-                  Bid Now
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[#0a0717] border border-white/10 hover:border-fuchsia-500/30 flex items-center justify-between transition-colors">
-                <div>
-                  <h4 className="font-bold text-xs text-white font-rajdhani">Nocturnum Scythe Rare Drop</h4>
-                  <div className="text-[10px] text-gray-400 font-mono">Current: ₹1,800 • 03:30:00 left</div>
-                </div>
-                <button
-                  onClick={() => onOpenCheckout('Bid on Nocturnum Scythe', 2000)}
-                  className="px-3 py-1.5 rounded-lg bg-fuchsia-950/60 hover:bg-fuchsia-900 border border-fuchsia-500/40 text-[11px] font-bold text-fuchsia-300 font-rajdhani uppercase cursor-pointer"
-                >
-                  Bid Now
-                </button>
-              </div>
-            </div>
+          <div className="pt-2 border-t border-white/[0.08] relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs text-gray-400">All bids are placed through the live auction and are recorded in your account.</p>
+            <button
+              type="button"
+              onClick={() => onNavigate('auctions')}
+              className="px-4 py-2 rounded-lg bg-fuchsia-950/60 hover:bg-fuchsia-900 border border-fuchsia-500/40 text-xs font-bold text-fuchsia-300 font-rajdhani uppercase"
+            >
+              Browse Active Lots
+            </button>
           </div>
         </div>
       </section>

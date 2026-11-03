@@ -12,10 +12,15 @@ import {
   Copy,
   Check,
   Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export const AdminRegionalOrders: React.FC = () => {
+interface AdminRegionalOrdersProps {
+  onOpenOrderRoom?: (orderId: string) => void;
+}
+
+export const AdminRegionalOrders: React.FC<AdminRegionalOrdersProps> = ({ onOpenOrderRoom }) => {
   const { token } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,8 +73,8 @@ export const AdminRegionalOrders: React.FC = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          status: statusVal,
-          regional_notes: notesVal.trim() || undefined,
+          fulfillment_status: statusVal.toUpperCase(),
+          notes: notesVal.trim() || undefined,
         }),
       });
 
@@ -245,6 +250,17 @@ export const AdminRegionalOrders: React.FC = () => {
 
                         <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {onOpenOrderRoom && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenOrderRoom(ord.id)}
+                                className="px-2.5 py-1.5 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold font-rajdhani uppercase text-xs transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                title="Open Customer Order Room & Live Chat"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Order Room</span>
+                              </button>
+                            )}
                             <a
                               href={whatsappLink}
                               target="_blank"
@@ -256,17 +272,23 @@ export const AdminRegionalOrders: React.FC = () => {
                               <span>WhatsApp</span>
                             </a>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingOrder(ord);
-                                setStatusVal(ord.status || 'completed');
-                                setNotesVal(ord.regional_notes || '');
-                              }}
-                              className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-200 text-xs font-mono cursor-pointer"
-                            >
-                              Status
-                            </button>
+                            {ord.payment_status === 'PAYMENT_VERIFIED' && !['completed', 'cancelled'].includes(String(ord.status).toLowerCase()) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingOrder(ord);
+                                  setStatusVal(ord.status || 'processing');
+                                  setNotesVal(ord.regional_notes || '');
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-200 text-xs font-mono cursor-pointer"
+                              >
+                                Status
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-gray-500 font-mono" title="Payment must be verified before fulfillment can change.">
+                                {ord.payment_status === 'PAYMENT_VERIFIED' ? 'Terminal order' : 'Verify payment first'}
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -300,7 +322,7 @@ export const AdminRegionalOrders: React.FC = () => {
                 >
                   <option value="processing">Processing (Pending Contact)</option>
                   <option value="completed">Completed (Credited in-game)</option>
-                  <option value="cancelled">Cancelled / Refunded</option>
+                  <option value="cancelled">Cancelled (refund handled separately)</option>
                 </select>
               </div>
 
