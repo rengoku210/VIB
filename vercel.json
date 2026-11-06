@@ -2,22 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "includeFiles": "data/vib.db"
     }
   },
   "rewrites": [
     {
-      "source": "/api/test-node",
-      "destination": "/api/test-node"
-    },
-    {
       "source": "/api",
-      "destination": "/api/index"
+      "destination": "/api/index.js"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index.js"
     },
     {
       "source": "/((?!api(?:/|$)).*)",
