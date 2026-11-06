@@ -8,6 +8,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/test-node",
+      "destination": "/api/test-node"
+    },
+    {
       "source": "/api",
       "destination": "/api/index"
     },
