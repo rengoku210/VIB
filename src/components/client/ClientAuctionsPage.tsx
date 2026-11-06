@@ -67,8 +67,14 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
 
   // Countdown
   const auctionEndsAt = selectedLot?.ends_at || null;
-  const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(auctionEndsAt));
-  const isAuctionExpired = !auctionEndsAt || Date.parse(auctionEndsAt) <= Date.now();
+  const isAuctionActive = Boolean(
+    selectedLot &&
+    selectedLot.status === 'active' &&
+    auctionEndsAt &&
+    Date.parse(auctionEndsAt) > Date.now()
+  );
+  const [timeLeft, setTimeLeft] = useState(() => (isAuctionActive ? getAuctionTimeLeft(auctionEndsAt) : { days: 0, hours: 0, minutes: 0, seconds: 0 }));
+  const isAuctionExpired = !isAuctionActive;
 
   const currentBid = Number(selectedLot?.current_bid) || Number(selectedLot?.starting_bid) || 1000;
   const bidIncrement = Number(selectedLot?.bid_increment) || 150;
@@ -130,11 +136,17 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
   }, [selectedLot?.id]);
 
   useEffect(() => {
-    const updateCountdown = () => setTimeLeft(getAuctionTimeLeft(selectedLot?.ends_at || null));
+    const updateCountdown = () => {
+      if (selectedLot?.status === 'active' && selectedLot?.ends_at) {
+        setTimeLeft(getAuctionTimeLeft(selectedLot.ends_at));
+      } else {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      }
+    };
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, [selectedLot?.ends_at]);
+  }, [selectedLot?.ends_at, selectedLot?.status]);
 
   // Step 1: Open Deposit Intent Modal
   const handleInitiateBid = async (e: React.FormEvent) => {
@@ -291,26 +303,34 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
               <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090615] border border-fuchsia-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-3.5 shadow-xl w-full md:w-auto">
                 <div className="text-left sm:text-right">
                   <div className="text-[9px] font-mono text-fuchsia-300 uppercase font-bold tracking-wider">
-                    LOT CLOSES IN
+                    {isAuctionActive ? 'LOT CLOSES IN' : 'LOT STATUS'}
                   </div>
-                  <div className="text-xs text-gray-400 font-mono">Live Clock Sync</div>
-                </div>
-                <div className="flex items-center gap-1.5 font-mono font-black text-xl sm:text-2xl">
-                  <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/50 text-fuchsia-200">
-                    {String(timeLeft.hours).padStart(2, '0')}
-                    <span className="block text-[8px] text-fuchsia-400 text-center font-normal">HRS</span>
-                  </div>
-                  <span className="text-fuchsia-400">:</span>
-                  <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/50 text-fuchsia-200">
-                    {String(timeLeft.minutes).padStart(2, '0')}
-                    <span className="block text-[8px] text-fuchsia-400 text-center font-normal">MIN</span>
-                  </div>
-                  <span className="text-fuchsia-400">:</span>
-                  <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-rose-950/80 border border-rose-500/60 text-rose-200 animate-pulse">
-                    {String(timeLeft.seconds).padStart(2, '0')}
-                    <span className="block text-[8px] text-rose-400 text-center font-normal">SEC</span>
+                  <div className="text-xs text-gray-400 font-mono">
+                    {isAuctionActive ? 'Live Clock Sync' : selectedLot.status === 'paused' ? 'Paused' : 'Bidding Closed'}
                   </div>
                 </div>
+                {isAuctionActive ? (
+                  <div className="flex items-center gap-1.5 font-mono font-black text-xl sm:text-2xl">
+                    <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/50 text-fuchsia-200">
+                      {String(timeLeft.hours).padStart(2, '0')}
+                      <span className="block text-[8px] text-fuchsia-400 text-center font-normal">HRS</span>
+                    </div>
+                    <span className="text-fuchsia-400">:</span>
+                    <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/50 text-fuchsia-200">
+                      {String(timeLeft.minutes).padStart(2, '0')}
+                      <span className="block text-[8px] text-fuchsia-400 text-center font-normal">MIN</span>
+                    </div>
+                    <span className="text-fuchsia-400">:</span>
+                    <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-rose-950/80 border border-rose-500/60 text-rose-200 animate-pulse">
+                      {String(timeLeft.seconds).padStart(2, '0')}
+                      <span className="block text-[8px] text-rose-400 text-center font-normal">SEC</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-4 py-2 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 font-mono font-bold text-sm uppercase">
+                    {selectedLot.status === 'paused' ? 'Temporarily Paused' : 'Concluded'}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -346,11 +366,8 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
           </div>
         ) : (
           <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#130928] via-[#1c0d38] to-[#0e071e] border border-fuchsia-500/40 space-y-6 shadow-2xl relative overflow-hidden">
-            <img
-              src="/assets/reference_parts/part_22.png"
-              alt="Live Auction Auditorium Stage"
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 opacity-70"
-            />
+            <div className="absolute top-0 right-0 w-[500px] h-[350px] bg-fuchsia-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
+            <div className="absolute bottom-0 left-0 w-[450px] h-[300px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0717] via-[#0a0717]/90 to-[#0a0717]/40 z-[1]" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
@@ -526,11 +543,11 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                 </form>
 
                 {/* Recent Bids Feed */}
-                {recentBids.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-white/5">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
-                      Recent Verified Bids
-                    </div>
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                    Recent Verified Bids
+                  </div>
+                  {recentBids.length > 0 ? (
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                       {recentBids.slice(0, 5).map((b, idx) => (
                         <div
@@ -546,8 +563,12 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-gray-500 font-mono py-1">
+                      No bids placed yet. Be the first to place a verified bid!
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

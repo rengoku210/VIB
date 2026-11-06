@@ -53,7 +53,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   onOpenCheckout,
   initialSection,
 }) => {
-  const { user, token } = useAuth();
+  const { user, token, openAuthModal } = useAuth();
   // ---------------------------------------------------------------------------
   // LIVE AUCTION COUNTDOWN TIMER (Real-time ticking state)
   // ---------------------------------------------------------------------------
@@ -64,11 +64,19 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   const [isAuctionUnavailable, setIsAuctionUnavailable] = useState(false);
   const [currentBid, setCurrentBid] = useState(0);
   const [bidCount, setBidCount] = useState(0);
+  const [auctionStatus, setAuctionStatus] = useState<'active' | 'paused' | 'ended'>('active');
   const [userBidInput, setUserBidInput] = useState('');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
   const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
-  const isAuctionExpired = !isAuctionLoading && (!auctionEndsAt || Date.parse(auctionEndsAt) <= Date.now());
+  const isAuctionActive = Boolean(
+    !isAuctionLoading &&
+    !isAuctionUnavailable &&
+    auctionStatus === 'active' &&
+    auctionEndsAt &&
+    Date.parse(auctionEndsAt) > Date.now()
+  );
+  const isAuctionExpired = !isAuctionLoading && !isAuctionActive;
 
   const fetchFeaturedAuction = async () => {
     try {
@@ -78,14 +86,27 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
         return;
       }
       const data = await response.json();
-      const activeLot = (Array.isArray(data.lots) ? data.lots : []).find((l: any) => l.status === 'active') || data.lot || (data.lots && data.lots[0]) || null;
+      const lots = Array.isArray(data.lots) ? data.lots : [];
+      const activeLot = lots.find((l: any) => l.status === 'active') || null;
       if (activeLot) {
         setFeaturedLotId(activeLot.id || 'lot_1938918fb9d6');
         setCurrentBid(Number(activeLot.current_bid || 0));
         setBidCount(Number(activeLot.bid_count || 0));
         setAuctionEndsAt(String(activeLot.ends_at || ''));
+        setAuctionStatus(activeLot.status || 'active');
+        setIsAuctionUnavailable(false);
       } else {
-        setIsAuctionUnavailable(true);
+        const fallbackLot = (lots.length > 0 ? lots[0] : null) || data.lot || null;
+        if (fallbackLot) {
+          setFeaturedLotId(fallbackLot.id);
+          setCurrentBid(Number(fallbackLot.current_bid || 0));
+          setBidCount(Number(fallbackLot.bid_count || 0));
+          setAuctionEndsAt(String(fallbackLot.ends_at || ''));
+          setAuctionStatus(fallbackLot.status || 'ended');
+          setIsAuctionUnavailable(false);
+        } else {
+          setIsAuctionUnavailable(true);
+        }
       }
     } catch (error) {
       console.warn('Could not fetch featured auction:', error);
@@ -98,11 +119,17 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   useEffect(() => { void fetchFeaturedAuction(); }, []);
 
   useEffect(() => {
-    const updateCountdown = () => setTimeLeft(getAuctionTimeLeft(auctionEndsAt));
+    const updateCountdown = () => {
+      if (auctionStatus === 'active' && auctionEndsAt) {
+        setTimeLeft(getAuctionTimeLeft(auctionEndsAt));
+      } else {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      }
+    };
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, [auctionEndsAt]);
+  }, [auctionEndsAt, auctionStatus]);
 
   const handlePlaceBid = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,29 +141,12 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
       setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()}.`);
       return;
     }
-    setIsPlacingBid(true);
-    try {
-      const response = await fetch('/api/auctions/' + (featuredLotId || 'lot_1938918fb9d6') + '/bid', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ amount: bidVal, bidder_name: user?.name || undefined }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setBidErrorMessage(data.error || 'Failed to place bid. Please retry.');
-        return;
-      }
-      setCurrentBid(Number(data.lot?.current_bid));
-      setBidCount(Number(data.lot?.bid_count));
-      if (data.lot?.ends_at) setAuctionEndsAt(String(data.lot.ends_at));
-      setUserBidInput('');
-      setBidSuccessMessage(`Bid of ₹${bidVal.toLocaleString()} placed successfully.`);
-      await fetchFeaturedAuction();
-    } catch {
-      setBidErrorMessage('Network error while placing bid. Please try again.');
-    } finally {
-      setIsPlacingBid(false);
+    if (!user) {
+      openAuthModal('login');
+      return;
     }
+    // Navigate user to verified bidding interface where 50% security deposit is handled
+    onNavigate('auctions');
   };
 
   // Scroll to initial section if provided
@@ -936,12 +946,8 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
       {/* ========================================================================= */}
       <section id="auctions" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
         <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#120826] via-[#1a0c35] to-[#0d071d] border border-fuchsia-500/40 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Full-bleed Reference Part 22 (Grand Live Auction Auditorium Stage) */}
-          <img
-            src="/assets/reference_parts/part_22.png"
-            alt="Live Auction Stage Part 22"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
-          />
+          <div className="absolute top-0 right-0 w-[500px] h-[350px] bg-fuchsia-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
+          <div className="absolute bottom-0 left-0 w-[450px] h-[300px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#120826] via-[#120826]/75 to-transparent z-[1]" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#120826] via-transparent to-transparent z-[1]" />
 
@@ -949,8 +955,10 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.08] pb-5 relative z-10">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                <span className="text-rose-400">{isAuctionLoading ? 'LOADING AUCTION' : isAuctionUnavailable ? 'AUCTION UNAVAILABLE' : isAuctionExpired ? 'AUCTION ENDED' : 'LIVE TIMED AUCTION'}</span>
+                <span className={`w-2 h-2 rounded-full ${isAuctionActive ? 'bg-rose-500 animate-ping' : 'bg-gray-500'}`} />
+                <span className={isAuctionActive ? 'text-rose-400' : 'text-gray-400'}>
+                  {isAuctionLoading ? 'LOADING AUCTION' : isAuctionUnavailable ? 'AUCTION UNAVAILABLE' : !isAuctionActive ? (auctionStatus === 'paused' ? 'AUCTION PAUSED' : 'AUCTION CONCLUDED') : 'LIVE TIMED AUCTION'}
+                </span>
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
                 VIB AUCTIONS: <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-400 to-amber-300">BID. WIN. OWN.</span>
@@ -963,26 +971,36 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             {/* WORKING REAL-TIME COUNTDOWN TIMER */}
             <div className="p-3.5 rounded-xl bg-[#090615] border border-fuchsia-500/30 flex items-center gap-3 shadow-lg">
               <div className="text-right">
-                <div className="text-[9px] font-mono text-fuchsia-300 uppercase font-bold tracking-wider">AUCTION CLOSES IN</div>
-                <div className="text-xs text-gray-400 font-mono">{isAuctionLoading ? 'Syncing persisted lot…' : isAuctionUnavailable ? 'Auction data unavailable' : isAuctionExpired ? 'Bidding is closed' : 'Live Sync Active'}</div>
+                <div className="text-[9px] font-mono text-fuchsia-300 uppercase font-bold tracking-wider">
+                  {isAuctionActive ? 'AUCTION CLOSES IN' : 'AUCTION STATUS'}
+                </div>
+                <div className="text-xs text-gray-400 font-mono">
+                  {isAuctionLoading ? 'Syncing persisted lot…' : isAuctionUnavailable ? 'Auction data unavailable' : !isAuctionActive ? (auctionStatus === 'paused' ? 'Temporarily paused' : 'Bidding is closed') : 'Live Sync Active'}
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5 font-mono font-black text-lg sm:text-xl">
-                <div className="px-2.5 py-1 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-200">
-                  {String(timeLeft.hours).padStart(2, '0')}
-                  <span className="block text-[8px] text-fuchsia-400 text-center font-normal">HRS</span>
+              {isAuctionActive ? (
+                <div className="flex items-center gap-1.5 font-mono font-black text-lg sm:text-xl">
+                  <div className="px-2.5 py-1 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-200">
+                    {String(timeLeft.hours).padStart(2, '0')}
+                    <span className="block text-[8px] text-fuchsia-400 text-center font-normal">HRS</span>
+                  </div>
+                  <span className="text-fuchsia-400">:</span>
+                  <div className="px-2.5 py-1 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-200">
+                    {String(timeLeft.minutes).padStart(2, '0')}
+                    <span className="block text-[8px] text-fuchsia-400 text-center font-normal">MIN</span>
+                  </div>
+                  <span className="text-fuchsia-400">:</span>
+                  <div className="px-2.5 py-1 rounded-lg bg-rose-950/80 border border-rose-500/50 text-rose-200 animate-pulse">
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                    <span className="block text-[8px] text-rose-400 text-center font-normal">SEC</span>
+                  </div>
                 </div>
-                <span className="text-fuchsia-400">:</span>
-                <div className="px-2.5 py-1 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-200">
-                  {String(timeLeft.minutes).padStart(2, '0')}
-                  <span className="block text-[8px] text-fuchsia-400 text-center font-normal">MIN</span>
+              ) : (
+                <div className="px-3.5 py-1.5 rounded-lg bg-fuchsia-950/60 border border-fuchsia-500/30 text-fuchsia-300 font-mono font-bold text-xs uppercase">
+                  {auctionStatus === 'paused' ? 'Paused' : 'Concluded'}
                 </div>
-                <span className="text-fuchsia-400">:</span>
-                <div className="px-2.5 py-1 rounded-lg bg-rose-950/80 border border-rose-500/50 text-rose-200 animate-pulse">
-                  {String(timeLeft.seconds).padStart(2, '0')}
-                  <span className="block text-[8px] text-rose-400 text-center font-normal">SEC</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -1071,10 +1089,10 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
                     </div>
                     <button
                       type="submit"
-                      disabled={isPlacingBid || isAuctionLoading || isAuctionUnavailable || isAuctionExpired}
+                      disabled={isPlacingBid || isAuctionLoading || isAuctionUnavailable || !isAuctionActive}
                       className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center disabled:opacity-50"
                     >
-                      {isPlacingBid ? 'PLACING BID…' : isAuctionLoading ? 'LOADING…' : isAuctionUnavailable ? 'UNAVAILABLE' : isAuctionExpired ? 'AUCTION ENDED' : 'PLACE BID'}
+                      {isPlacingBid ? 'OPENING AUCTION…' : isAuctionLoading ? 'LOADING…' : isAuctionUnavailable ? 'UNAVAILABLE' : !isAuctionActive ? 'AUCTION CONCLUDED' : 'PLACE BID'}
                     </button>
                   </div>
                 </div>

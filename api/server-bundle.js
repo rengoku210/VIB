@@ -25874,6 +25874,65 @@ function seedCatalogAndBilling() {
       );
     }
   }
+  const activeAuctionCount = db.prepare("SELECT COUNT(*) as count FROM auction_lots WHERE status = 'active'").get().count;
+  if (activeAuctionCount === 0) {
+    const existing = db.prepare("SELECT id FROM auction_lots WHERE id = 'lot_1938918fb9d6'").get();
+    const futureDate = new Date(Date.now() + 5 * 24 * 3600 * 1e3).toISOString();
+    if (existing) {
+      db.prepare(`
+        UPDATE auction_lots SET
+          status = 'active',
+          lot_number = 'LOT #0881',
+          title = 'Kuronami Vandal & Radiant Gun Buddy Account',
+          starting_bid = 2000,
+          current_bid = 2400,
+          bid_increment = 150,
+          bid_count = 1,
+          highest_bidder_id = 'usr_bfafac0357170e62',
+          highest_bidder_name = 'Customer Test',
+          ends_at = ?,
+          winner_user_id = NULL,
+          winner_name = NULL,
+          winning_bid_amount = NULL,
+          winner_payment_status = NULL,
+          updated_at = ?
+        WHERE id = 'lot_1938918fb9d6'
+      `).run(futureDate, now);
+    } else {
+      db.prepare(`
+        INSERT INTO auction_lots (
+          id, lot_number, title, description, starting_bid, current_bid, bid_increment,
+          bid_count, highest_bidder_id, highest_bidder_name, ends_at, image_url,
+          status, created_at, updated_at, category, account_type, visibility,
+          account_name, server_region, account_level, inventory_details,
+          included_benefits, restrictions, transfer_info, additional_info_json,
+          gallery_images_json, starts_at, reserve_price, instant_buy_price,
+          deposit_pct, min_deposit_amount, winner_payment_deadline_hours,
+          winner_payment_deadline, currency, tax_rate_pct, platform_fee_pct,
+          delivery_method, delivery_eta, transfer_instructions, delivery_conditions,
+          min_eligibility, verification_required, allow_bid_raise, allow_cancellation,
+          deposit_refund_rules, forfeiture_rules, winner_user_id, winner_name,
+          winning_bid_amount, winner_payment_status, delivery_status
+        ) VALUES (
+          'lot_1938918fb9d6', 'LOT #0881', 'Kuronami Vandal & Radiant Gun Buddy Account',
+          'Premier competitive account with Kuronami Vandal (Max Level + All Colors), Champions 2024 Vandal & Blade, Reaver 2.0 Karambit, 1,200 VP Balance.',
+          2000, 2400, 150, 1, 'usr_bfafac0357170e62', 'Customer Test', ?,
+          '/assets/skins/kuronami_vandal.png', 'active', ?, ?, 'Valorant High Tier',
+          'radiant_full_access', 'public', 'VIB Competitive Vault', 'Asia Pacific (Mumbai)',
+          165, '', 'Full email access, OG transaction receipt, zero ban history',
+          'None. 100% clean standing.', 'Instant automated credential transfer upon payment settlement.',
+          '{}', '[]', ?, 0, 0, 50, 1000, 24, NULL, 'INR', 0, 0,
+          'Direct Escrow Transfer', 'Within 2 hours of payment settlement',
+          'Log in via Riot Client and configure two-factor authentication.',
+          'Customer must confirm receipt within 24 hours of delivery.',
+          'Verified VIB account with confirmed phone number', 1, 1, 0,
+          '100% automatic refund to losing bidders within 2 hours of auction closing.',
+          'If the winning bidder defaults after 24 hours, their security deposit is forfeited and the lot offered to next eligible bidder.',
+          NULL, NULL, NULL, NULL, 'pending'
+        )
+      `).run(futureDate, now, now, now);
+    }
+  }
   db.prepare(`
     UPDATE profiles
     SET total_orders = (
