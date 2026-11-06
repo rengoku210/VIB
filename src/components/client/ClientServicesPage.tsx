@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  Shield,
   ShieldCheck,
   Check,
   Headphones,
@@ -42,7 +43,7 @@ interface ClientServicesPageProps {
   onNavigate: (page: ClientPage) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number) => void;
-  initialSection?: ClientPage;
+  initialSection?: string;
 }
 
 export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
@@ -431,10 +432,500 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
         </div>
       </section>
 
+
+      {/* ========================================================================= */}
+      {/* 2. VIB URGENT SALE OFFER: SELL YOUR PROFILE FAST (Reference 2)             */}
+      {/* ========================================================================= */}
+      <section id="urgent-sale" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="lg:col-span-2 relative rounded-2xl overflow-hidden min-h-[340px] sm:min-h-[470px] flex items-center bg-[#070510] shadow-2xl group border border-rose-500/20">
+            <img
+              src="/assets/reference_parts/part_07.png"
+              alt="Urgent Sale Artwork"
+              className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#070510] via-[#070510]/85 to-[#070510]/15 z-[1]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#070510] via-[#070510]/20 to-transparent z-[1]" />
+
+            <div className="relative z-10 p-6 sm:p-10 max-w-2xl space-y-4">
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest text-rose-400 uppercase font-bold">
+                <Zap className="w-3.5 h-3.5 text-rose-400" />
+                <span>SELL YOUR PROFILE</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase font-rajdhani tracking-tight leading-none drop-shadow-[0_4px_22px_rgba(0,0,0,0.9)]">
+                <span className="text-white">VIB URGENT</span><br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-red-400 to-pink-400">SALE OFFER</span>
+              </h2>
+              <p className="text-sm sm:text-base font-bold text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+                Need to sell your profile fast? <span className="text-rose-300">Get an urgent sale offer through VIB.</span>
+              </p>
+              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-lg drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+                Turn your inventory into real value. Our verified buyer network helps you get a potential instant offer with a fast and secure process.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="px-3 py-1.5 rounded-full bg-[#1c0817]/90 backdrop-blur-sm border border-rose-500/35 text-[11px] text-rose-200 flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-rose-400" /> Fast Evaluation
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-[#1c0817]/90 backdrop-blur-sm border border-rose-500/35 text-[11px] text-rose-200 flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 text-rose-400" /> Instant Offer
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-[#1c0817]/90 backdrop-blur-sm border border-rose-500/35 text-[11px] text-rose-200 flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-rose-400" /> Verified Buyers
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-[#1c0817]/90 backdrop-blur-sm border border-rose-500/35 text-[11px] text-rose-200 flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-rose-400" /> Secure Escrow
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenCheckout('Urgent Profile Valuation Request', 0)}
+                  className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-rose-600/30 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                >
+                  <span>Get My Profile Evaluated</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('all-services');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="min-h-[44px] px-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 backdrop-blur-sm text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-200 hover:text-white transition-colors cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                >
+                  Learn More
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400/80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                Note: Offers are subject to profile quality, demand and verification. An evaluation does not guarantee a purchase.
+              </p>
+            </div>
+          </div>
+
+          <div className="relative rounded-2xl overflow-hidden min-h-[340px] sm:min-h-[470px] bg-gradient-to-b from-[#120826] to-[#070510] p-5 sm:p-6 flex flex-col justify-between shadow-2xl border border-purple-500/20">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest text-purple-300 uppercase font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>TWO WAYS TO SELL — SPEED OR VALUE</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 mt-4">
+              <div className="p-4 rounded-xl bg-[#11050e]/90 backdrop-blur-sm border border-rose-500/35 space-y-2 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-rose-300 uppercase font-rajdhani flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-rose-400" /> Urgent Sale Offer
+                  </span>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/40 uppercase">FASTER</span>
+                </div>
+                <ul className="text-[11px] text-gray-300 space-y-1">
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-rose-400" /> Request a quick evaluation</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-rose-400" /> Potential instant cash offer</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-rose-400" /> Faster transaction process</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-rose-400" /> Generally lower expected value</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-rose-400" /> Strict verification required</li>
+                </ul>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#0d071a]/90 backdrop-blur-sm border border-purple-500/35 space-y-2 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-purple-300 uppercase font-rajdhani flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-purple-400" /> Promotion Method
+                  </span>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/40 uppercase">HIGHER VALUE</span>
+                </div>
+                <ul className="text-[11px] text-gray-300 space-y-1">
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> You set your asking price</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> We promote your profile</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> Interested buyers contact you</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> Potential for better selling value</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> More time may be required</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={() => onOpenCheckout('Profile Promotion Listing', 999)}
+                className="w-full min-h-[40px] px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-[11px] font-bold font-rajdhani uppercase tracking-wider text-purple-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>List via Promotion Method (₹999)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3B. CHANGE REGION FROM IND TO PHP: REGIONAL ARBITRAGE SERVICE              */}
+      {/* ========================================================================= */}
+      <section id="region-change" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
+        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0c0919] via-[#140b2a] to-[#0c0919] border border-fuchsia-500/30 space-y-6 shadow-2xl relative overflow-hidden">
+          {/* Neon Glows */}
+          <div className="absolute -left-10 top-0 w-80 h-80 bg-fuchsia-600/15 rounded-full blur-[90px] pointer-events-none" />
+          <div className="absolute -right-10 bottom-0 w-80 h-80 bg-purple-600/15 rounded-full blur-[90px] pointer-events-none" />
+
+          {/* Header */}
+          <div className="space-y-1 relative z-10">
+            <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
+              <Globe className="w-3.5 h-3.5 text-purple-400" />
+              <span>REGIONAL ARBITRAGE SERVICE</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
+              CHANGE REGION FROM IND TO PHP
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+              Switch your existing Valorant account region from India (IND) to Philippines (PHP) and unlock 25% to 40% cheaper VP rates on every store purchase forever.
+            </p>
+          </div>
+
+          {/* Twin Portal Gateways Comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-11 gap-4 items-center relative z-10">
+            {/* Left Portal: INDIA REGION */}
+            <div className="lg:col-span-5 p-5 rounded-xl bg-[#090714] border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FlagIcon country="IN" size="md" />
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white font-rajdhani">INDIA REGION (IND)</h3>
+                    <div className="text-[10px] font-mono text-gray-400">Current Standard Pricing</div>
+                  </div>
+                </div>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase">
+                  STANDARD
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-gray-300 pt-1">
+                <div className="flex justify-between py-1 border-b border-white/5">
+                  <span className="text-gray-400">1000 VP Price:</span>
+                  <span className="font-bold text-white">₹800 - ₹850</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-white/5">
+                  <span className="text-gray-400">Ultra Bundle (8700 VP):</span>
+                  <span className="font-bold text-white">₹7,200+</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-white/5">
+                  <span className="text-gray-400">Server Latency:</span>
+                  <span className="font-bold text-emerald-400">15-25ms (Mumbai)</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-gray-400">Savings Potential:</span>
+                  <span className="font-bold text-gray-500">None (Full Price)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Portal Bridge */}
+            <div className="lg:col-span-1 flex flex-col items-center justify-center text-center py-2 lg:py-0">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/40">
+                <ArrowRight className="w-5 h-5 hidden lg:block" />
+                <TrendingDown className="w-5 h-5 lg:hidden" />
+              </div>
+              <span className="text-[9px] font-mono text-fuchsia-400 uppercase font-bold mt-1 tracking-wider">
+                SAVE 40%
+              </span>
+            </div>
+
+            {/* Right Portal: PHILIPPINES REGION */}
+            <div className="lg:col-span-5 p-5 rounded-xl bg-gradient-to-br from-[#120824] to-[#1c0d38] border border-fuchsia-500/50 space-y-3 shadow-lg shadow-fuchsia-900/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FlagIcon country="PH" size="md" />
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white font-rajdhani">PHILIPPINES REGION (PHP)</h3>
+                    <div className="text-[10px] font-mono text-fuchsia-300">Discounted Southeast Asia Tier</div>
+                  </div>
+                </div>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-fuchsia-900/60 text-fuchsia-200 border border-fuchsia-500/40 uppercase font-bold">
+                  BEST VALUE
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-gray-200 pt-1">
+                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
+                  <span className="text-gray-300">1000 VP Price:</span>
+                  <span className="font-bold text-emerald-400">~₹520 (Save ~₹300)</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
+                  <span className="text-gray-300">Ultra Bundle (8700 VP):</span>
+                  <span className="font-bold text-emerald-400">~₹4,300 (Save ~₹2,900)</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
+                  <span className="text-gray-300">Server Latency:</span>
+                  <span className="font-bold text-emerald-400">Identical Mumbai / SG Ping</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-gray-300">Total Savings:</span>
+                  <span className="font-bold text-fuchsia-300">Up to 40% Off Every VP Pack</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Why Switch to PHP Checklist & CTA */}
+          <div className="pt-2 border-t border-white/[0.08] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>25-40% cheaper VP on every purchase</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Identical Mumbai/Singapore server ping</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Safe &amp; Riot-compliant account setup</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Full warranty &amp; instant delivery</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+            >
+              <span>Order Region Switch (₹1,299)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ========================================================================= */}
+      {/* 3. CREATE A FRESH PHP PROFILE: 4-STEP FLOW [View 4]                       */}
+      {/* ========================================================================= */}
+      <section id="fresh-php" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
+        <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0a18] border border-purple-500/30 space-y-6 shadow-xl relative overflow-hidden">
+          {/* Ambient Glows */}
+          <div className="absolute top-0 right-1/4 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.06] pb-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
+                <Globe className="w-3.5 h-3.5 text-purple-400" />
+                <span>CLEAN REGIONAL PROVISIONING</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white font-rajdhani tracking-wide uppercase">
+                CREATE A FRESH PHP PROFILE
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-400 max-w-xl">
+                Start with a brand new, unranked Philippines (PHP) Valorant profile to immediately access 40% cheaper VP store prices without modifying your existing account.
+              </p>
+            </div>
+
+            <button
+              onClick={() => onOpenCheckout('Fresh Philippines (PHP) Profile Provisioning', 499)}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
+            >
+              <span>Get Fresh PHP Profile (₹499)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 4 Steps Timeline */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {phpSteps.map((step, idx) => (
+              <div
+                key={step.num}
+                className="p-5 rounded-xl bg-[#090714] border border-white/[0.08] hover:border-purple-500/40 transition-all space-y-3 relative group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-full bg-purple-950/80 border border-purple-500/50 text-purple-300 font-extrabold text-xs flex items-center justify-center font-rajdhani">
+                    {step.num}
+                  </div>
+                  <span className="text-[9px] font-mono text-gray-500 uppercase">PHASE 0{idx + 1}</span>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-extrabold text-sm text-white font-rajdhani tracking-wide">
+                    {step.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 4 Guarantees */}
+          <div className="pt-2 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-gray-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>100% Ban-Free Guarantee</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Mumbai/SG Low Ping Matchmaking</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>First-Email &amp; Password Changeable</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Lifetime Warranty Protection</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ========================================================================= */}
+      {/* 4B. VALO SKINS EXCHANGE: TRADE IN. UPGRADE. DOMINATE. (Reference 3)       */}
+      {/* ========================================================================= */}
+      <section id="skins-exchange" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-4 scroll-mt-24">
+        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-[#170a2a] via-[#10081d] to-[#0a0515] border border-purple-500/35 relative overflow-hidden shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6 min-h-[380px]">
+          {/* Full-bleed Reference Part 15 (Valo Skins Exchange Hologram Stage) */}
+          <img
+            src="/assets/reference_parts/part_15.png"
+            alt="Valo Skins Exchange Showcase"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 opacity-90"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#170a2a] via-[#170a2a]/80 to-transparent z-[1]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#170a2a] via-transparent to-transparent z-[1]" />
+          <div className="absolute right-1/4 top-0 w-80 h-full bg-purple-600/15 blur-3xl pointer-events-none" />
+
+          {/* Left Text & Actions */}
+          <div className="space-y-3 max-w-xl relative z-10">
+            <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest text-[#d946ef] uppercase font-bold">
+              <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse" />
+              <span>VALO SKINS EXCHANGE PROGRAM</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase text-white font-rajdhani tracking-tight leading-none">
+              TRADE IN. UPGRADE. <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-400 to-amber-300">DOMINATE.</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+              Bored of your current skin inventory? Trade in your existing Valorant accounts or weapon collections for instant store credit or upgrade directly to high-tier vaulted inventories with guaranteed 100% escrow protection.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs text-gray-300">
+              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
+                <span>Instant Valuation</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
+                <span>Fair Trade Rates</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
+                <span>100% Escrow Protection</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+              <button
+                onClick={() => onOpenCheckout('Valo Skins Exchange Valuation', 0)}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Get Exchange Valuation</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Full-bleed Part 15 background applied above */}
+        </div>
+      </section>
+
+
+      {/* ========================================================================= */}
+      {/* 4. COACHING PROGRAM: LEARN. IMPROVE. DOMINATE. [View 4]                   */}
+      {/* ========================================================================= */}
+      <section id="coaching" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
+        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0e0a1f] via-[#150d2e] to-[#0e0a1f] border border-purple-500/30 space-y-6 shadow-2xl relative overflow-hidden">
+          {/* Ambient Glows */}
+          <div className="absolute top-0 right-10 w-96 h-96 bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-0 left-10 w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[90px] pointer-events-none" />
+
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.08] pb-5 relative z-10">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
+                <Award className="w-3.5 h-3.5 text-purple-400" />
+                <span>TIER 1 COMPETITIVE COACHING</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
+                COACHING PROGRAM: <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-300 to-pink-400">LEARN. IMPROVE. DOMINATE.</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+                1-on-1 private coaching with Radiant players, VCT tier analysts, and competitive specialists. Custom drills, live VOD reviews, and tailored aim routines.
+              </p>
+            </div>
+
+            {/* Pricing Packages */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onOpenCheckout('Valorant 1-on-1 Coaching (Single 1-Hour Session)', 799)}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Single Session (₹799)
+              </button>
+              <button
+                onClick={() => onOpenCheckout('Valorant 5-Session Mastery Bootcamp', 3499)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>5-Session Bootcamp (₹3,499)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Skill Pillars */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+            {coachingPillars.map((p, idx) => {
+              const Icon = p.icon;
+              return (
+                <div
+                  key={idx}
+                  className="p-5 rounded-xl bg-[#090716]/80 border border-white/[0.08] hover:border-purple-500/40 transition-all space-y-3 group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-bold text-sm text-white font-rajdhani tracking-wide">
+                    {p.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    {p.desc}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Testimonial Quote */}
+          <div className="p-4 rounded-xl bg-[#090615] border border-purple-500/20 relative z-10 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center text-white font-black text-sm font-rajdhani flex-shrink-0">
+              AK
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-xs sm:text-sm text-gray-200 italic">
+                &ldquo;Went from Gold 2 to Ascendant 3 in 3 weeks. The round-by-round VOD breakdowns and crosshair placement routines completely transformed my game sense.&rdquo;
+              </p>
+              <div className="text-[11px] font-mono text-purple-400 font-bold">
+                — Aarav K. • Verified VIB Student (Gold 2 &rarr; Ascendant 3)
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
       {/* ========================================================================= */}
       {/* 2. VIB AUCTIONS: BID. WIN. OWN. WITH WORKING LIVE COUNTDOWN TIMER [View 4] */}
       {/* ========================================================================= */}
-      <section id="auctions" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-20">
+      <section id="auctions" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
         <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#120826] via-[#1a0c35] to-[#0d071d] border border-fuchsia-500/40 space-y-6 shadow-2xl relative overflow-hidden">
           {/* Full-bleed Reference Part 22 (Grand Live Auction Auditorium Stage) */}
           <img
@@ -600,370 +1091,12 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 3. CREATE A FRESH PHP PROFILE: 4-STEP FLOW [View 4]                       */}
-      {/* ========================================================================= */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-6 sm:p-8 rounded-2xl bg-[#0c0a18] border border-purple-500/30 space-y-6 shadow-xl relative overflow-hidden">
-          {/* Ambient Glows */}
-          <div className="absolute top-0 right-1/4 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.06] pb-4">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
-                <Globe className="w-3.5 h-3.5 text-purple-400" />
-                <span>CLEAN REGIONAL PROVISIONING</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white font-rajdhani tracking-wide uppercase">
-                CREATE A FRESH PHP PROFILE
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-400 max-w-xl">
-                Start with a brand new, unranked Philippines (PHP) Valorant profile to immediately access 40% cheaper VP store prices without modifying your existing account.
-              </p>
-            </div>
-
-            <button
-              onClick={() => onOpenCheckout('Fresh Philippines (PHP) Profile Provisioning', 499)}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
-            >
-              <span>Get Fresh PHP Profile (₹499)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* 4 Steps Timeline */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {phpSteps.map((step, idx) => (
-              <div
-                key={step.num}
-                className="p-5 rounded-xl bg-[#090714] border border-white/[0.08] hover:border-purple-500/40 transition-all space-y-3 relative group"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-full bg-purple-950/80 border border-purple-500/50 text-purple-300 font-extrabold text-xs flex items-center justify-center font-rajdhani">
-                    {step.num}
-                  </div>
-                  <span className="text-[9px] font-mono text-gray-500 uppercase">PHASE 0{idx + 1}</span>
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="font-extrabold text-sm text-white font-rajdhani tracking-wide">
-                    {step.title}
-                  </h3>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    {step.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 4 Guarantees */}
-          <div className="pt-2 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-gray-300">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>100% Ban-Free Guarantee</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>Mumbai/SG Low Ping Matchmaking</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>First-Email &amp; Password Changeable</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>Lifetime Warranty Protection</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 3B. CHANGE REGION FROM IND TO PHP: REGIONAL ARBITRAGE SERVICE              */}
-      {/* ========================================================================= */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0c0919] via-[#140b2a] to-[#0c0919] border border-fuchsia-500/30 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Neon Glows */}
-          <div className="absolute -left-10 top-0 w-80 h-80 bg-fuchsia-600/15 rounded-full blur-[90px] pointer-events-none" />
-          <div className="absolute -right-10 bottom-0 w-80 h-80 bg-purple-600/15 rounded-full blur-[90px] pointer-events-none" />
-
-          {/* Header */}
-          <div className="space-y-1 relative z-10">
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
-              <Globe className="w-3.5 h-3.5 text-purple-400" />
-              <span>REGIONAL ARBITRAGE SERVICE</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
-              CHANGE REGION FROM IND TO PHP
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-              Switch your existing Valorant account region from India (IND) to Philippines (PHP) and unlock 25% to 40% cheaper VP rates on every store purchase forever.
-            </p>
-          </div>
-
-          {/* Twin Portal Gateways Comparison */}
-          <div className="grid grid-cols-1 lg:grid-cols-11 gap-4 items-center relative z-10">
-            {/* Left Portal: INDIA REGION */}
-            <div className="lg:col-span-5 p-5 rounded-xl bg-[#090714] border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FlagIcon country="IN" size="md" />
-                  <div>
-                    <h3 className="font-extrabold text-sm text-white font-rajdhani">INDIA REGION (IND)</h3>
-                    <div className="text-[10px] font-mono text-gray-400">Current Standard Pricing</div>
-                  </div>
-                </div>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase">
-                  STANDARD
-                </span>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-gray-300 pt-1">
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">1000 VP Price:</span>
-                  <span className="font-bold text-white">₹800 - ₹850</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Ultra Bundle (8700 VP):</span>
-                  <span className="font-bold text-white">₹7,200+</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Server Latency:</span>
-                  <span className="font-bold text-emerald-400">15-25ms (Mumbai)</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-400">Savings Potential:</span>
-                  <span className="font-bold text-gray-500">None (Full Price)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Portal Bridge */}
-            <div className="lg:col-span-1 flex flex-col items-center justify-center text-center py-2 lg:py-0">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/40">
-                <ArrowRight className="w-5 h-5 hidden lg:block" />
-                <TrendingDown className="w-5 h-5 lg:hidden" />
-              </div>
-              <span className="text-[9px] font-mono text-fuchsia-400 uppercase font-bold mt-1 tracking-wider">
-                SAVE 40%
-              </span>
-            </div>
-
-            {/* Right Portal: PHILIPPINES REGION */}
-            <div className="lg:col-span-5 p-5 rounded-xl bg-gradient-to-br from-[#120824] to-[#1c0d38] border border-fuchsia-500/50 space-y-3 shadow-lg shadow-fuchsia-900/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FlagIcon country="PH" size="md" />
-                  <div>
-                    <h3 className="font-extrabold text-sm text-white font-rajdhani">PHILIPPINES REGION (PHP)</h3>
-                    <div className="text-[10px] font-mono text-fuchsia-300">Discounted Southeast Asia Tier</div>
-                  </div>
-                </div>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-fuchsia-900/60 text-fuchsia-200 border border-fuchsia-500/40 uppercase font-bold">
-                  BEST VALUE
-                </span>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-gray-200 pt-1">
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">1000 VP Price:</span>
-                  <span className="font-bold text-emerald-400">~₹520 (Save ~₹300)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">Ultra Bundle (8700 VP):</span>
-                  <span className="font-bold text-emerald-400">~₹4,300 (Save ~₹2,900)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">Server Latency:</span>
-                  <span className="font-bold text-emerald-400">Identical Mumbai / SG Ping</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-300">Total Savings:</span>
-                  <span className="font-bold text-fuchsia-300">Up to 40% Off Every VP Pack</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Why Switch to PHP Checklist & CTA */}
-          <div className="pt-2 border-t border-white/[0.08] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-300">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>25-40% cheaper VP on every purchase</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Identical Mumbai/Singapore server ping</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Safe &amp; Riot-compliant account setup</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Full warranty &amp; instant delivery</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
-            >
-              <span>Order Region Switch (₹1,299)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 4. COACHING PROGRAM: LEARN. IMPROVE. DOMINATE. [View 4]                   */}
-      {/* ========================================================================= */}
-      <section id="coaching" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-20">
-        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0e0a1f] via-[#150d2e] to-[#0e0a1f] border border-purple-500/30 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Ambient Glows */}
-          <div className="absolute top-0 right-10 w-96 h-96 bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
-          <div className="absolute bottom-0 left-10 w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[90px] pointer-events-none" />
-
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.08] pb-5 relative z-10">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
-                <Award className="w-3.5 h-3.5 text-purple-400" />
-                <span>TIER 1 COMPETITIVE COACHING</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
-                COACHING PROGRAM: <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-300 to-pink-400">LEARN. IMPROVE. DOMINATE.</span>
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-                1-on-1 private coaching with Radiant players, VCT tier analysts, and competitive specialists. Custom drills, live VOD reviews, and tailored aim routines.
-              </p>
-            </div>
-
-            {/* Pricing Packages */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => onOpenCheckout('Valorant 1-on-1 Coaching (Single 1-Hour Session)', 799)}
-                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-200 hover:text-white transition-colors cursor-pointer"
-              >
-                Single Session (₹799)
-              </button>
-              <button
-                onClick={() => onOpenCheckout('Valorant 5-Session Mastery Bootcamp', 3499)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <span>5-Session Bootcamp (₹3,499)</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* 4 Skill Pillars */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-            {coachingPillars.map((p, idx) => {
-              const Icon = p.icon;
-              return (
-                <div
-                  key={idx}
-                  className="p-5 rounded-xl bg-[#090716]/80 border border-white/[0.08] hover:border-purple-500/40 transition-all space-y-3 group"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <h3 className="font-bold text-sm text-white font-rajdhani tracking-wide">
-                    {p.title}
-                  </h3>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    {p.desc}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Testimonial Quote */}
-          <div className="p-4 rounded-xl bg-[#090615] border border-purple-500/20 relative z-10 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center text-white font-black text-sm font-rajdhani flex-shrink-0">
-              AK
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs sm:text-sm text-gray-200 italic">
-                &ldquo;Went from Gold 2 to Ascendant 3 in 3 weeks. The round-by-round VOD breakdowns and crosshair placement routines completely transformed my game sense.&rdquo;
-              </p>
-              <div className="text-[11px] font-mono text-purple-400 font-bold">
-                — Aarav K. • Verified VIB Student (Gold 2 &rarr; Ascendant 3)
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 4B. VALO SKINS EXCHANGE: TRADE IN. UPGRADE. DOMINATE. (Reference 3)       */}
-      {/* ========================================================================= */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-[#170a2a] via-[#10081d] to-[#0a0515] border border-purple-500/35 relative overflow-hidden shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6 min-h-[380px]">
-          {/* Full-bleed Reference Part 15 (Valo Skins Exchange Hologram Stage) */}
-          <img
-            src="/assets/reference_parts/part_15.png"
-            alt="Valo Skins Exchange Showcase"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 opacity-90"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#170a2a] via-[#170a2a]/80 to-transparent z-[1]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#170a2a] via-transparent to-transparent z-[1]" />
-          <div className="absolute right-1/4 top-0 w-80 h-full bg-purple-600/15 blur-3xl pointer-events-none" />
-
-          {/* Left Text & Actions */}
-          <div className="space-y-3 max-w-xl relative z-10">
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest text-[#d946ef] uppercase font-bold">
-              <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse" />
-              <span>VALO SKINS EXCHANGE PROGRAM</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase text-white font-rajdhani tracking-tight leading-none">
-              TRADE IN. UPGRADE. <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-400 to-amber-300">DOMINATE.</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-              Bored of your current skin inventory? Trade in your existing Valorant accounts or weapon collections for instant store credit or upgrade directly to high-tier vaulted inventories with guaranteed 100% escrow protection.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs text-gray-300">
-              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
-                <span>Instant Valuation</span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
-                <span>Fair Trade Rates</span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-[#0c0817] border border-white/5 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-fuchsia-400" />
-                <span>100% Escrow Protection</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
-              <button
-                onClick={() => onOpenCheckout('Valo Skins Exchange Valuation', 0)}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <span>Get Exchange Valuation</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Full-bleed Part 15 background applied above */}
-        </div>
-      </section>
 
       {/* ========================================================================= */}
       {/* 5. OUR SERVICES: Everything You Need, In One Place                        */}
       {/* ========================================================================= */}
-      <section id="services-grid" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+      <section id="all-services" className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5 scroll-mt-24">
+        <div id="services-grid" className="scroll-mt-24" />
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-white/[0.06] pb-3">
           <div className="space-y-0.5">
             <div className="text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
@@ -1012,6 +1145,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
           })}
         </div>
       </section>
+
 
       {/* ========================================================================= */}
       {/* 6. TRUST & COMPLIANCE: Your Safety Is Our Priority                        */}

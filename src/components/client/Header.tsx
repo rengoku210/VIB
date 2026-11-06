@@ -19,6 +19,8 @@ import {
   Award,
   LayoutDashboard,
   Clock,
+  Globe,
+  Repeat,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { soundFx } from '../../utils/audio';
@@ -43,7 +45,7 @@ export type ClientPage =
 
 interface HeaderProps {
   currentPage: ClientPage;
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, sectionId?: string) => void;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
   cartCount: number;
@@ -153,11 +155,21 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleNav = (p: ClientPage) => {
+  const handleNav = (p: ClientPage, sectionId?: string) => {
     soundFx.playClickSound();
-    onNavigate(p);
+    onNavigate(p, sectionId);
     setMobileMenuOpen(false);
     setMoreOpen(false);
+
+    if (sectionId) {
+      setTimeout(() => {
+        const cleanId = sectionId.startsWith('#') ? sectionId.slice(1) : sectionId;
+        const el = document.getElementById(cleanId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 120);
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -330,50 +342,143 @@ export const Header: React.FC<HeaderProps> = ({
               {moreOpen && (
                 <div
                   role="menu"
-                  className="absolute top-full left-0 mt-2 w-56 rounded-2xl bg-[#0c0d18] border border-fuchsia-500/30 p-2 shadow-2xl backdrop-blur-xl z-50 space-y-1"
+                  className="absolute top-full left-0 mt-2 w-72 rounded-2xl bg-[#0c0d18]/95 border border-fuchsia-500/30 p-2 shadow-2xl backdrop-blur-2xl z-50 divide-y divide-white/[0.08]"
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleNav('services')}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-fuchsia-300 transition-colors flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-                  >
-                    <span className="font-bold">All Services</span>
-                    <span className="text-[10px] text-gray-400">Complete VIB ecosystem overview</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleNav('community')}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-fuchsia-300 transition-colors flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-                  >
-                    <span className="font-bold">Community Discord</span>
-                    <span className="text-[10px] text-gray-400">Join 50,000+ members</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      if (onOpenTracking) onOpenTracking();
-                    }}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-emerald-300 transition-colors flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-                  >
-                    <span className="font-bold flex items-center gap-1.5 text-emerald-400">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>Track Live Order</span>
-                    </span>
-                    <span className="text-[10px] text-gray-400">Lookup escrow order PINs &amp; status</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleNav('support')}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-fuchsia-300 transition-colors flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-                  >
-                    <span className="font-bold">Dedicated Support</span>
-                    <span className="text-[10px] text-gray-400">24/7 executive assistance</span>
-                  </button>
+                  {/* Top: Specialized Services */}
+                  <div className="space-y-0.5 pb-1.5">
+                    <div className="px-2.5 py-1 text-[10px] font-mono tracking-widest text-fuchsia-400 uppercase font-bold">
+                      Special Services
+                    </div>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('services', 'region-change')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Globe className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Change Region (IND → PHP)</span>
+                        <span className="text-[10px] text-gray-400 truncate">Unlock 40% cheaper VP rates</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('services', 'urgent-sale')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-red-950/80 border border-red-500/40 flex items-center justify-center text-red-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Zap className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Urgent Sale Offer</span>
+                        <span className="text-[10px] text-gray-400 truncate">Sell profile fast for instant cash</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('services', 'skins-exchange')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Repeat className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Valo Skins Exchange</span>
+                        <span className="text-[10px] text-gray-400 truncate">P2P weapon trade & swap escrow</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('services', 'fresh-php')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Fresh PHP Profile</span>
+                        <span className="text-[10px] text-gray-400 truncate">Clean unranked account for ₹499</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Middle: Community & Tracking */}
+                  <div className="space-y-0.5 py-1.5">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        if (onOpenTracking) onOpenTracking();
+                      }}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-emerald-300 transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Clock className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-emerald-400">Track Live Order</span>
+                        <span className="text-[10px] text-gray-400 truncate">Lookup escrow order PINs & status</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('community')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Community Discord</span>
+                        <span className="text-[10px] text-gray-400 truncate">Join 50,000+ members</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('support')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Dedicated Support</span>
+                        <span className="text-[10px] text-gray-400 truncate">24/7 executive assistance</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Bottom: All Services */}
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('services', 'all-services')}
+                      className="w-full text-left p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/40 border border-purple-500/30 text-xs text-purple-200 hover:text-white transition-all flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group shadow-md"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-purple-600/30 border border-purple-400/40 flex items-center justify-center text-purple-300 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <Shield className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold text-white uppercase tracking-wider text-xs">All Services Directory</span>
+                        <span className="text-[10px] text-purple-300/80 truncate">Complete VIB ecosystem overview</span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -646,26 +751,41 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Live Auctions & Mystery Boxes</span>
             </button>
 
+            {/* Top specialized services */}
             <button
               type="button"
-              onClick={() => handleNav('services')}
-              className={`min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
-                currentPage === 'services'
-                  ? 'bg-purple-600/30 text-white font-bold border border-purple-500/40'
-                  : 'text-gray-300 hover:text-white hover:bg-white/5'
-              }`}
+              onClick={() => handleNav('services', 'region-change')}
+              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
-              <Shield className="w-4 h-4 text-purple-400 flex-shrink-0" />
-              <span>All Services</span>
+              <Globe className="w-4 h-4 text-fuchsia-400 flex-shrink-0" />
+              <span>Change Region (IND → PHP)</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleNav('community')}
+              onClick={() => handleNav('services', 'urgent-sale')}
               className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-              <span>Discord</span>
+              <Zap className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>Urgent Sale Offer</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('services', 'skins-exchange')}
+              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <Repeat className="w-4 h-4 text-purple-400 flex-shrink-0" />
+              <span>Valo Skins Exchange</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('services', 'fresh-php')}
+              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+              <span>Fresh PHP Profile</span>
             </button>
 
             <button
@@ -682,11 +802,34 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               type="button"
-              onClick={() => handleNav('support')}
-              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer col-span-2"
+              onClick={() => handleNav('community')}
+              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
-              <HelpCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <MessageSquare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+              <span>Discord</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('support')}
+              className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <HelpCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span>Support & MSME Verification</span>
+            </button>
+
+            {/* All Services Directory at bottom */}
+            <button
+              type="button"
+              onClick={() => handleNav('services', 'all-services')}
+              className={`min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 transition-all cursor-pointer col-span-2 ${
+                currentPage === 'services'
+                  ? 'bg-purple-600/30 text-white font-bold border border-purple-500/40'
+                  : 'text-purple-300 hover:text-white hover:bg-white/5 border border-purple-500/20'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-purple-400 flex-shrink-0" />
+              <span>All Services Directory</span>
             </button>
           </div>
 

@@ -291,7 +291,17 @@ function AppContent() {
       }
       window.history.pushState({ page, id }, '', url.toString());
     } catch {}
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (id && page !== 'listing' && page !== 'legal') {
+      const cleanId = id.startsWith('#') ? id.slice(1) : id;
+      setTimeout(() => {
+        const el = document.getElementById(cleanId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
