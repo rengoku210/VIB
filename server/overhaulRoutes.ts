@@ -404,7 +404,23 @@ export function registerOverhaulRoutes(
         WHERE id = ?
       `).run(handover_status, contactedAt, notes, notes, now, bookingId);
 
-      logAudit(req.user.id, req.user.name, 'UPDATE_RENTAL_HANDOVER_STATUS', 'rental_booking', bookingId, { handover_status, notes }, req);
+      try {
+        db.prepare(`
+          INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          'aud_' + crypto.randomBytes(6).toString('hex'),
+          (req as any).user?.id || 'admin',
+          'UPDATE_RENTAL_HANDOVER_STATUS',
+          'rental_booking',
+          bookingId,
+          JSON.stringify({ handover_status, notes }),
+          req.ip || '127.0.0.1',
+          now
+        );
+      } catch (e) {
+        // non-fatal
+      }
 
       const updated = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(bookingId);
       res.json({ message: 'Handover status updated successfully.', booking: updated });

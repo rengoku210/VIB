@@ -17,6 +17,7 @@ import {
   Save,
   MessageCircle,
   Eye,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 

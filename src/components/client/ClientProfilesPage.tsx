@@ -23,12 +23,16 @@ import {
   Search,
   X,
   Plus,
+  Repeat,
+  DollarSign,
+  CheckCircle2,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
 import { ClientPage } from './Header';
 import { soundFx } from '../../utils/audio';
 import { SubmitListingModal } from '../profiles/SubmitListingModal';
+import { EscrowModal } from '../home/EscrowModal';
 
 interface ClientProfilesPageProps {
   currency: Currency;
@@ -53,6 +57,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [publishedListings, setPublishedListings] = useState<any[]>([]);
   const [showSubmitListingModal, setShowSubmitListingModal] = useState(false);
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const fetchPublishedListings = () => {
@@ -914,7 +919,119 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. JOIN THE VIB COMMUNITY Banner (Matching Reference 1)                   */}
+      {/* 4. VALO SKINS EXCHANGE (Community Trade Platform)                         */}
+      {/* ========================================================================= */}
+      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0c0a1a] via-[#140f2b] to-[#0c0a1a] border border-purple-500/30 space-y-6 shadow-2xl relative overflow-hidden">
+          {/* Ambient Glows */}
+          <div className="absolute top-0 right-10 w-96 h-96 bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-0 left-10 w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[90px] pointer-events-none" />
+
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/[0.08] pb-5 relative z-10">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
+                <Repeat className="w-3 h-3 text-purple-400" />
+                <span>COMMUNITY TRADE PLATFORM</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
+                VALO SKINS EXCHANGE
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+                Trade, swap, or upgrade your Valorant weapon skins safely with guaranteed escrow and real-time community appraisal.
+              </p>
+            </div>
+
+            {/* Live Stats */}
+            <div className="flex items-center gap-4 sm:gap-6 pt-2 md:pt-0">
+              <div className="text-center md:text-right">
+                <div className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-fuchsia-400 font-rajdhani">
+                  50k+
+                </div>
+                <div className="text-[10px] font-mono text-gray-400 uppercase">Active Members</div>
+              </div>
+              <div className="w-[1px] h-8 bg-white/10" />
+              <div className="text-center md:text-right">
+                <div className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-400 font-rajdhani">
+                  1M+
+                </div>
+                <div className="text-[10px] font-mono text-gray-400 uppercase">Transactions</div>
+              </div>
+              <div className="w-[1px] h-8 bg-white/10" />
+              <div className="text-center md:text-right">
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-rajdhani">
+                  99.8%
+                </div>
+                <div className="text-[10px] font-mono text-gray-400 uppercase">Trust Score</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Pillars & Action CTAs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+            <div className="p-4 rounded-xl bg-[#080614]/80 border border-white/[0.06] space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-sm text-white font-rajdhani">Instant Escrow Lock</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Zero chargeback or scam risk. Both accounts and funds are held in secure escrow until mutual verification.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#080614]/80 border border-white/[0.06] space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold text-xs">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-sm text-white font-rajdhani">Fair Value Appraisal</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Automated skin pricing calculator based on live marketplace data, exclusive variants, and VP purchase history.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#080614]/80 border border-white/[0.06] space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-fuchsia-500/20 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-300 font-bold text-xs">
+                <Repeat className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-sm text-white font-rajdhani">Instant Inventory Swap</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Direct trade facilitated by verified middleman agents on WhatsApp and Discord with average 12-minute turnaround.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Strip */}
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.08] relative z-10">
+            <div className="text-xs text-gray-300 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Have a skin collection you want to trade or cash out? Get an instant appraisal.</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  window.scrollTo({ top: 380, behavior: 'smooth' });
+                }}
+                className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Browse Available Skins
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTradeModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-xs font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>List Skin For Trade</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 5. JOIN THE VIB COMMUNITY Banner (Matching Reference 1)                   */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="rounded-2xl overflow-hidden shadow-2xl relative min-h-[220px] sm:min-h-[260px] flex items-center bg-[#070510]">
@@ -995,7 +1112,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. 4 TRUST CARDS STRIP (Matching Reference 1 exactly)                     */}
+      {/* 6. 4 TRUST CARDS STRIP (Matching Reference 1 exactly)                     */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -1044,6 +1161,12 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Dedicated P2P Trade Escrow Modal */}
+      <EscrowModal
+        isOpen={isTradeModalOpen}
+        onClose={() => setIsTradeModalOpen(false)}
+      />
 
       {/* Seller Account Submission Modal */}
       <SubmitListingModal

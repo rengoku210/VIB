@@ -87,6 +87,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     }
   };
 
+  const [featuredLotId, setFeaturedLotId] = useState<string>('lot_1938918fb9d6');
   const [auctionEndsAt, setAuctionEndsAt] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(null));
   const [currentBid, setCurrentBid] = useState(4850);
@@ -102,12 +103,12 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
       const response = await fetch('/api/auctions');
       if (!response.ok) return;
       const data = await response.json();
-      const activeLot = (Array.isArray(data.lots) ? data.lots : []).find(l => l.status === 'active') || data.lot || (data.lots && data.lots[0]) || null;
+      const activeLot = (Array.isArray(data.lots) ? data.lots : []).find((l: any) => l.status === 'active') || data.lot || (data.lots && data.lots[0]) || null;
       if (activeLot) {
-        const lot = activeLot;
-        setCurrentBid(Number(data.lot.current_bid));
-        setBidCount(Number(data.lot.bid_count));
-        setAuctionEndsAt(String(data.lot.ends_at || ''));
+        setFeaturedLotId(activeLot.id || 'lot_1938918fb9d6');
+        setCurrentBid(Number(activeLot.current_bid || 4850));
+        setBidCount(Number(activeLot.bid_count || 0));
+        setAuctionEndsAt(String(activeLot.ends_at || ''));
       }
     } catch (error) {
       console.warn('Could not fetch featured auction:', error);
@@ -135,7 +136,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     }
     setIsPlacingBid(true);
     try {
-      const response = await fetch('/api/auctions/' + (lot?.id || 'lot_1938918fb9d6') + '/bid', {
+      const response = await fetch('/api/auctions/' + (featuredLotId || 'lot_1938918fb9d6') + '/bid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ amount: bidVal, bidder_name: user?.name || undefined }),
