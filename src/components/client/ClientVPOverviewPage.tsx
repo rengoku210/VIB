@@ -101,174 +101,21 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white space-y-7 sm:space-y-9 pb-16 font-sans">
       {/* ========================================================================= */}
-      {/* 1. VIB URGENT SALE OFFER HERO (Matching Reference media_1790095371529.jpg) */}
+      {/* 1. VP PACKS REGIONAL HUB (Instant VP Top-Ups & Regional Hub)              */}
       {/* ========================================================================= */}
-      <section className="relative w-full overflow-hidden pt-4 pb-6">
-        {/* Atmospheric crimson & ruby ambient glows */}
-        <div className="absolute top-10 right-1/4 w-[600px] h-[450px] bg-red-600/15 rounded-full blur-[130px] pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-[450px] h-[300px] bg-rose-800/15 rounded-full blur-[110px] pointer-events-none" />
-
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-6">
-          <div className="rounded-2xl bg-gradient-to-br from-[#1c080d] via-[#120508] to-[#080204] border border-red-500/30 p-6 sm:p-8 overflow-hidden shadow-2xl relative">
-            {/* Full-bleed Reference Part 07 background with gradient overlay */}
-            <img
-              src="/assets/reference_parts/part_07.png"
-              alt="Urgent Sale Hero Part 07"
-              className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#1c080d] via-[#1c080d]/80 to-transparent z-[1]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1c080d] via-transparent to-transparent z-[1]" />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
-              {/* Left Column: Urgent Sale Details */}
-              <div className="lg:col-span-7 space-y-4">
-                <div className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest text-red-400 uppercase font-bold">
-                  <Zap className="w-3.5 h-3.5 text-red-400" />
-                  <span>SELL YOUR PROFILE</span>
-                </div>
-
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black uppercase tracking-tight text-white leading-none font-rajdhani">
-                  VIB URGENT <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-rose-300 to-pink-400 drop-shadow-[0_0_25px_rgba(239,68,68,0.6)]">
-                    SALE OFFER
-                  </span>
-                </h1>
-
-                <div className="space-y-1 text-gray-300 max-w-lg leading-relaxed">
-                  <p className="font-bold text-sm sm:text-base text-white">
-                    Need to sell your profile fast? Get an urgent sale offer through VIB.
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-400">
-                    Turn your inventory into real value. Our verified buyer network helps you get a potential instant offer with a fast and secure process.
-                  </p>
-                </div>
-
-                {/* 4 Feature Badges */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs text-gray-200">
-                  <div className="p-2.5 rounded-xl bg-[#200a0f]/80 border border-red-500/25 flex items-center gap-2 shadow-sm">
-                    <Zap className="w-4 h-4 text-red-400 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px] text-white">Fast Evaluation</div>
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#200a0f]/80 border border-red-500/25 flex items-center gap-2 shadow-sm">
-                    <ShieldCheck className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px] text-white">Instant Offer</div>
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#200a0f]/80 border border-red-500/25 flex items-center gap-2 shadow-sm">
-                    <Users className="w-4 h-4 text-red-400 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px] text-white">Verified Buyers</div>
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#200a0f]/80 border border-red-500/25 flex items-center gap-2 shadow-sm">
-                    <ShieldCheck className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px] text-white">Secure Escrow</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <button
-                    onClick={() => onOpenCheckout('Urgent Profile Valuation Request', 0)}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-700 via-rose-600 to-red-600 hover:from-red-600 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Get My Profile Evaluated</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => onNavigate('services')}
-                    className="px-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-gray-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
-                  >
-                    <span>Learn More</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <p className="text-[10px] text-gray-500 italic pt-1">
-                  Note: Offers are subject to profile quality, demand and verification. An evaluation does not guarantee a purchase.
-                </p>
-              </div>
-
-              {/* Right Column: Two Ways To Sell Comparison Box */}
-              <div className="lg:col-span-5 flex flex-col justify-center space-y-3">
-                <div className="p-4 rounded-xl bg-[#150609]/90 border border-red-500/30 backdrop-blur-md shadow-xl space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-mono text-red-300 font-bold uppercase tracking-wider">
-                    <Sparkles className="w-3.5 h-3.5 text-red-400" />
-                    <span>TWO WAYS TO SELL — SPEED OR VALUE</span>
-                  </div>
-
-                  {/* Card 1: Urgent Sale Offer (Faster) */}
-                  <div className="p-3.5 rounded-xl bg-[#230a10]/80 border border-red-500/35 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-red-600/30 border border-red-500/40 flex items-center justify-center text-red-400">
-                          <Zap className="w-4 h-4" />
-                        </div>
-                        <span className="font-extrabold text-xs text-white font-rajdhani">Urgent Sale Offer</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded bg-red-600 text-white font-black text-[9px] uppercase tracking-wider">
-                        FASTER
-                      </span>
-                    </div>
-                    <ul className="space-y-1 text-[11px] text-gray-300 pl-1">
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-red-400" /> Request a quick evaluation</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-red-400" /> Potential instant cash offer</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-red-400" /> Faster transaction process</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-red-400" /> Generally lower expected value</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-red-400" /> Strict verification required</li>
-                    </ul>
-                  </div>
-
-                  {/* Card 2: Promotion Method (Higher Value) */}
-                  <div className="p-3.5 rounded-xl bg-[#1b0d28]/80 border border-purple-500/35 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-400">
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <span className="font-extrabold text-xs text-white font-rajdhani">Promotion Method</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-black text-[9px] uppercase tracking-wider">
-                        HIGHER VALUE
-                      </span>
-                    </div>
-                    <ul className="space-y-1 text-[11px] text-gray-300 pl-1">
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> You set your asking price</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> We promote your profile</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> Interested buyers contact you</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> Potential for better selling value</li>
-                      <li className="flex items-center gap-1.5"><Check className="w-3 h-3 text-purple-400" /> More time may be required</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 2. VP PACKS REGIONAL HUB (Matching Reference media_1790095371529.jpg)     */}
-      {/* ========================================================================= */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6 sm:pt-8">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 text-[11px] font-mono tracking-[0.22em] text-[#e879f9] uppercase font-bold">
             <CreditCard className="w-3.5 h-3.5 text-[#e879f9]" />
             <span>TOP UP &amp; PLAY WITHOUT LIMITS</span>
           </div>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase text-white font-rajdhani tracking-tight leading-none">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase text-white font-rajdhani tracking-tight leading-none">
             VP PACKS <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-400 to-pink-400">
               MORE PLAY. MORE POSSIBILITIES.
             </span>
-          </h2>
+          </h1>
 
           <p className="text-xs sm:text-sm text-gray-300 max-w-xl leading-relaxed">
             Top up your account safely with the best prices, flexible payment options and instant delivery.
