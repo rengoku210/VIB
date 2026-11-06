@@ -164,7 +164,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
       title: 'Profile Access Programs',
       desc: 'Flexible access options tailored to your competitive needs.',
       icon: Users,
-      action: () => onOpenCheckout('Profile Access Program Consultation', 0),
+      action: () => onNavigate('support'),
     },
     {
       id: 'srv-3',
@@ -178,28 +178,37 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
       title: 'Digital Profile Promotion',
       desc: 'Increase visibility for your profiles with our promotional services.',
       icon: Megaphone,
-      action: () => onOpenCheckout('Digital Profile Promotion Plan', 1499),
+      action: () => onNavigate('advertise'),
     },
     {
       id: 'srv-5',
       title: 'Region Conversion Support',
       desc: 'Assistance with region conversion and profile configuration.',
       icon: Globe,
-      action: () => onOpenCheckout('Region Conversion Support', 999),
+      action: () => {
+        const el = document.getElementById('region-change');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      },
     },
     {
       id: 'srv-6',
       title: 'Trading & Escrow Facilitation',
       desc: 'A safer way to trade with escrow support and brokered facilitation.',
       icon: ShieldCheck,
-      action: () => onOpenCheckout('Trading & Escrow Facilitation', 499),
+      action: () => {
+        const el = document.getElementById('skins-exchange');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      },
     },
     {
       id: 'srv-7',
       title: 'Urgent Sale Evaluation',
       desc: 'Get your profile evaluated for faster processing and instant cashout.',
       icon: Zap,
-      action: () => onOpenCheckout('Urgent Profile Valuation', 0),
+      action: () => {
+        const el = document.getElementById('urgent-sale');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      },
     },
     {
       id: 'srv-8',
@@ -479,7 +488,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onOpenCheckout('Urgent Profile Valuation Request', 0)}
+                  onClick={() => onNavigate('support')}
                   className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-rose-600/30 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                 >
                   <span>Get My Profile Evaluated</span>
@@ -547,10 +556,10 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             <div className="pt-3">
               <button
                 type="button"
-                onClick={() => onOpenCheckout('Profile Promotion Listing', 999)}
-                className="w-full min-h-[40px] px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-[11px] font-bold font-rajdhani uppercase tracking-wider text-purple-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={() => onNavigate('advertise')}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-xs font-bold font-rajdhani uppercase tracking-wider text-purple-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>List via Promotion Method (₹999)</span>
+                <span>View All 12 Promotion Packages</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -825,7 +834,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
 
             <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
               <button
-                onClick={() => onOpenCheckout('Valo Skins Exchange Valuation', 0)}
+                onClick={() => onNavigate('community')}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <span>Get Exchange Valuation</span>

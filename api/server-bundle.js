@@ -37,7 +37,7 @@ var require_main = __commonJS({
     var fs6 = __require("fs");
     var path5 = __require("path");
     var os3 = __require("os");
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -281,7 +281,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto13.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto14.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error2) {
@@ -20439,14 +20439,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto13.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto14.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -23355,11 +23355,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto13.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto14.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -23368,7 +23368,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto13.createHash("sha1").update(str).digest("hex");
+      return crypto14.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -24349,7 +24349,7 @@ var require_express2 = __commonJS({
 
 // server/index.ts
 var import_express = __toESM(require_express2(), 1);
-import crypto12 from "node:crypto";
+import crypto13 from "node:crypto";
 import fs5 from "node:fs";
 import path4 from "node:path";
 
@@ -24867,6 +24867,61 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_user_consents_user ON user_consents(user_id);
   CREATE INDEX IF NOT EXISTS idx_user_consents_policy ON user_consents(policy_id);
+
+  CREATE TABLE IF NOT EXISTS advertisement_plans (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL DEFAULT 'standard',
+    name TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    badge TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    instagram_story INTEGER NOT NULL DEFAULT 0,
+    instagram_post INTEGER NOT NULL DEFAULT 0,
+    highlight_placement INTEGER NOT NULL DEFAULT 0,
+    story_count TEXT DEFAULT 'None',
+    website_listing INTEGER NOT NULL DEFAULT 0,
+    inventory_editing INTEGER NOT NULL DEFAULT 0,
+    promotion_duration TEXT DEFAULT 'Standard',
+    buyer_assistance INTEGER NOT NULL DEFAULT 0,
+    priority_placement INTEGER NOT NULL DEFAULT 0,
+    dedicated_agent INTEGER NOT NULL DEFAULT 0,
+    lifetime_guaranteed INTEGER NOT NULL DEFAULT 0,
+    benefits_json TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_ad_plans_order ON advertisement_plans(display_order);
+
+  CREATE TABLE IF NOT EXISTS advertisement_orders (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL,
+    plan_name TEXT NOT NULL,
+    plan_price INTEGER NOT NULL DEFAULT 0,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending_payment',
+    rejection_reason TEXT,
+    payment_method TEXT DEFAULT 'upi',
+    payment_reference TEXT,
+    payment_screenshot TEXT,
+    submission_token TEXT NOT NULL,
+    instagram_username TEXT,
+    selling_price TEXT,
+    current_rank TEXT,
+    premium_skins TEXT,
+    other_valuable_items TEXT,
+    inventory_screenshot TEXT,
+    admin_notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    approved_at TEXT,
+    submitted_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_ad_orders_status ON advertisement_orders(status);
+  CREATE INDEX IF NOT EXISTS idx_ad_orders_token ON advertisement_orders(submission_token);
 `);
 db.prepare(`
   UPDATE audit_logs
@@ -25526,6 +25581,298 @@ function seedCatalogAndBilling() {
   ];
   for (const s of skinsList) {
     insertOrUpdateSkin.run(s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now);
+  }
+  const adPlanCount = db.prepare("SELECT COUNT(*) as count FROM advertisement_plans").get().count;
+  if (adPlanCount === 0) {
+    console.log("[Database] Seeding 12 authentic VIB advertisement plans...");
+    const insertAdPlan = db.prepare(`
+      INSERT OR REPLACE INTO advertisement_plans (
+        id, category, name, price, description, badge, display_order, is_active,
+        instagram_story, instagram_post, highlight_placement, story_count, website_listing,
+        inventory_editing, promotion_duration, buyer_assistance, priority_placement,
+        dedicated_agent, lifetime_guaranteed, benefits_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const standardPlans = [
+      {
+        id: "ad-story-95",
+        category: "standard",
+        name: "Instagram Story Promotion",
+        price: 95,
+        description: "24-hour Story Promotion on VIB official Instagram to reach active Valorant buyers.",
+        badge: "STARTER",
+        display_order: 1,
+        instagram_story: 1,
+        instagram_post: 0,
+        highlight_placement: 0,
+        story_count: "1 Story (24h)",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "24 Hours",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["24-Hour Instagram Story Promotion", "Reaches 50k+ Active Community Members", "Direct Seller Tag & Link in Story", "Fast 15-Minute Queue Scheduling"]
+      },
+      {
+        id: "ad-story-highlight-150",
+        category: "standard",
+        name: "Story + Highlight",
+        price: 150,
+        description: "Story promotion + permanent highlight placement for extended continuous visibility.",
+        badge: "POPULAR",
+        display_order: 2,
+        instagram_story: 1,
+        instagram_post: 0,
+        highlight_placement: 1,
+        story_count: "1 Story",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "Permanent Highlight",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["24-Hour Instagram Story Blast", "Permanent VIB Highlight Placement", "Saves to Curated Account Showcase", "Prolonged Exposure to Serious Buyers"]
+      },
+      {
+        id: "ad-post-210",
+        category: "standard",
+        name: "Instagram Post Promotion",
+        price: 210,
+        description: "Dedicated Instagram grid post promotion with high-resolution inventory showcase.",
+        badge: "FEED FEATURE",
+        display_order: 3,
+        instagram_story: 0,
+        instagram_post: 1,
+        highlight_placement: 0,
+        story_count: "None",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "Permanent Feed Post",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["Dedicated High-Resolution Grid Post", "Permanent Placement on VIB Feed", "Broad Algorithmic Reach & Explore Page", "Direct Seller Tagging in Post Caption"]
+      },
+      {
+        id: "ad-post-2stories-315",
+        category: "standard",
+        name: "Post + 2 Free Stories",
+        price: 315,
+        description: "Dedicated grid post plus 2 free story boosts for maximum reach and multi-touch promotion.",
+        badge: "BEST COMBO",
+        display_order: 4,
+        instagram_story: 1,
+        instagram_post: 1,
+        highlight_placement: 0,
+        story_count: "2 Free Stories",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "Permanent Post + 2 Boosts",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["Dedicated Permanent Grid Post", "2 Free Story Boosts (24h each)", "Multi-touch Buyer Retargeting", "Direct Account Tag & DM Link"]
+      },
+      {
+        id: "ad-web-listing-420",
+        category: "standard",
+        name: "Public Community Website Listing only",
+        price: 420,
+        description: "Permanent showcase on the VIB 2.0 public community website marketplace.",
+        badge: "WEB EXCLUSIVE",
+        display_order: 5,
+        instagram_story: 0,
+        instagram_post: 0,
+        highlight_placement: 0,
+        story_count: "None",
+        website_listing: 1,
+        inventory_editing: 0,
+        promotion_duration: "Active Website Listing",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["Permanent VIB 2.0 Website Listing", "Live Search, Filter & Tag Indexing", "Full Inventory Showcase with Skin Badges", "Direct Buyer Escrow Inquiry Button"]
+      },
+      {
+        id: "ad-post-6stories-edit-525",
+        category: "standard",
+        name: "Post + 6 Stories + Inventory Editing",
+        price: 525,
+        description: "Grid post + 6 recurring stories + professional graphic editing of your inventory showcase.",
+        badge: "HIGH CONVERSION",
+        display_order: 6,
+        instagram_story: 1,
+        instagram_post: 1,
+        highlight_placement: 0,
+        story_count: "6 Stories",
+        website_listing: 0,
+        inventory_editing: 1,
+        promotion_duration: "14 Days Campaign",
+        buyer_assistance: 1,
+        priority_placement: 1,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["Dedicated Permanent Grid Post", "6 Scheduled Story Blasts Over 14 Days", "Professional Graphic Editing of Inventory", "Priority Queue Placement & Support"]
+      },
+      {
+        id: "ad-weekly-unlimited-1035",
+        category: "standard",
+        name: "Weekly Unlimited Stories (once weekly) + Highlights + Inventory Editing + Public Community Website Listing",
+        price: 1035,
+        description: "Weekly unlimited stories (once weekly until sold) + highlights + inventory editing + public community website listing.",
+        badge: "ALL-IN-ONE MAX",
+        display_order: 7,
+        instagram_story: 1,
+        instagram_post: 1,
+        highlight_placement: 1,
+        story_count: "Weekly Unlimited",
+        website_listing: 1,
+        inventory_editing: 1,
+        promotion_duration: "Weekly Until Sold",
+        buyer_assistance: 1,
+        priority_placement: 1,
+        dedicated_agent: 1,
+        lifetime_guaranteed: 1,
+        benefits: ["Weekly Story Pushes (Once Weekly Until Sold)", "Permanent VIB Instagram Highlight", "Public Community Website Marketplace Listing", "Professional Inventory Graphic Editing", "Dedicated Buyer Inquiry Forwarding"]
+      },
+      {
+        id: "ad-trade-story-55",
+        category: "trade",
+        name: "Story Promotion (24 hours)",
+        price: 55,
+        description: "24-hour trade shoutout on VIB Instagram to find fast trade partners.",
+        badge: "FAST TRADE",
+        display_order: 8,
+        instagram_story: 1,
+        instagram_post: 0,
+        highlight_placement: 0,
+        story_count: "1 Trade Story",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "24 Hours",
+        buyer_assistance: 0,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["24-Hour Dedicated Trade Story", "Direct Tag to Your Instagram Handle", "Reaches Weapon Skin Traders Across India", "Instant Verification & Placement"]
+      },
+      {
+        id: "ad-trade-highlight-105",
+        category: "trade",
+        name: "Story + Highlight Placement",
+        price: 105,
+        description: "Trade story + permanent highlight placement for extended continuous trade exposure.",
+        badge: "TRADE HIGHLIGHT",
+        display_order: 9,
+        instagram_story: 1,
+        instagram_post: 0,
+        highlight_placement: 1,
+        story_count: "1 Story + Highlight",
+        website_listing: 0,
+        inventory_editing: 0,
+        promotion_duration: "Permanent Trade Highlight",
+        buyer_assistance: 1,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["24-Hour Trade Story Blast", "Permanent VIB Trade Highlight Spot", "Continuous Inquiries Until Trade Closed", "Verified Middleman Escrow Support"]
+      },
+      {
+        id: "ad-premium-guaranteed-2050",
+        category: "premium",
+        name: "Premium Guaranteed Sale Plan",
+        price: 2050,
+        description: "High-priority feature, dedicated agent, and guaranteed active buyer matchmaking.",
+        badge: "GUARANTEED SALE",
+        display_order: 10,
+        instagram_story: 1,
+        instagram_post: 1,
+        highlight_placement: 1,
+        story_count: "Unlimited Stories",
+        website_listing: 1,
+        inventory_editing: 1,
+        promotion_duration: "Guaranteed Until Sold",
+        buyer_assistance: 1,
+        priority_placement: 1,
+        dedicated_agent: 1,
+        lifetime_guaranteed: 1,
+        benefits: ["Continuous Promotion Until Account Sells", "Dedicated Senior VIB Sales Agent", "Priority Multi-Story & Feed Campaigns", "Public Community Website Listing with VIP Badge", "Full Escrow & Verification Included"]
+      },
+      {
+        id: "ad-vip-luxury-3080",
+        category: "premium",
+        name: "VIP Luxury Promotion Plan",
+        price: 3080,
+        description: "Elite promotion across all channels, unlimited pushes, VIP badge, and full concierge handling.",
+        badge: "VIP LUXURY",
+        display_order: 11,
+        instagram_story: 1,
+        instagram_post: 1,
+        highlight_placement: 1,
+        story_count: "VIP Unlimited Push",
+        website_listing: 1,
+        inventory_editing: 1,
+        promotion_duration: "Full Concierge Until Sold",
+        buyer_assistance: 1,
+        priority_placement: 1,
+        dedicated_agent: 1,
+        lifetime_guaranteed: 1,
+        benefits: ["Multi-Platform Omni-Blast (Insta, Web, Discord)", "Unlimited Story Re-pushes & Grid Features", "Senior Executive 1-on-1 Escrow Concierge", "Professional 4K Graphic Showcase Edit", "Top Featured Spot on Website Homepage & Market"]
+      },
+      {
+        id: "ad-bonus-free-18pct",
+        category: "bonus",
+        name: "Free Public Community Advertisement (18% Service Fee After Sale)",
+        price: 0,
+        description: "Free public community advertisement with an 18% service fee charged only after a successful sale.",
+        badge: "\u20B90 UPFRONT",
+        display_order: 12,
+        instagram_story: 0,
+        instagram_post: 0,
+        highlight_placement: 0,
+        story_count: "None",
+        website_listing: 1,
+        inventory_editing: 0,
+        promotion_duration: "Until Sold",
+        buyer_assistance: 1,
+        priority_placement: 0,
+        dedicated_agent: 0,
+        lifetime_guaranteed: 0,
+        benefits: ["100% Free Upfront - No Advance Payment", "Permanent Public Community Website Listing", "18% Service Fee ONLY Deducted on Successful Sale", "Zero Risk If Your Account Does Not Sell", "VIB Safe Escrow Payout Protection"]
+      }
+    ];
+    for (const p of standardPlans) {
+      insertAdPlan.run(
+        p.id,
+        p.category,
+        p.name,
+        p.price,
+        p.description,
+        p.badge,
+        p.display_order,
+        1,
+        p.instagram_story,
+        p.instagram_post,
+        p.highlight_placement,
+        p.story_count,
+        p.website_listing,
+        p.inventory_editing,
+        p.promotion_duration,
+        p.buyer_assistance,
+        p.priority_placement,
+        p.dedicated_agent,
+        p.lifetime_guaranteed,
+        JSON.stringify(p.benefits),
+        now,
+        now
+      );
+    }
   }
   db.prepare(`
     UPDATE profiles
@@ -27210,6 +27557,9 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
     }
   });
 }
+
+// server/advertisementRoutes.ts
+import crypto12 from "node:crypto";
 
 // node_modules/nodemailer/dist/esm/mailer/index.js
 import { EventEmitter } from "node:events";
@@ -40143,6 +40493,703 @@ async function sendOrderFulfilledEmail(order, fulfillmentNote) {
     context: { orderId: order.id, title: order.title, fulfillmentNote }
   });
 }
+var AD_ADMIN_EMAIL = "teamvibofficial@gmail.com";
+async function sendAdminAdOrderNotification(order, appBaseUrl) {
+  const baseUrl = appBaseUrl || process.env.APP_URL || "https://vib-rho.vercel.app";
+  const adminVerifyLink = `${baseUrl}/?page=admin&tab=advertisements&order=${order.id}`;
+  const screenshotUrl = order.payment_screenshot?.startsWith("http") ? order.payment_screenshot : `${baseUrl}${order.payment_screenshot || ""}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW ADVERTISEMENT ORDER &amp; PAYMENT SUBMITTED</h2>
+      <p>A customer has placed an advertisement order and submitted manual payment evidence.</p>
+      
+      <div style="background-color: #1a162b; border: 1px solid #7e22ce; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.6;">
+        <p style="margin: 0 0 8px 0;"><strong>ORDER ID:</strong> ${order.id}</p>
+        <p style="margin: 0 0 8px 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
+        <p style="margin: 0 0 8px 0;"><strong>PACKAGE PRICE:</strong> \u20B9${Number(order.plan_price).toLocaleString("en-IN")}</p>
+        <p style="margin: 0 0 8px 0;"><strong>CUSTOMER NAME:</strong> ${order.customer_name}</p>
+        <p style="margin: 0 0 8px 0;"><strong>CUSTOMER EMAIL:</strong> ${order.customer_email}</p>
+        <p style="margin: 0 0 8px 0;"><strong>WHATSAPP NUMBER:</strong> ${order.customer_phone}</p>
+        <p style="margin: 0 0 8px 0;"><strong>PAYMENT REFERENCE / UTR:</strong> ${order.payment_reference || "N/A"}</p>
+        <p style="margin: 0;"><strong>PAYMENT SCREENSHOT:</strong> <a href="${screenshotUrl}" target="_blank" style="color: #38bdf8;">View Uploaded Screenshot</a></p>
+      </div>
+
+      <p style="margin: 24px 0;">
+        <a href="${adminVerifyLink}" style="background-color: #a855f7; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+          Open Admin Panel to Verify &amp; Approve Payment
+        </a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </p>
+    </div>
+  `;
+  const text = `
+NEW ADVERTISEMENT ORDER:
+ORDER ID: ${order.id}
+ADVERTISEMENT PACKAGE: ${order.plan_name}
+PACKAGE PRICE: \u20B9${order.plan_price}
+CUSTOMER NAME: ${order.customer_name}
+CUSTOMER EMAIL: ${order.customer_email}
+WHATSAPP NUMBER: ${order.customer_phone}
+PAYMENT REFERENCE: ${order.payment_reference || "N/A"}
+SCREENSHOT: ${screenshotUrl}
+ADMIN VERIFICATION LINK: ${adminVerifyLink}
+  `.trim();
+  await sendEmail({
+    to: AD_ADMIN_EMAIL,
+    subject: `[NEW AD ORDER] ${order.plan_name} (\u20B9${order.plan_price}) - #${order.id}`,
+    html,
+    text,
+    templateName: "admin_ad_order_notification",
+    context: { orderId: order.id, customerName: order.customer_name }
+  });
+}
+async function sendCustomerAdPaymentApproved(order, appBaseUrl) {
+  const baseUrl = appBaseUrl || process.env.APP_URL || "https://vib-rho.vercel.app";
+  const submitUrl = `${baseUrl}/?page=advertise&step=submit&orderId=${order.id}&token=${order.submission_token}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #10b981; border-bottom: 2px solid #064e3b; padding-bottom: 8px;">PAYMENT VERIFIED! SUBMIT YOUR ADVERTISEMENT DETAILS</h2>
+      <p>Hello ${order.customer_name},</p>
+      <p>Your payment for <strong>${order.plan_name}</strong> (Order <strong>#${order.id}</strong>) has been verified and confirmed by our team.</p>
+      
+      <p style="color: #cbd5e1; font-size: 14px; margin: 16px 0;">
+        Please click the secure button below to submit your account inventory details, screenshots, and Instagram contact handle so we can launch your promotional campaign.
+      </p>
+
+      <p style="margin: 24px 0; text-align: center;">
+        <a href="${submitUrl}" style="background-color: #9333ea; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 0 20px rgba(147, 51, 234, 0.4);">
+          Continue to Submit Advertisement Details
+        </a>
+      </p>
+
+      <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+        Or copy and paste this link in your browser:<br/>
+        <a href="${submitUrl}" style="color: #38bdf8; word-break: break-all;">${submitUrl}</a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Escrow Platform | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+  await sendEmail({
+    to: order.customer_email,
+    subject: `Payment Verified: Continue to Submit Advertisement Details [#${order.id}]`,
+    html,
+    text: `Hello ${order.customer_name}, your payment for ${order.plan_name} has been verified. Submit your details here: ${submitUrl}`,
+    templateName: "customer_ad_payment_approved",
+    context: { orderId: order.id, customerName: order.customer_name, submitUrl }
+  });
+}
+async function sendCustomerAdPaymentRejected(order, reason) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #ef4444; border-bottom: 2px solid #7f1d1d; padding-bottom: 8px;">PAYMENT VERIFICATION UPDATE</h2>
+      <p>Hello ${order.customer_name},</p>
+      <p>We were unable to verify the payment reference for your order <strong>#${order.id}</strong> (<strong>${order.plan_name}</strong>).</p>
+      
+      <div style="background-color: #2a111a; border: 1px solid #f43f5e; padding: 16px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin: 0; color: #fecdd3; font-size: 14px;">
+          <strong>Reason:</strong> ${reason || "Transaction UTR could not be matched with bank ledger or screenshot unreadable."}
+        </p>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        If you have already transferred the amount, please reach out to our dedicated support team on WhatsApp at <strong>${SUPPORT_WHATSAPP}</strong> with your Order ID (#${order.id}) and bank debit statement.
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Support Desk | ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+  await sendEmail({
+    to: order.customer_email,
+    subject: `Payment Verification Notice for Order #${order.id}`,
+    html,
+    text: `Hello ${order.customer_name}, we were unable to verify payment for order #${order.id}. Reason: ${reason || "UTR could not be matched"}. Contact WhatsApp ${SUPPORT_WHATSAPP}.`,
+    templateName: "customer_ad_payment_rejected",
+    context: { orderId: order.id, customerName: order.customer_name, reason }
+  });
+}
+async function sendAdminAdDetailsSubmitted(order, details, appBaseUrl) {
+  const baseUrl = appBaseUrl || process.env.APP_URL || "https://vib-rho.vercel.app";
+  const screenshotLink = details.inventory_screenshot?.startsWith("http") ? details.inventory_screenshot : `${baseUrl}${details.inventory_screenshot || ""}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW CUSTOMER ADVERTISEMENT SUBMISSION</h2>
+      <p>Customer has completed their advertisement details submission form. Here are the details for publication:</p>
+      
+      <div style="background-color: #1a162b; border: 1px solid #a855f7; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.8;">
+        <p style="margin: 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
+        <p style="margin: 0;"><strong>PACKAGE PRICE:</strong> \u20B9${Number(order.plan_price).toLocaleString("en-IN")}</p>
+        <p style="margin: 0;"><strong>CUSTOMER NAME:</strong> ${details.customer_name || order.customer_name}</p>
+        <p style="margin: 0;"><strong>CUSTOMER EMAIL:</strong> ${details.customer_email || order.customer_email}</p>
+        <p style="margin: 0;"><strong>WHATSAPP NUMBER:</strong> ${details.customer_phone || order.customer_phone}</p>
+        <p style="margin: 0;"><strong>INSTAGRAM USERNAME:</strong> ${details.instagram_username || "N/A"}</p>
+        <p style="margin: 0;"><strong>SELLING PRICE:</strong> \u20B9${details.selling_price || "N/A"}</p>
+        <p style="margin: 0;"><strong>CURRENT RANK:</strong> ${details.current_rank || "N/A"}</p>
+        <p style="margin: 0;"><strong>PREMIUM SKINS LIST:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.premium_skins || "None provided"}</pre></p>
+        <p style="margin: 0;"><strong>OTHER VALUABLE ITEMS:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.other_valuable_items || "None provided"}</pre></p>
+        <p style="margin: 0;"><strong>LINK TO INVENTORY SCREENSHOT:</strong> <a href="${screenshotLink}" target="_blank" style="color: #38bdf8;">View Inventory Screenshot</a></p>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </p>
+    </div>
+  `;
+  const text = `
+ADVERTISEMENT PACKAGE: ${order.plan_name}
+PACKAGE PRICE: \u20B9${order.plan_price}
+CUSTOMER NAME: ${details.customer_name || order.customer_name}
+CUSTOMER EMAIL: ${details.customer_email || order.customer_email}
+WHATSAPP NUMBER: ${details.customer_phone || order.customer_phone}
+INSTAGRAM USERNAME: ${details.instagram_username}
+SELLING PRICE: \u20B9${details.selling_price}
+CURRENT RANK: ${details.current_rank}
+
+PREMIUM SKINS LIST:
+${details.premium_skins}
+
+OTHER VALUABLE ITEMS:
+${details.other_valuable_items}
+
+LINK TO INVENTORY SCREENSHOT: ${screenshotLink}
+  `.trim();
+  await sendEmail({
+    to: AD_ADMIN_EMAIL,
+    subject: `[AD SUBMITTED] ${order.plan_name} - @${details.instagram_username || order.customer_name}`,
+    html,
+    text,
+    templateName: "admin_ad_details_submitted",
+    context: { orderId: order.id, customerName: order.customer_name, instagram: details.instagram_username }
+  });
+}
+
+// server/advertisementRoutes.ts
+function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
+  app2.get("/api/advertisement/plans", (req, res) => {
+    try {
+      const rows = db2.prepare(`
+        SELECT * FROM advertisement_plans
+        WHERE is_active = 1
+        ORDER BY display_order ASC, price ASC
+      `).all();
+      const plans = rows.map((r) => ({
+        ...r,
+        is_active: Boolean(r.is_active),
+        instagram_story: Boolean(r.instagram_story),
+        instagram_post: Boolean(r.instagram_post),
+        highlight_placement: Boolean(r.highlight_placement),
+        website_listing: Boolean(r.website_listing),
+        inventory_editing: Boolean(r.inventory_editing),
+        buyer_assistance: Boolean(r.buyer_assistance),
+        priority_placement: Boolean(r.priority_placement),
+        dedicated_agent: Boolean(r.dedicated_agent),
+        lifetime_guaranteed: Boolean(r.lifetime_guaranteed),
+        benefits: typeof r.benefits_json === "string" ? JSON.parse(r.benefits_json || "[]") : []
+      }));
+      res.json({ success: true, plans });
+    } catch (err) {
+      console.error("[Ad Plans Fetch Error]:", err);
+      res.status(500).json({ error: "Failed to retrieve advertisement plans." });
+    }
+  });
+  app2.get("/api/admin/advertisement/plans", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const rows = db2.prepare(`
+        SELECT * FROM advertisement_plans
+        ORDER BY display_order ASC, price ASC
+      `).all();
+      const plans = rows.map((r) => ({
+        ...r,
+        is_active: Boolean(r.is_active),
+        instagram_story: Boolean(r.instagram_story),
+        instagram_post: Boolean(r.instagram_post),
+        highlight_placement: Boolean(r.highlight_placement),
+        website_listing: Boolean(r.website_listing),
+        inventory_editing: Boolean(r.inventory_editing),
+        buyer_assistance: Boolean(r.buyer_assistance),
+        priority_placement: Boolean(r.priority_placement),
+        dedicated_agent: Boolean(r.dedicated_agent),
+        lifetime_guaranteed: Boolean(r.lifetime_guaranteed),
+        benefits: typeof r.benefits_json === "string" ? JSON.parse(r.benefits_json || "[]") : []
+      }));
+      res.json({ success: true, plans });
+    } catch (err) {
+      console.error("[Admin Ad Plans Error]:", err);
+      res.status(500).json({ error: "Failed to fetch admin advertisement plans." });
+    }
+  });
+  app2.post("/api/admin/advertisement/plans", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const {
+        name: name2,
+        price,
+        category = "standard",
+        description = "",
+        badge = "",
+        display_order = 99,
+        is_active = 1,
+        instagram_story = 0,
+        instagram_post = 0,
+        highlight_placement = 0,
+        story_count = "None",
+        website_listing = 0,
+        inventory_editing = 0,
+        promotion_duration = "Standard",
+        buyer_assistance = 0,
+        priority_placement = 0,
+        dedicated_agent = 0,
+        lifetime_guaranteed = 0,
+        benefits = []
+      } = req.body || {};
+      if (!name2 || price === void 0 || price === null) {
+        res.status(400).json({ error: "Package name and price are required." });
+        return;
+      }
+      const id = "ad-plan-" + crypto12.randomBytes(4).toString("hex");
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        INSERT INTO advertisement_plans (
+          id, category, name, price, description, badge, display_order, is_active,
+          instagram_story, instagram_post, highlight_placement, story_count, website_listing,
+          inventory_editing, promotion_duration, buyer_assistance, priority_placement,
+          dedicated_agent, lifetime_guaranteed, benefits_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        category,
+        name2,
+        Number(price),
+        description,
+        badge,
+        Number(display_order),
+        is_active ? 1 : 0,
+        instagram_story ? 1 : 0,
+        instagram_post ? 1 : 0,
+        highlight_placement ? 1 : 0,
+        story_count,
+        website_listing ? 1 : 0,
+        inventory_editing ? 1 : 0,
+        promotion_duration,
+        buyer_assistance ? 1 : 0,
+        priority_placement ? 1 : 0,
+        dedicated_agent ? 1 : 0,
+        lifetime_guaranteed ? 1 : 0,
+        JSON.stringify(Array.isArray(benefits) ? benefits : []),
+        now,
+        now
+      );
+      res.json({ success: true, id, message: "Advertisement plan created successfully." });
+    } catch (err) {
+      console.error("[Create Ad Plan Error]:", err);
+      res.status(500).json({ error: "Failed to create advertisement plan." });
+    }
+  });
+  app2.put("/api/admin/advertisement/plans/:id", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        name: name2,
+        price,
+        category,
+        description,
+        badge,
+        display_order,
+        is_active,
+        instagram_story,
+        instagram_post,
+        highlight_placement,
+        story_count,
+        website_listing,
+        inventory_editing,
+        promotion_duration,
+        buyer_assistance,
+        priority_placement,
+        dedicated_agent,
+        lifetime_guaranteed,
+        benefits
+      } = req.body || {};
+      const existing = db2.prepare("SELECT id FROM advertisement_plans WHERE id = ?").get(id);
+      if (!existing) {
+        res.status(404).json({ error: "Advertisement plan not found." });
+        return;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_plans
+        SET name = COALESCE(?, name),
+            price = COALESCE(?, price),
+            category = COALESCE(?, category),
+            description = COALESCE(?, description),
+            badge = COALESCE(?, badge),
+            display_order = COALESCE(?, display_order),
+            is_active = COALESCE(?, is_active),
+            instagram_story = COALESCE(?, instagram_story),
+            instagram_post = COALESCE(?, instagram_post),
+            highlight_placement = COALESCE(?, highlight_placement),
+            story_count = COALESCE(?, story_count),
+            website_listing = COALESCE(?, website_listing),
+            inventory_editing = COALESCE(?, inventory_editing),
+            promotion_duration = COALESCE(?, promotion_duration),
+            buyer_assistance = COALESCE(?, buyer_assistance),
+            priority_placement = COALESCE(?, priority_placement),
+            dedicated_agent = COALESCE(?, dedicated_agent),
+            lifetime_guaranteed = COALESCE(?, lifetime_guaranteed),
+            benefits_json = CASE WHEN ? IS NOT NULL THEN ? ELSE benefits_json END,
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        name2,
+        price !== void 0 ? Number(price) : null,
+        category,
+        description,
+        badge,
+        display_order !== void 0 ? Number(display_order) : null,
+        is_active !== void 0 ? is_active ? 1 : 0 : null,
+        instagram_story !== void 0 ? instagram_story ? 1 : 0 : null,
+        instagram_post !== void 0 ? instagram_post ? 1 : 0 : null,
+        highlight_placement !== void 0 ? highlight_placement ? 1 : 0 : null,
+        story_count,
+        website_listing !== void 0 ? website_listing ? 1 : 0 : null,
+        inventory_editing !== void 0 ? inventory_editing ? 1 : 0 : null,
+        promotion_duration,
+        buyer_assistance !== void 0 ? buyer_assistance ? 1 : 0 : null,
+        priority_placement !== void 0 ? priority_placement ? 1 : 0 : null,
+        dedicated_agent !== void 0 ? dedicated_agent ? 1 : 0 : null,
+        lifetime_guaranteed !== void 0 ? lifetime_guaranteed ? 1 : 0 : null,
+        benefits ? 1 : null,
+        benefits ? JSON.stringify(benefits) : null,
+        now,
+        id
+      );
+      res.json({ success: true, message: "Advertisement plan updated successfully." });
+    } catch (err) {
+      console.error("[Update Ad Plan Error]:", err);
+      res.status(500).json({ error: "Failed to update advertisement plan." });
+    }
+  });
+  app2.delete("/api/admin/advertisement/plans/:id", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const { id } = req.params;
+      const orderCount = db2.prepare("SELECT COUNT(*) as count FROM advertisement_orders WHERE plan_id = ?").get(id)?.count || 0;
+      if (orderCount > 0) {
+        db2.prepare("UPDATE advertisement_plans SET is_active = 0, updated_at = ? WHERE id = ?").run((/* @__PURE__ */ new Date()).toISOString(), id);
+        res.json({ success: true, message: "Plan has associated historical orders; deactivated to preserve order history." });
+      } else {
+        db2.prepare("DELETE FROM advertisement_plans WHERE id = ?").run(id);
+        res.json({ success: true, message: "Advertisement plan deleted." });
+      }
+    } catch (err) {
+      console.error("[Delete Ad Plan Error]:", err);
+      res.status(500).json({ error: "Failed to delete advertisement plan." });
+    }
+  });
+  app2.post("/api/advertisement/orders", async (req, res) => {
+    try {
+      const {
+        planId,
+        customerName,
+        customerEmail,
+        customerPhone,
+        paymentReference,
+        paymentScreenshot
+      } = req.body || {};
+      if (!planId || !customerName || !customerEmail || !customerPhone) {
+        res.status(400).json({ error: "Missing required customer or package details." });
+        return;
+      }
+      const plan = db2.prepare("SELECT * FROM advertisement_plans WHERE id = ?").get(planId);
+      if (!plan) {
+        res.status(404).json({ error: "Selected advertisement package not found." });
+        return;
+      }
+      const isFreeBonus = plan.price === 0;
+      if (!isFreeBonus && !paymentReference && !paymentScreenshot) {
+        res.status(400).json({ error: "Payment transaction reference or screenshot is required for paid packages." });
+        return;
+      }
+      const orderId = `AD-VIB-${Date.now().toString(36).toUpperCase()}-${crypto12.randomBytes(3).toString("hex").toUpperCase()}`;
+      const submissionToken = `tok_${crypto12.randomBytes(16).toString("hex")}`;
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const initialStatus = isFreeBonus ? "approved" : "pending_payment";
+      db2.prepare(`
+        INSERT INTO advertisement_orders (
+          id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
+          status, payment_method, payment_reference, payment_screenshot, submission_token,
+          created_at, updated_at, approved_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'upi', ?, ?, ?, ?, ?, ?)
+      `).run(
+        orderId,
+        plan.id,
+        plan.name,
+        plan.price,
+        customerName.trim(),
+        customerEmail.trim().toLowerCase(),
+        customerPhone.trim(),
+        initialStatus,
+        paymentReference?.trim() || null,
+        paymentScreenshot || null,
+        submissionToken,
+        now,
+        now,
+        isFreeBonus ? now : null
+      );
+      const createdOrder = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(orderId);
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : void 0);
+      sendAdminAdOrderNotification(createdOrder, origin).catch(
+        (e) => console.warn("[Ad Order Email Error]:", e.message)
+      );
+      res.json({
+        success: true,
+        orderId,
+        status: initialStatus,
+        planName: plan.name,
+        planPrice: plan.price,
+        submissionToken,
+        message: isFreeBonus ? "Free listing order registered! You can now submit your account details." : "Payment submitted for verification. We will verify and email you shortly."
+      });
+    } catch (err) {
+      console.error("[Create Ad Order Error]:", err);
+      res.status(500).json({ error: "Failed to process advertisement order." });
+    }
+  });
+  app2.get("/api/advertisement/orders/verify", (req, res) => {
+    try {
+      const { orderId, token } = req.query;
+      if (!orderId || !token) {
+        res.status(400).json({ eligible: false, message: "Order ID and security token are required." });
+        return;
+      }
+      const order = db2.prepare(`
+        SELECT id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
+               status, submission_token, rejection_reason, instagram_username, selling_price,
+               current_rank, premium_skins, other_valuable_items, inventory_screenshot
+        FROM advertisement_orders
+        WHERE id = ? AND submission_token = ?
+      `).get(orderId, token);
+      if (!order) {
+        res.status(404).json({ eligible: false, message: "Invalid or expired advertisement order link." });
+        return;
+      }
+      if (order.status === "pending_payment") {
+        res.json({
+          eligible: false,
+          status: "pending_payment",
+          message: "Payment verification is still pending review by the VIB team. You will receive an email once approved.",
+          order
+        });
+        return;
+      }
+      if (order.status === "rejected") {
+        res.json({
+          eligible: false,
+          status: "rejected",
+          message: "Payment verification was rejected.",
+          rejectionReason: order.rejection_reason,
+          order
+        });
+        return;
+      }
+      res.json({
+        eligible: true,
+        status: order.status,
+        order
+      });
+    } catch (err) {
+      console.error("[Verify Ad Token Error]:", err);
+      res.status(500).json({ eligible: false, error: "Failed to verify advertisement order token." });
+    }
+  });
+  app2.post("/api/advertisement/orders/:id/submit-details", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        token,
+        instagramUsername,
+        sellingPrice,
+        currentRank,
+        premiumSkins,
+        otherValuableItems,
+        inventoryScreenshot
+      } = req.body || {};
+      if (!token) {
+        res.status(401).json({ error: "Security token is required." });
+        return;
+      }
+      const order = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      if (!order) {
+        res.status(404).json({ error: "Advertisement order not found." });
+        return;
+      }
+      if (order.submission_token !== token) {
+        res.status(403).json({ error: "Invalid security token for this order." });
+        return;
+      }
+      if (order.status !== "approved" && order.status !== "details_submitted") {
+        res.status(400).json({ error: `Cannot submit details for order in '${order.status}' status.` });
+        return;
+      }
+      if (!instagramUsername || !sellingPrice || !currentRank || !premiumSkins || !inventoryScreenshot) {
+        res.status(400).json({
+          error: "Please complete all required fields: Instagram handle, selling price, rank, premium skins, and inventory screenshot."
+        });
+        return;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_orders
+        SET status = 'details_submitted',
+            instagram_username = ?,
+            selling_price = ?,
+            current_rank = ?,
+            premium_skins = ?,
+            other_valuable_items = ?,
+            inventory_screenshot = ?,
+            submitted_at = ?,
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        instagramUsername.trim().replace(/^@/, ""),
+        sellingPrice.toString().trim(),
+        currentRank.trim(),
+        premiumSkins.trim(),
+        otherValuableItems?.trim() || "",
+        inventoryScreenshot,
+        now,
+        now,
+        id
+      );
+      const updatedOrder = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : void 0);
+      sendAdminAdDetailsSubmitted(
+        updatedOrder,
+        {
+          customer_name: updatedOrder.customer_name,
+          customer_email: updatedOrder.customer_email,
+          customer_phone: updatedOrder.customer_phone,
+          instagram_username: instagramUsername.trim().replace(/^@/, ""),
+          selling_price: sellingPrice,
+          current_rank: currentRank,
+          premium_skins: premiumSkins,
+          other_valuable_items: otherValuableItems || "",
+          inventory_screenshot: inventoryScreenshot
+        },
+        origin
+      ).catch((e) => console.warn("[Ad Details Admin Email Error]:", e.message));
+      res.json({
+        success: true,
+        message: "Advertisement details successfully submitted! Our team is preparing your campaign."
+      });
+    } catch (err) {
+      console.error("[Submit Ad Details Error]:", err);
+      res.status(500).json({ error: "Failed to submit advertisement details." });
+    }
+  });
+  app2.get("/api/admin/advertisement/orders", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const { status, search } = req.query;
+      let sql = "SELECT * FROM advertisement_orders WHERE 1=1";
+      const params = [];
+      if (status && status !== "all") {
+        sql += " AND status = ?";
+        params.push(status);
+      }
+      if (search && typeof search === "string" && search.trim()) {
+        const q = `%${search.trim()}%`;
+        sql += " AND (id LIKE ? OR customer_name LIKE ? OR customer_email LIKE ? OR customer_phone LIKE ? OR instagram_username LIKE ?)";
+        params.push(q, q, q, q, q);
+      }
+      sql += " ORDER BY created_at DESC";
+      const orders = db2.prepare(sql).all(...params);
+      res.json({ success: true, orders });
+    } catch (err) {
+      console.error("[Admin Ad Orders Error]:", err);
+      res.status(500).json({ error: "Failed to fetch advertisement orders." });
+    }
+  });
+  app2.post("/api/admin/advertisement/orders/:id/approve", authenticate2, adminOnly2, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const order = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      if (!order) {
+        res.status(404).json({ error: "Advertisement order not found." });
+        return;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_orders
+        SET status = 'approved',
+            approved_at = ?,
+            updated_at = ?
+        WHERE id = ?
+      `).run(now, now, id);
+      const updated = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : void 0);
+      await sendCustomerAdPaymentApproved(updated, origin);
+      res.json({
+        success: true,
+        message: `Payment approved! Confirmation email with submission link sent to ${order.customer_email}.`
+      });
+    } catch (err) {
+      console.error("[Approve Ad Payment Error]:", err);
+      res.status(500).json({ error: "Failed to approve advertisement payment." });
+    }
+  });
+  app2.post("/api/admin/advertisement/orders/:id/reject", authenticate2, adminOnly2, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body || {};
+      const order = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      if (!order) {
+        res.status(404).json({ error: "Advertisement order not found." });
+        return;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_orders
+        SET status = 'rejected',
+            rejection_reason = ?,
+            updated_at = ?
+        WHERE id = ?
+      `).run(reason || "Unable to verify payment evidence.", now, id);
+      const updated = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      await sendCustomerAdPaymentRejected(updated, reason);
+      res.json({
+        success: true,
+        message: `Payment marked rejected. Notice emailed to ${order.customer_email}.`
+      });
+    } catch (err) {
+      console.error("[Reject Ad Payment Error]:", err);
+      res.status(500).json({ error: "Failed to reject advertisement payment." });
+    }
+  });
+  app2.post("/api/admin/advertisement/orders/:id/mark-live", authenticate2, adminOnly2, (req, res) => {
+    try {
+      const { id } = req.params;
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_orders
+        SET status = 'live',
+            updated_at = ?
+        WHERE id = ?
+      `).run(now, id);
+      res.json({ success: true, message: "Advertisement campaign marked as LIVE." });
+    } catch (err) {
+      console.error("[Mark Ad Live Error]:", err);
+      res.status(500).json({ error: "Failed to mark advertisement as live." });
+    }
+  });
+}
 
 // server/index.ts
 seedDatabase();
@@ -40188,7 +41235,7 @@ app.post("/api/upload", (req, res) => {
       res.status(400).json({ error: "Image exceeds maximum 10MB file size limit." });
       return;
     }
-    const safeName = `receipt_${Date.now()}_${crypto12.randomBytes(4).toString("hex")}.${ext}`;
+    const safeName = `receipt_${Date.now()}_${crypto13.randomBytes(4).toString("hex")}.${ext}`;
     const filePath = path4.join(uploadsDir, safeName);
     fs5.writeFileSync(filePath, buffer);
     res.json({
@@ -40412,7 +41459,7 @@ function extractClientIp(req) {
   return isIpv4 || isIpv6 ? rawIp : "unavailable";
 }
 function logAudit(actorId, actorName, action, targetType, targetId, details, ipOrReq) {
-  const auditId = "aud_" + crypto12.randomBytes(8).toString("hex");
+  const auditId = "aud_" + crypto13.randomBytes(8).toString("hex");
   let cleanIp = "unavailable";
   if (typeof ipOrReq === "object" && ipOrReq !== null && ("headers" in ipOrReq || "ip" in ipOrReq)) {
     cleanIp = extractClientIp(ipOrReq);
@@ -40541,7 +41588,7 @@ app.post("/api/auth/register", async (req, res) => {
       verifiedRiotId = riotCheck.riotId;
       isRiotVerified = 1;
     }
-    const userId = "usr_" + crypto12.randomBytes(8).toString("hex");
+    const userId = "usr_" + crypto13.randomBytes(8).toString("hex");
     const { hash, salt } = hashPassword(password);
     const verificationCode = Math.floor(1e5 + Math.random() * 9e5).toString();
     const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -40588,7 +41635,7 @@ app.post("/api/auth/register", async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'info', 0, ?)
     `).run(
-      "notif_" + crypto12.randomBytes(8).toString("hex"),
+      "notif_" + crypto13.randomBytes(8).toString("hex"),
       userId,
       "Welcome to VIB Digital Services Platform!",
       "Your account has been created. Enjoy verified Valorant VP top-ups, rank journeys, and protected marketplace transactions.",
@@ -40740,8 +41787,8 @@ app.post("/api/auth/firebase-login", (req, res) => {
         }
       }
     } else {
-      userId = "usr_" + crypto12.randomBytes(8).toString("hex");
-      const randomPassword = crypto12.randomBytes(32).toString("hex");
+      userId = "usr_" + crypto13.randomBytes(8).toString("hex");
+      const randomPassword = crypto13.randomBytes(32).toString("hex");
       const { hash, salt } = hashPassword(randomPassword);
       db.prepare(`
         INSERT INTO users (id, email, password_hash, salt, name, role, status, email_verified, firebase_uid, auth_provider, created_at, updated_at)
@@ -40844,7 +41891,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
   const resetCode = Math.floor(1e5 + Math.random() * 9e5).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1e3).toISOString();
-  const resetTokenHash = crypto12.createHash("sha256").update(resetCode).digest("hex");
+  const resetTokenHash = crypto13.createHash("sha256").update(resetCode).digest("hex");
   db.prepare("UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?").run(resetTokenHash, expiresAt, user.id);
   const delivery = await sendPasswordRecoveryOtpEmail(normalizedEmail, resetCode);
   if (!delivery.success) {
@@ -40866,9 +41913,9 @@ app.post("/api/auth/reset-password", (req, res) => {
     return;
   }
   const user = db.prepare("SELECT id, reset_token, reset_token_expires_at FROM users WHERE email = ?").get(String(email).trim().toLowerCase());
-  const submittedCodeHash = crypto12.createHash("sha256").update(cleanCode).digest("hex");
+  const submittedCodeHash = crypto13.createHash("sha256").update(cleanCode).digest("hex");
   const storedResetHash = typeof user?.reset_token === "string" && /^[a-f0-9]{64}$/i.test(user.reset_token) ? Buffer.from(user.reset_token, "hex") : null;
-  const codeMatches = storedResetHash && crypto12.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
+  const codeMatches = storedResetHash && crypto13.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
   if (!user || !codeMatches || !user.reset_token_expires_at || Date.parse(user.reset_token_expires_at) <= Date.now()) {
     res.status(400).json({ error: "Invalid or expired verification reset code." });
     return;
@@ -41147,8 +42194,8 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       res.status(400).json({ error: "Valid title and price are required for order creation." });
       return;
     }
-    const orderId = "ord_" + crypto12.randomBytes(6).toString("hex");
-    const txnId = "txn_" + crypto12.randomBytes(6).toString("hex");
+    const orderId = "ord_" + crypto13.randomBytes(6).toString("hex");
+    const txnId = "txn_" + crypto13.randomBytes(6).toString("hex");
     const refNo = "VIB-" + Date.now().toString(36).toUpperCase();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const initialTimeline = [
@@ -41255,7 +42302,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
       VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
     `).run(
-      "msg_" + crypto12.randomBytes(6).toString("hex"),
+      "msg_" + crypto13.randomBytes(6).toString("hex"),
       orderId,
       `Order room initialized for #${orderId} (${title}). All deliveries, game account credentials, and communications are secured under official VIB middleman escrow. Please keep all communication inside this order room.`,
       now
@@ -41264,7 +42311,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto12.randomBytes(8).toString("hex"),
+      "notif_" + crypto13.randomBytes(8).toString("hex"),
       req.user.id,
       `Order Received: ${title}`,
       `Your order #${orderId} for ${currency} ${amount} is currently awaiting payment verification. Invoice #${invoiceId} generated.`,
@@ -41385,7 +42432,7 @@ app.post("/api/orders/:id/messages", authenticate, (req, res) => {
     return;
   }
   const scanResult = !isStaff ? scanMessageForAntiFraud(String(message)) : { flagged: false, reason: null };
-  const msgId = "msg_" + crypto12.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const senderRole = isStaff ? "admin" : req.user.role || "user";
   const senderName = isStaff ? req.user.name ? `${req.user.name} (VIB Support)` : "VIB Support Desk" : req.user.name;
@@ -41473,7 +42520,7 @@ app.post("/api/escrow/tickets", authenticate, (req, res) => {
     }
     const userId = req.user.id;
     const userName = req.user.name;
-    const ticketId = "escrow_" + crypto12.randomBytes(6).toString("hex");
+    const ticketId = "escrow_" + crypto13.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const subject = `[Escrow Trade] ${normalizedTradeType.toUpperCase()} - ${normalizedItem} (\u20B9${amountValue})`;
     const detailMessage = `Trade Type: ${String(tradeType).toUpperCase()}
@@ -41495,7 +42542,7 @@ Contact: ${normalizedEmail || req.user.email}`;
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto12.randomBytes(8).toString("hex"),
+      "notif_" + crypto13.randomBytes(8).toString("hex"),
       userId,
       `Escrow request received: #${ticketId}`,
       "Your escrow request is linked to your support dashboard and is waiting for staff review.",
@@ -41526,7 +42573,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     res.status(400).json({ error: "Enter a subject (3\u2013200 characters), a message (1\u20134000 characters), valid category, and valid priority." });
     return;
   }
-  const ticketId = "tkt_" + crypto12.randomBytes(6).toString("hex");
+  const ticketId = "tkt_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialMessages = JSON.stringify([
     { sender: "user", senderName: req.user.name, text: messageText, time: now }
@@ -41553,7 +42600,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto12.randomBytes(8).toString("hex"),
+        "notif_" + crypto13.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support ticket",
         `A customer opened ticket #${ticketId}.`,
@@ -41609,7 +42656,7 @@ app.post("/api/user/tickets/:id/reply", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto12.randomBytes(8).toString("hex"),
+        "notif_" + crypto13.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support reply",
         `A customer replied to ticket #${ticket.id}.`,
@@ -41853,9 +42900,9 @@ app.post("/api/admin/staff", authenticate, superAdminOnly, async (req, res) => {
       res.status(409).json({ error: "An account with this email address already exists." });
       return;
     }
-    const salt = crypto12.randomBytes(16).toString("hex");
-    const hash = crypto12.scryptSync(password, salt, 64).toString("hex");
-    const userId = "usr_staff_" + crypto12.randomBytes(6).toString("hex");
+    const salt = crypto13.randomBytes(16).toString("hex");
+    const hash = crypto13.scryptSync(password, salt, 64).toString("hex");
+    const userId = "usr_staff_" + crypto13.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     db.prepare(`
       INSERT INTO users (id, name, email, password_hash, salt, role, status, created_at, updated_at)
@@ -41993,7 +43040,7 @@ var updateOrderStatusHandler = (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)
   `).run(
-    "notif_" + crypto12.randomBytes(8).toString("hex"),
+    "notif_" + crypto13.randomBytes(8).toString("hex"),
     order.user_id,
     `Order #${orderId} Updated`,
     `Status has been updated to ${status.toUpperCase()}. ${finalNote ? `Note: ${finalNote}` : ""}`,
@@ -42060,7 +43107,7 @@ app.put("/api/admin/tickets/:id", authenticate, staffOnly, (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'info', 0, ?)
   `).run(
-    "notif_" + crypto12.randomBytes(8).toString("hex"),
+    "notif_" + crypto13.randomBytes(8).toString("hex"),
     ticket.user_id,
     `Support Desk Update: ${ticket.subject}`,
     `Staff response received. Ticket status is now ${newStatus.toUpperCase()}.`,
@@ -42096,7 +43143,7 @@ app.post("/api/admin/announcements", authenticate, adminOnly, (req, res) => {
   db.exec("BEGIN IMMEDIATE");
   try {
     targetUsers.forEach((u) => {
-      insertNotif.run("notif_" + crypto12.randomBytes(8).toString("hex"), u.id, title, message, now);
+      insertNotif.run("notif_" + crypto13.randomBytes(8).toString("hex"), u.id, title, message, now);
     });
     logAudit(req.user.id, req.user.name, "DISPATCH_ANNOUNCEMENT", "broadcast", targetGroup, { recipientCount: targetUsers.length }, req.ip || "127.0.0.1");
     db.exec("COMMIT");
@@ -42263,7 +43310,7 @@ app.post("/api/admin/finance/expenses", authenticate, adminOnly, (req, res) => {
     res.status(400).json({ error: "Category, description, and amount are required." });
     return;
   }
-  const expId = "exp_" + crypto12.randomBytes(6).toString("hex");
+  const expId = "exp_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO expenses (id, category, description, amount, currency, payment_method, reference_no, recorded_by, expense_date, created_at)
@@ -42318,7 +43365,7 @@ app.post("/api/admin/tasks", authenticate, staffOnly, (req, res) => {
     res.status(400).json({ error: "Title and department are required." });
     return;
   }
-  const taskId = "task_" + crypto12.randomBytes(6).toString("hex");
+  const taskId = "task_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO staff_tasks (id, title, description, department, priority, status, assigned_to, created_by, due_date, notes, created_at, updated_at)
@@ -42403,7 +43450,7 @@ app.post("/api/admin/users/:id/crm/notes", authenticate, adminOnly, (req, res) =
     res.status(400).json({ error: "Note text cannot be empty." });
     return;
   }
-  const noteId = "crm_note_" + crypto12.randomBytes(6).toString("hex");
+  const noteId = "crm_note_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO user_crm_notes (id, user_id, staff_id, staff_name, note, risk_level, created_at)
@@ -42754,7 +43801,7 @@ app.put("/api/orders/:id/delivery-contact", authenticate, (req, res) => {
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
     VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
   `).run(
-    "msg_" + crypto12.randomBytes(6).toString("hex"),
+    "msg_" + crypto13.randomBytes(6).toString("hex"),
     orderId,
     "Delivery contact details were updated by the customer. Staff can view the current details in the order record for dispatch coordination.",
     now
@@ -42851,7 +43898,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto12.randomBytes(8).toString("hex"),
+        "notif_" + crypto13.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Verification Unresolved: #${order.id}`,
         `Your payment verification for order #${order.id} was rejected: ${reason || "Invalid reference"}. Please review your order tracking page.`,
@@ -42971,7 +44018,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto12.randomBytes(8).toString("hex"),
+        "notif_" + crypto13.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Approved: #${order.id}`,
         codeAssigned ? `Payment verified! Your VP code for order #${order.id} has been issued and sent to your email.` : `Payment verified! Your order #${order.id} is now being fulfilled by our operations team.`,
@@ -43044,7 +44091,7 @@ app.post("/api/admin/orders/:id/issue-code", authenticate, staffOnly, async (req
   `).run(cleanCode, now, JSON.stringify(timeline), now, orderId);
   db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
   db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
-  const msgId = "msg_" + crypto12.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto13.randomBytes(6).toString("hex");
   db.prepare(`
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, attachment_url, flagged, flag_reason, created_at)
     VALUES (?, ?, ?, ?, 'system', ?, NULL, 0, NULL, ?)
@@ -43194,7 +44241,7 @@ app.post("/api/admin/vp-codes", authenticate, staffOnly, (req, res) => {
         VALUES (?, ?, ?, 'available', ?, ?)
       `);
       for (const code of newCodes) {
-        const id = "vpc_" + crypto12.randomBytes(8).toString("hex");
+        const id = "vpc_" + crypto13.randomBytes(8).toString("hex");
         insertStmt.run(id, normalizedPackId, code, batch, now);
       }
       db.exec("COMMIT");
@@ -43346,7 +44393,7 @@ app.put("/api/admin/regional-orders/:id/status", authenticate, staffOnly, (req, 
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto12.randomBytes(8).toString("hex"),
+      "notif_" + crypto13.randomBytes(8).toString("hex"),
       order.user_id,
       `Regional order update: #${orderId}`,
       message,
@@ -43471,7 +44518,7 @@ app.post("/api/user/listings", authenticate, (req, res) => {
     res.status(400).json({ error: "Listing title, price, and competitive rank are mandatory." });
     return;
   }
-  const listingId = "lst_" + crypto12.randomBytes(6).toString("hex");
+  const listingId = "lst_" + crypto13.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialStatus = submitForReview || status === "submitted" || status === "pending_review" ? "submitted" : "draft";
   db.prepare(`
@@ -43620,7 +44667,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, (req, res) => {
       res.status(400).json({ error: "Title, price in INR, and competitive rank are mandatory fields." });
       return;
     }
-    const listingId = "lst_" + crypto12.randomBytes(6).toString("hex");
+    const listingId = "lst_" + crypto13.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const resolvedSellerName = seller_name && String(seller_name).trim() || req.user?.name || "VIB Official Vault";
     const parsedPrice = Number(price_inr);
@@ -43664,7 +44711,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, (req, res) => {
         INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
         VALUES (?, ?, 'CREATE_MARKETPLACE_LISTING', 'listing', ?, ?, ?, ?)
       `).run(
-        "aud_" + crypto12.randomBytes(6).toString("hex"),
+        "aud_" + crypto13.randomBytes(6).toString("hex"),
         req.user.id,
         listingId,
         `Directly created ${status} marketplace listing "${title}" (\u20B9${parsedPrice.toLocaleString()})`,
@@ -43973,6 +45020,7 @@ app.post("/api/admin/email/compose", authenticate, staffOnly, async (req, res) =
   }
 });
 registerOverhaulRoutes(app, db, authenticate, adminOnly);
+registerAdvertisementRoutes(app, db, authenticate, adminOnly);
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[VIB Server] Production Backend running at http://localhost:${PORT}`);

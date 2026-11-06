@@ -44,6 +44,7 @@ import {
   Gavel,
   Key,
   BookOpen,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { AdminPaymentSettings } from './AdminPaymentSettings';
@@ -56,6 +57,7 @@ import { AdminAuctionsManagement } from './AdminAuctionsManagement';
 import { AdminRentalsManagement } from './AdminRentalsManagement';
 import { AdminLegalManagement } from './AdminLegalManagement';
 import { AdminStaffManagement } from './AdminStaffManagement';
+import { AdminAdvertisementSettings } from './AdminAdvertisementSettings';
 
 interface AdminDashboardProps {
   onNavigate: (page: string) => void;
@@ -64,6 +66,7 @@ interface AdminDashboardProps {
 type AdminTab =
   | 'metrics'
   | 'payment_verification'
+  | 'advertisements'
   | 'auctions'
   | 'rentals'
   | 'legal'
@@ -85,7 +88,13 @@ type AdminTab =
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const { user, token, logout, isAdmin, isStaff } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('metrics');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab') as AdminTab;
+      if (t) return t;
+    } catch {}
+    return 'metrics';
+  });
 
   // Metrics state
   const [metrics, setMetrics] = useState({
@@ -941,6 +950,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <button
               type="button"
+              onClick={(e) => handleSelectTab('advertisements', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'advertisements'
+                  ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)]'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Megaphone className="w-4 h-4" />
+              <span>Advertisements &amp; Packages</span>
+            </button>
+
+            <button
+              type="button"
               onClick={(e) => handleSelectTab('auctions', e)}
               className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'auctions'
@@ -1248,6 +1270,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         {/* PAYMENT VERIFICATION & MANUAL QR SETTINGS                     */}
         {/* ============================================================== */}
         {activeTab === 'payment_verification' && <AdminPaymentSettings />}
+
+        {/* ============================================================== */}
+        {/* ADVERTISEMENT OPERATIONS & PACKAGE MANAGEMENT                */}
+        {/* ============================================================== */}
+        {activeTab === 'advertisements' && <AdminAdvertisementSettings />}
 
         {/* ============================================================== */}
         {/* AUCTIONS MARKETPLACE CONTROL (Part 2.1 & Part 2.2)            */}

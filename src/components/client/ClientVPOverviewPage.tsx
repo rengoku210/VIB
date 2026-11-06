@@ -391,7 +391,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
 
             <button
               type="button"
-              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
+              onClick={() => onNavigate('services', 'region-change')}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
             >
               <span>Order Region Switch (₹1,299)</span>
@@ -431,7 +431,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => onOpenCheckout('Flexible Payment Plan Inquiry', 0)}
+              onClick={() => onNavigate('support')}
               className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors cursor-pointer text-xs ml-2 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
               Learn More →
@@ -505,7 +505,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onOpenCheckout('Skin Rentals Program Inquiry', 0)}
+                onClick={() => onNavigate('rentals')}
                 className="min-h-[44px] px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-gray-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               >
                 How It Works →
@@ -1015,7 +1015,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="pt-2">
               <button
-                onClick={() => onOpenCheckout('Flexible Payment Plan Application', 0)}
+                onClick={() => onNavigate('support')}
                 className="px-4 py-2 rounded-lg bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-xs font-bold text-purple-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-rajdhani"
               >
                 <span>View Payment Plans</span>

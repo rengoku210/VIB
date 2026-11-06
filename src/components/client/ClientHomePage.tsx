@@ -843,7 +843,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             </p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2">
               <button
-                onClick={() => onOpenCheckout('VIB Profile Advertisement Plan', 1499)}
+                onClick={() => onNavigate('advertise')}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 w-fit"
               >
                 <span>View Advertisement Plans</span>
@@ -904,7 +904,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onOpenCheckout('Urgent Profile Valuation Request', 0)}
+                  onClick={() => onNavigate('services', 'urgent-sale')}
                   className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-rose-600/30 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                 >
                   <span>Get My Profile Evaluated</span>
@@ -1091,7 +1091,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             <span className="text-[10px] text-gray-500 font-mono hidden lg:flex items-center gap-1"><Zap className="w-3 h-3 text-purple-400" /> Easy EMI Options</span>
             <span className="text-[10px] text-gray-500 font-mono hidden lg:flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-purple-400" /> Secure & Verified</span>
             <button
-              onClick={() => onOpenCheckout('EMI Payment Plan Consultation', 0)}
+              onClick={() => onNavigate('support')}
               className="px-4 py-2 rounded-lg bg-purple-600/25 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 font-bold font-rajdhani uppercase flex items-center gap-1 cursor-pointer whitespace-nowrap transition-all"
             >
               <span>Learn More</span>
@@ -1465,7 +1465,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               Trade or exchange your unwanted skins with other players. Find better skins, upgrade your collection — all in one place.
             </p>
             <button
-              onClick={() => onOpenCheckout('Valo Skins Exchange Valuation', 0)}
+              onClick={() => onNavigate('services', 'skins-exchange')}
               className="text-sm font-bold text-[#ff2ebb] hover:text-fuchsia-300 font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]"
             >
               <span>Start Trading</span>
@@ -1514,7 +1514,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                 Switch your account from Indian region to Philippines region and unlock lower prices, more purchase options and exclusive content.
               </p>
               <button
-                onClick={() => onOpenCheckout('Region Change: IND to PHP Migration', 1299)}
+                onClick={() => onNavigate('services', 'region-change')}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
               >
                 <span>Switch to PHP</span>
@@ -1574,7 +1574,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
-                onClick={() => onOpenCheckout('Fresh Philippines (PHP) Profile Provisioning', 499)}
+                onClick={() => onNavigate('services', 'fresh-php')}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sky-500/30 hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
               >
                 <span>Get Your PHP Profile</span>

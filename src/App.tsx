@@ -11,6 +11,7 @@ import { ClientRankupPage } from './components/client/ClientRankupPage';
 import { ClientRentalsPage } from './components/client/ClientRentalsPage';
 import { ClientCoachingPage } from './components/client/ClientCoachingPage';
 import { ClientAuctionsPage } from './components/client/ClientAuctionsPage';
+import { ClientAdvertisePage } from './components/client/ClientAdvertisePage';
 import { UserDashboard } from './components/dashboard/UserDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AuthModal } from './components/auth/AuthModal';
@@ -32,6 +33,9 @@ function AppContent() {
 
   const getInitialPage = (): ClientPage => {
     try {
+      if (window.location.pathname === '/advertise' || window.location.pathname.startsWith('/advertise')) {
+        return 'advertise';
+      }
       const params = new URLSearchParams(window.location.search);
       const p = params.get('page') as ClientPage;
       if (
@@ -43,6 +47,7 @@ function AppContent() {
           'vp',
           'vp-catalog',
           'services',
+          'advertise',
           'rankup',
           'rentals',
           'coaching',
@@ -93,6 +98,10 @@ function AppContent() {
     } catch {}
 
     const onPopState = () => {
+      if (window.location.pathname === '/advertise') {
+        setCurrentPage('advertise');
+        return;
+      }
       const params = new URLSearchParams(window.location.search);
       const p = (params.get('page') as ClientPage) || 'home';
       if (
@@ -103,6 +112,7 @@ function AppContent() {
           'vp',
           'vp-catalog',
           'services',
+          'advertise',
           'rankup',
           'rentals',
           'coaching',
@@ -273,10 +283,17 @@ function AppContent() {
       const url = new URL(window.location.href);
       url.pathname = url.pathname.replace(/\/+/g, '/') || '/';
       if (page === 'home') {
+        url.pathname = '/';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+      } else if (page === 'advertise') {
+        url.pathname = '/advertise';
         url.searchParams.delete('page');
         url.searchParams.delete('id');
         url.searchParams.delete('slug');
       } else {
+        url.pathname = '/';
         url.searchParams.set('page', page);
         if (page === 'listing' && id) {
           url.searchParams.set('id', id);
@@ -425,6 +442,13 @@ function AppContent() {
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'advertise' && (
+          <ClientAdvertisePage
+            currency={currency}
+            onNavigate={handleNavigate}
           />
         )}
 

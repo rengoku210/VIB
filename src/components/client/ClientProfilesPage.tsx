@@ -1089,7 +1089,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onOpenCheckout('Urgent Profile Valuation Request', 0)}
+                  onClick={() => onNavigate('services', 'urgent-sale')}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-700 via-rose-600 to-red-600 hover:from-red-600 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                 >
                   <span>Get My Profile Evaluated</span>

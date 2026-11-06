@@ -517,3 +517,202 @@ export async function sendOrderFulfilledEmail(order: any, fulfillmentNote?: stri
   });
 }
 
+const AD_ADMIN_EMAIL = 'teamvibofficial@gmail.com';
+
+export async function sendAdminAdOrderNotification(order: any, appBaseUrl?: string): Promise<void> {
+  const baseUrl = appBaseUrl || process.env.APP_URL || 'https://vib-rho.vercel.app';
+  const adminVerifyLink = `${baseUrl}/?page=admin&tab=advertisements&order=${order.id}`;
+  const screenshotUrl = order.payment_screenshot?.startsWith('http')
+    ? order.payment_screenshot
+    : `${baseUrl}${order.payment_screenshot || ''}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW ADVERTISEMENT ORDER &amp; PAYMENT SUBMITTED</h2>
+      <p>A customer has placed an advertisement order and submitted manual payment evidence.</p>
+      
+      <div style="background-color: #1a162b; border: 1px solid #7e22ce; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.6;">
+        <p style="margin: 0 0 8px 0;"><strong>ORDER ID:</strong> ${order.id}</p>
+        <p style="margin: 0 0 8px 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
+        <p style="margin: 0 0 8px 0;"><strong>PACKAGE PRICE:</strong> ₹${Number(order.plan_price).toLocaleString('en-IN')}</p>
+        <p style="margin: 0 0 8px 0;"><strong>CUSTOMER NAME:</strong> ${order.customer_name}</p>
+        <p style="margin: 0 0 8px 0;"><strong>CUSTOMER EMAIL:</strong> ${order.customer_email}</p>
+        <p style="margin: 0 0 8px 0;"><strong>WHATSAPP NUMBER:</strong> ${order.customer_phone}</p>
+        <p style="margin: 0 0 8px 0;"><strong>PAYMENT REFERENCE / UTR:</strong> ${order.payment_reference || 'N/A'}</p>
+        <p style="margin: 0;"><strong>PAYMENT SCREENSHOT:</strong> <a href="${screenshotUrl}" target="_blank" style="color: #38bdf8;">View Uploaded Screenshot</a></p>
+      </div>
+
+      <p style="margin: 24px 0;">
+        <a href="${adminVerifyLink}" style="background-color: #a855f7; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+          Open Admin Panel to Verify &amp; Approve Payment
+        </a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </p>
+    </div>
+  `;
+
+  const text = `
+NEW ADVERTISEMENT ORDER:
+ORDER ID: ${order.id}
+ADVERTISEMENT PACKAGE: ${order.plan_name}
+PACKAGE PRICE: ₹${order.plan_price}
+CUSTOMER NAME: ${order.customer_name}
+CUSTOMER EMAIL: ${order.customer_email}
+WHATSAPP NUMBER: ${order.customer_phone}
+PAYMENT REFERENCE: ${order.payment_reference || 'N/A'}
+SCREENSHOT: ${screenshotUrl}
+ADMIN VERIFICATION LINK: ${adminVerifyLink}
+  `.trim();
+
+  await sendEmail({
+    to: AD_ADMIN_EMAIL,
+    subject: `[NEW AD ORDER] ${order.plan_name} (₹${order.plan_price}) - #${order.id}`,
+    html,
+    text,
+    templateName: 'admin_ad_order_notification',
+    context: { orderId: order.id, customerName: order.customer_name },
+  });
+}
+
+export async function sendCustomerAdPaymentApproved(order: any, appBaseUrl?: string): Promise<void> {
+  const baseUrl = appBaseUrl || process.env.APP_URL || 'https://vib-rho.vercel.app';
+  const submitUrl = `${baseUrl}/?page=advertise&step=submit&orderId=${order.id}&token=${order.submission_token}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #10b981; border-bottom: 2px solid #064e3b; padding-bottom: 8px;">PAYMENT VERIFIED! SUBMIT YOUR ADVERTISEMENT DETAILS</h2>
+      <p>Hello ${order.customer_name},</p>
+      <p>Your payment for <strong>${order.plan_name}</strong> (Order <strong>#${order.id}</strong>) has been verified and confirmed by our team.</p>
+      
+      <p style="color: #cbd5e1; font-size: 14px; margin: 16px 0;">
+        Please click the secure button below to submit your account inventory details, screenshots, and Instagram contact handle so we can launch your promotional campaign.
+      </p>
+
+      <p style="margin: 24px 0; text-align: center;">
+        <a href="${submitUrl}" style="background-color: #9333ea; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 0 20px rgba(147, 51, 234, 0.4);">
+          Continue to Submit Advertisement Details
+        </a>
+      </p>
+
+      <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+        Or copy and paste this link in your browser:<br/>
+        <a href="${submitUrl}" style="color: #38bdf8; word-break: break-all;">${submitUrl}</a>
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Escrow Platform | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: order.customer_email,
+    subject: `Payment Verified: Continue to Submit Advertisement Details [#${order.id}]`,
+    html,
+    text: `Hello ${order.customer_name}, your payment for ${order.plan_name} has been verified. Submit your details here: ${submitUrl}`,
+    templateName: 'customer_ad_payment_approved',
+    context: { orderId: order.id, customerName: order.customer_name, submitUrl },
+  });
+}
+
+export async function sendCustomerAdPaymentRejected(order: any, reason?: string): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #ef4444; border-bottom: 2px solid #7f1d1d; padding-bottom: 8px;">PAYMENT VERIFICATION UPDATE</h2>
+      <p>Hello ${order.customer_name},</p>
+      <p>We were unable to verify the payment reference for your order <strong>#${order.id}</strong> (<strong>${order.plan_name}</strong>).</p>
+      
+      <div style="background-color: #2a111a; border: 1px solid #f43f5e; padding: 16px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin: 0; color: #fecdd3; font-size: 14px;">
+          <strong>Reason:</strong> ${reason || 'Transaction UTR could not be matched with bank ledger or screenshot unreadable.'}
+        </p>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        If you have already transferred the amount, please reach out to our dedicated support team on WhatsApp at <strong>${SUPPORT_WHATSAPP}</strong> with your Order ID (#${order.id}) and bank debit statement.
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Support Desk | ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: order.customer_email,
+    subject: `Payment Verification Notice for Order #${order.id}`,
+    html,
+    text: `Hello ${order.customer_name}, we were unable to verify payment for order #${order.id}. Reason: ${reason || 'UTR could not be matched'}. Contact WhatsApp ${SUPPORT_WHATSAPP}.`,
+    templateName: 'customer_ad_payment_rejected',
+    context: { orderId: order.id, customerName: order.customer_name, reason },
+  });
+}
+
+export async function sendAdminAdDetailsSubmitted(order: any, details: any, appBaseUrl?: string): Promise<void> {
+  const baseUrl = appBaseUrl || process.env.APP_URL || 'https://vib-rho.vercel.app';
+  const screenshotLink = details.inventory_screenshot?.startsWith('http')
+    ? details.inventory_screenshot
+    : `${baseUrl}${details.inventory_screenshot || ''}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW CUSTOMER ADVERTISEMENT SUBMISSION</h2>
+      <p>Customer has completed their advertisement details submission form. Here are the details for publication:</p>
+      
+      <div style="background-color: #1a162b; border: 1px solid #a855f7; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.8;">
+        <p style="margin: 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
+        <p style="margin: 0;"><strong>PACKAGE PRICE:</strong> ₹${Number(order.plan_price).toLocaleString('en-IN')}</p>
+        <p style="margin: 0;"><strong>CUSTOMER NAME:</strong> ${details.customer_name || order.customer_name}</p>
+        <p style="margin: 0;"><strong>CUSTOMER EMAIL:</strong> ${details.customer_email || order.customer_email}</p>
+        <p style="margin: 0;"><strong>WHATSAPP NUMBER:</strong> ${details.customer_phone || order.customer_phone}</p>
+        <p style="margin: 0;"><strong>INSTAGRAM USERNAME:</strong> ${details.instagram_username || 'N/A'}</p>
+        <p style="margin: 0;"><strong>SELLING PRICE:</strong> ₹${details.selling_price || 'N/A'}</p>
+        <p style="margin: 0;"><strong>CURRENT RANK:</strong> ${details.current_rank || 'N/A'}</p>
+        <p style="margin: 0;"><strong>PREMIUM SKINS LIST:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.premium_skins || 'None provided'}</pre></p>
+        <p style="margin: 0;"><strong>OTHER VALUABLE ITEMS:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.other_valuable_items || 'None provided'}</pre></p>
+        <p style="margin: 0;"><strong>LINK TO INVENTORY SCREENSHOT:</strong> <a href="${screenshotLink}" target="_blank" style="color: #38bdf8;">View Inventory Screenshot</a></p>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </p>
+    </div>
+  `;
+
+  const text = `
+ADVERTISEMENT PACKAGE: ${order.plan_name}
+PACKAGE PRICE: ₹${order.plan_price}
+CUSTOMER NAME: ${details.customer_name || order.customer_name}
+CUSTOMER EMAIL: ${details.customer_email || order.customer_email}
+WHATSAPP NUMBER: ${details.customer_phone || order.customer_phone}
+INSTAGRAM USERNAME: ${details.instagram_username}
+SELLING PRICE: ₹${details.selling_price}
+CURRENT RANK: ${details.current_rank}
+
+PREMIUM SKINS LIST:
+${details.premium_skins}
+
+OTHER VALUABLE ITEMS:
+${details.other_valuable_items}
+
+LINK TO INVENTORY SCREENSHOT: ${screenshotLink}
+  `.trim();
+
+  await sendEmail({
+    to: AD_ADMIN_EMAIL,
+    subject: `[AD SUBMITTED] ${order.plan_name} - @${details.instagram_username || order.customer_name}`,
+    html,
+    text,
+    templateName: 'admin_ad_details_submitted',
+    context: { orderId: order.id, customerName: order.customer_name, instagram: details.instagram_username },
+  });
+}
+
+

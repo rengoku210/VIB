@@ -7,6 +7,7 @@ import { db, databaseDirectory, hashPassword, verifyPassword, generateToken, cre
 import { verifyRiotId } from './riot.js';
 import { VALORANT_RANKS } from '../src/data/rank-pricing.js';
 import { registerOverhaulRoutes } from './overhaulRoutes.js';
+import { registerAdvertisementRoutes } from './advertisementRoutes.js';
 import {
   sendOrderPendingVerificationEmail,
   sendIndianVPCodeIssuedEmail,
@@ -4597,6 +4598,7 @@ app.post('/api/admin/email/compose', authenticate, staffOnly, async (req: AuthRe
 // ==========================================
 
 registerOverhaulRoutes(app, db, authenticate, adminOnly);
+registerAdvertisementRoutes(app, db, authenticate, adminOnly);
 
 // Start Express Server
 if (!process.env.VERCEL) {
