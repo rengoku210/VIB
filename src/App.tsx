@@ -293,7 +293,15 @@ function AppContent() {
         url.searchParams.delete('id');
         url.searchParams.delete('slug');
         if (id) {
-          url.hash = id.startsWith('#') ? id : '#' + id;
+          if (id.startsWith('product:')) {
+            url.pathname = `/advertise/product/${id.replace('product:', '')}`;
+            url.hash = '';
+          } else if (id.startsWith('checkout:')) {
+            url.pathname = `/advertise/checkout/${id.replace('checkout:', '')}`;
+            url.hash = '';
+          } else {
+            url.hash = id.startsWith('#') ? id : '#' + id;
+          }
         } else {
           url.hash = '';
         }

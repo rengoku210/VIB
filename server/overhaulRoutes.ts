@@ -1,11 +1,11 @@
 import express, { Request, Response } from 'express';
 import crypto from 'node:crypto';
-import { verifySignedToken } from './db.js';
 
 export function registerOverhaulRoutes(
   app: express.Express,
   db: any,
   authenticate: any,
+  staffOnly: any,
   adminOnly: any
 ) {
   // =========================================================================
@@ -123,6 +123,14 @@ export function registerOverhaulRoutes(
         now
       );
 
+      // P1-F12: reserve the listing the moment a booking succeeds so a second
+      // customer cannot double-book the same profile. The listing is returned to
+      // 'available' when an admin completes the booking (see /complete route).
+      db.prepare(`
+        UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ?
+        WHERE id = ?
+      `).run(bookingId, now, listing.id);
+
       const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, '') : '') || '919181801766';
       const cleanPhone = sellerPhone.startsWith('91') ? sellerPhone : ('91' + sellerPhone);
       const whatsappText = encodeURIComponent(
@@ -168,7 +176,7 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // List all listings & bookings for admin
-  app.get('/api/admin/rentals', authenticate, adminOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/rentals', authenticate, staffOnly, (req: Request, res: Response): void => {
     try {
       const listings = db.prepare('SELECT * FROM rental_listings ORDER BY created_at DESC').all();
       const bookings = db.prepare(`
@@ -187,7 +195,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin create rental listing
-  app.post('/api/admin/rentals', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const {
         title,
@@ -251,7 +259,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin update rental listing
-  app.put('/api/admin/rentals/:id', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/rentals/:id', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const listing = db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(req.params.id) as any;
       if (!listing) {
@@ -317,7 +325,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin activate rental booking (sets start & expiry, assigns vault credentials)
-  app.post('/api/admin/rentals/bookings/:id/activate', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals/bookings/:id/activate', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const booking = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
       if (!booking) {
@@ -362,9 +370,9 @@ export function registerOverhaulRoutes(
         booking.id
       );
 
-      // Also set the listing to rented
-      db.prepare("UPDATE rental_listings SET status = 'rented', updated_at = ? WHERE id = ?")
-        .run(startsAt, booking.listing_id);
+      // Also set the listing to rented (remains rented through the active session).
+      db.prepare("UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ? WHERE id = ?")
+        .run(booking.id, startsAt, booking.listing_id);
 
       res.json({ message: 'Rental session activated and credentials issued to customer.', expiresAt });
     } catch (err: any) {
@@ -376,7 +384,7 @@ export function registerOverhaulRoutes(
   // Admin mark rental complete/deposit refunded
   
   // Update booking handover status (Admin/Staff)
-  app.put('/api/admin/rentals/bookings/:id/handover-status', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/rentals/bookings/:id/handover-status', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const bookingId = req.params.id;
       const { handover_status, notes } = req.body || {};
@@ -406,11 +414,12 @@ export function registerOverhaulRoutes(
 
       try {
         db.prepare(`
-          INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           'aud_' + crypto.randomBytes(6).toString('hex'),
           (req as any).user?.id || 'admin',
+          (req as any).user?.name || 'System Admin',
           'UPDATE_RENTAL_HANDOVER_STATUS',
           'rental_booking',
           bookingId,
@@ -430,7 +439,7 @@ export function registerOverhaulRoutes(
     }
   });
 
-  app.post('/api/admin/rentals/bookings/:id/complete', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals/bookings/:id/complete', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const booking = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
       if (!booking) {
@@ -447,8 +456,8 @@ export function registerOverhaulRoutes(
         WHERE id = ?
       `).run(now, booking.id);
 
-      // Return listing to available
-      db.prepare("UPDATE rental_listings SET status = 'available', updated_at = ? WHERE id = ?")
+      // Return listing to available and clear the active rental reference.
+      db.prepare("UPDATE rental_listings SET status = 'available', current_rental_id = NULL, updated_at = ? WHERE id = ?")
         .run(now, booking.listing_id);
 
       res.json({ message: 'Rental session concluded and listing returned to active pool.' });
@@ -909,29 +918,78 @@ export function registerOverhaulRoutes(
 
       // Create an order record for the winner
       const orderId = 'ORD-AUC-' + Date.now().toString().slice(-6);
+      // Look up the winning bidder's profile from the users table
+      const winnerUser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id) as any;
+      const winnerName = winnerUser?.name || req.user.name || 'Auction Winner';
+      const winnerEmail = winnerUser?.email || req.user.email || '';
+      const detailsPayload = {
+        lotId: lot.id,
+        lotNumber: lot.lot_number,
+        winningBid: winningAmount,
+        depositCredited,
+        remainingSettled: remainingBalance,
+        ref: transactionRef,
+        customerName: winnerName,
+        customerEmail: winnerEmail,
+        deliveryDetails: req.body?.delivery_details || null
+      };
       db.prepare(`
         INSERT INTO orders (
-          id, user_id, title, amount, original_price, currency, status,
-          payment_status, payment_method, customer_name, customer_email,
-          delivery_details, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?, ?, ?)
+          id, user_id, type, title, amount, currency, status,
+          payment_status, payment_method, details_json, created_at, updated_at
+        ) VALUES (?, ?, 'auction', ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?)
       `).run(
         orderId,
         req.user.id,
         `Auction Winner: ${lot.title} (${lot.lot_number})`,
-        remainingBalance,
         winningAmount,
-        req.user.name,
-        req.user.email,
-        JSON.stringify({
-          lotId: lot.id,
-          lotNumber: lot.lot_number,
-          winningBid: winningAmount,
-          depositCredited,
-          remainingSettled: remainingBalance,
-          ref: transactionRef
-        }),
+        JSON.stringify(detailsPayload),
         now,
+        now
+      );
+
+      // Mirror the normal order-creation flow: generate a sequential paid invoice
+      const invoiceRows = db.prepare("SELECT id FROM invoices WHERE id LIKE 'VIB-INV-%'").all() as { id: string }[];
+      let maxInvoiceNum = 0;
+      for (const r of invoiceRows) {
+        const match = r.id.match(/^VIB-INV-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxInvoiceNum) maxInvoiceNum = num;
+        }
+      }
+      const invoiceId = 'VIB-INV-' + String(maxInvoiceNum + 1).padStart(4, '0');
+      db.prepare(`
+        INSERT INTO invoices (
+          id, order_id, customer_id, customer_name, customer_email, customer_phone,
+          billing_address, seller_name, product_name, description, quantity,
+          unit_price, subtotal, platform_fee, tax_amount, discount_amount, final_total,
+          currency, status, payment_method, payment_reference, notes, invoice_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, '', 'India', 'VIB Official Store', ?, ?, 1, ?, ?, 0, 0, 0, ?, 'INR', 'paid', 'UPI_QR', ?, 'Auction settlement invoice generated automatically.', ?, ?)
+      `).run(
+        invoiceId,
+        orderId,
+        req.user.id,
+        winnerName,
+        winnerEmail,
+        `Auction Winner: ${lot.title} (${lot.lot_number})`,
+        `Auction settlement for ${lot.lot_number}. Winning bid ₹${winningAmount}, deposit credited ₹${depositCredited}, balance settled ₹${remainingBalance}.`,
+        winningAmount,
+        winningAmount,
+        winningAmount,
+        transactionRef || null,
+        now,
+        now
+      );
+
+      // Create initial order room message
+      db.prepare(`
+        INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
+        VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
+      `).run(
+        'msg_' + crypto.randomBytes(6).toString('hex'),
+        orderId,
+        `Auction balance settled for ${lot.title} (${lot.lot_number}). Your winning account credentials will be delivered here after staff verification.`,
         now
       );
 
@@ -954,7 +1012,7 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // List all auction lots for admin (all statuses)
-  app.get('/api/admin/auctions', authenticate, adminOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/auctions', authenticate, staffOnly, (req: Request, res: Response): void => {
     try {
       const lots = db.prepare('SELECT * FROM auction_lots ORDER BY created_at DESC').all();
       res.json({ lots });
@@ -965,7 +1023,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin create auction lot with full Part 2.1 schema
-  app.post('/api/admin/auctions', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const {
         title,
@@ -1086,7 +1144,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin edit auction before bidding starts (Part 2.2)
-  app.put('/api/admin/auctions/:id', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/auctions/:id', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
@@ -1146,7 +1204,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin publish auction draft
-  app.post('/api/admin/auctions/:id/publish', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/publish', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const now = new Date().toISOString();
       db.prepare("UPDATE auction_lots SET status = 'active', updated_at = ? WHERE id = ?")
@@ -1159,7 +1217,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin pause auction with reason
-  app.post('/api/admin/auctions/:id/pause', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/pause', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const { reason = 'Administrative verification in progress' } = req.body || {};
       const now = new Date().toISOString();
@@ -1173,7 +1231,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin resume auction
-  app.post('/api/admin/auctions/:id/resume', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/resume', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const now = new Date().toISOString();
       db.prepare("UPDATE auction_lots SET status = 'active', paused_at = NULL, pause_reason = NULL, updated_at = ? WHERE id = ?")
@@ -1186,7 +1244,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin cancel auction (marks deposits for 100% refund)
-  app.post('/api/admin/auctions/:id/cancel', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/cancel', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const now = new Date().toISOString();
       db.prepare("UPDATE auction_lots SET status = 'cancelled', updated_at = ? WHERE id = ?")
@@ -1211,7 +1269,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin close auction lot & lock winner
-  app.post('/api/admin/auctions/:id/close', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/close', authenticate, staffOnly, (req: any, res: Response): void => {
     try {
       const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
@@ -1267,7 +1325,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin bidder audit breakdown
-  app.get('/api/admin/auctions/:id/bidders', authenticate, adminOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/auctions/:id/bidders', authenticate, staffOnly, (req: Request, res: Response): void => {
     try {
       const bids = db.prepare(`
         SELECT ab.*, u.email as bidder_email, u.phone as bidder_phone
@@ -1387,7 +1445,9 @@ export function registerOverhaulRoutes(
   });
 
   // 3.4 Record User Legal Consent (Part 7: explicit audit logs)
-  app.post('/api/legal/consent', (req: any, res: Response): void => {
+  // P2-F6: authentication is required, and consent is always attributed to the
+  // authenticated user (req.user.id). Client-supplied userId is ignored.
+  app.post('/api/legal/consent', authenticate, (req: any, res: Response): void => {
     try {
       const {
         policySlug,
@@ -1403,18 +1463,7 @@ export function registerOverhaulRoutes(
         if (p) policyId = p.id;
       }
 
-      let userId = 'anonymous_guest';
-      const authHeader = req.headers['authorization'];
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        const signed = verifySignedToken(token);
-        if (signed && signed.id) {
-          userId = signed.id;
-        }
-      }
-      if (userId === 'anonymous_guest' && req.body.userId) {
-        userId = req.body.userId;
-      }
+      const userId = req.user?.id || 'anonymous_guest';
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
       const userAgent = req.headers['user-agent'] || 'Unknown Browser';
       const id = 'cns_' + crypto.randomBytes(6).toString('hex');

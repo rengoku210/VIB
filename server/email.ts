@@ -402,6 +402,73 @@ export async function sendOrderPaymentVerifiedEmail(order: any, isManualDelivery
   });
 }
 
+export async function sendRegistrationOtpEmail(email: string, code: string, name?: string): Promise<{ success: boolean; error?: string }> {
+  const greeting = name ? `Hello ${name},` : 'Hello Gamer,';
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB ACCOUNT REGISTRATION CODE</h2>
+      <p>${greeting}</p>
+      <p>Thank you for registering on VIB Digital Services. Please use the 6-digit verification code below to verify your email address and activate your account:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #9333ea; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: 6px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        This code is valid for 10 minutes. Never share this code with anyone.
+      </p>
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Security Desk | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Your VIB Verification Code: ${code}`,
+    html,
+    text: `Your VIB verification code is: ${code}. Valid for 10 minutes.`,
+    templateName: 'registration_otp',
+    context: { email, code },
+  });
+}
+
+export async function sendLoginOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB SIGN-IN VERIFICATION CODE</h2>
+      <p>Hello,</p>
+      <p>Use the 6-digit one-time code below to securely sign in to your VIB account:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #9333ea; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: 6px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        This code is valid for 10 minutes. If you did not request this code, please contact our support team immediately.
+      </p>
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Security Desk | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Your VIB Sign-In Code: ${code}`,
+    html,
+    text: `Your VIB sign-in code is: ${code}. Valid for 10 minutes.`,
+    templateName: 'login_otp',
+    context: { email, code },
+  });
+}
+
 export async function sendPasswordRecoveryOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
   const html = `
     <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">

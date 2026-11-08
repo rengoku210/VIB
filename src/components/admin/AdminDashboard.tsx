@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Package,
@@ -17,8 +17,6 @@ import {
   AlertTriangle,
   ArrowRight,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   Award,
   Zap,
   FileText,
@@ -33,7 +31,6 @@ import {
   DollarSign,
   Eye,
   Globe,
-  QrCode,
   Image as ImageIcon,
   Check,
   Loader2,
@@ -45,6 +42,14 @@ import {
   Key,
   BookOpen,
   Megaphone,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  IdCard,
+  CalendarClock,
+  Inbox,
+  ScrollText,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { AdminPaymentSettings } from './AdminPaymentSettings';
@@ -58,6 +63,8 @@ import { AdminRentalsManagement } from './AdminRentalsManagement';
 import { AdminLegalManagement } from './AdminLegalManagement';
 import { AdminStaffManagement } from './AdminStaffManagement';
 import { AdminAdvertisementSettings } from './AdminAdvertisementSettings';
+import AdminKycManagement from './AdminKycManagement';
+import AdminEmiManagement from './AdminEmiManagement';
 
 interface AdminDashboardProps {
   onNavigate: (page: string) => void;
@@ -77,21 +84,105 @@ type AdminTab =
   | 'email_logs'
   | 'users'
   | 'orders'
-  | 'transactions'
   | 'invoices'
   | 'finance'
   | 'tasks'
   | 'disputes'
   | 'communication'
   | 'staff'
-  | 'audit';
+  | 'audit'
+  | 'kyc'
+  | 'emi';
+
+const ADMIN_TAB_KEYS: readonly AdminTab[] = [
+  'metrics',
+  'payment_verification',
+  'advertisements',
+  'auctions',
+  'rentals',
+  'legal',
+  'add_listing',
+  'indian_vp',
+  'regional_orders',
+  'listings_review',
+  'email_logs',
+  'users',
+  'orders',
+  'invoices',
+  'finance',
+  'tasks',
+  'disputes',
+  'communication',
+  'staff',
+  'audit',
+  'kyc',
+  'emi',
+];
+
+interface AdminNavItem {
+  tab: AdminTab;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface AdminNavGroup {
+  label: string;
+  items: AdminNavItem[];
+}
+
+const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
+  {
+    label: 'Platform',
+    items: [
+      { tab: 'metrics', label: 'Platform Metrics', icon: TrendingUp },
+      { tab: 'payment_verification', label: 'Payment Verifications & QR', icon: ShieldCheck },
+      { tab: 'finance', label: 'Financial Control', icon: DollarSign },
+      { tab: 'tasks', label: 'Staff Tasks', icon: Briefcase },
+    ],
+  },
+  {
+    label: 'Marketplace',
+    items: [
+      { tab: 'listings_review', label: 'Listings Review', icon: ClipboardCheck },
+      { tab: 'add_listing', label: 'Add Account Listing', icon: Plus },
+      { tab: 'auctions', label: 'Auctions Marketplace', icon: Gavel },
+      { tab: 'rentals', label: 'Rentals & Vault', icon: Key },
+      { tab: 'advertisements', label: 'Advertisements & Packages', icon: Megaphone },
+      { tab: 'indian_vp', label: 'Indian VP Vault', icon: Zap },
+      { tab: 'regional_orders', label: 'Regional Orders (WhatsApp)', icon: Globe },
+    ],
+  },
+  {
+    label: 'Customers & Service',
+    items: [
+      { tab: 'users', label: 'Users & CRM', icon: Users },
+      { tab: 'orders', label: 'Orders', icon: Package },
+      { tab: 'invoices', label: 'Invoices & Billing', icon: FileText },
+      { tab: 'disputes', label: 'Disputes', icon: Headphones },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { tab: 'kyc', label: 'KYC Verification', icon: IdCard },
+      { tab: 'emi', label: 'EMI Management', icon: CalendarClock },
+      { tab: 'staff', label: 'Staff & Permissions', icon: ShieldCheck },
+      { tab: 'communication', label: 'Communication Center', icon: Mail },
+      { tab: 'email_logs', label: 'Email Logs', icon: Inbox },
+      { tab: 'audit', label: 'Audit Trail', icon: ScrollText },
+      { tab: 'legal', label: 'Legal & DPDPA', icon: BookOpen },
+    ],
+  },
+];
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const { user, token, logout, isAdmin, isStaff } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
-      const t = new URLSearchParams(window.location.search).get('tab') as AdminTab;
-      if (t) return t;
+      const t = new URLSearchParams(window.location.search).get('tab');
+      if (t && (ADMIN_TAB_KEYS as readonly string[]).includes(t)) {
+        return t as AdminTab;
+      }
     } catch {}
     return 'metrics';
   });
@@ -200,75 +291,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [taskPriority, setTaskPriority] = useState('medium');
   const [taskAssignee, setTaskAssignee] = useState('');
 
-  // Tab Slider Track & Mouse Drag States
-  const tabsTrackRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
-  const [isDraggingTabs, setIsDraggingTabs] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragScrollLeft, setDragScrollLeft] = useState(0);
-
-  const checkTabScrollBounds = () => {
-    if (tabsTrackRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = tabsTrackRef.current;
-      setCanScrollLeft(scrollLeft > 6);
-      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 6);
+  // Sidebar navigation state (collapsed preference persists to localStorage)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('vib_admin_sidebar_collapsed') === '1';
+    } catch {
+      return false;
     }
+  });
+
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('vib_admin_sidebar_collapsed', next ? '1' : '0');
+      } catch {}
+      return next;
+    });
   };
 
-  useEffect(() => {
-    const el = tabsTrackRef.current;
-    if (!el) return;
-    checkTabScrollBounds();
-    el.addEventListener('scroll', checkTabScrollBounds, { passive: true });
-    window.addEventListener('resize', checkTabScrollBounds);
-    return () => {
-      el.removeEventListener('scroll', checkTabScrollBounds);
-      window.removeEventListener('resize', checkTabScrollBounds);
-    };
-  }, []);
-
-  const slideTabs = (direction: 'left' | 'right') => {
-    if (tabsTrackRef.current) {
-      const scrollAmount = 320;
-      tabsTrackRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
-      setTimeout(checkTabScrollBounds, 350);
-    }
+  // Keep the URL in sync with the active tab (?page=admin&tab=<id>) so that
+  // refresh / back / forward preserve the selected panel.
+  const syncTabToUrl = (tabId: AdminTab) => {
+    try {
+      const url = new URL(window.location.href);
+      url.pathname = url.pathname.replace(/\/+/g, '/') || '/';
+      url.searchParams.set('page', 'admin');
+      url.searchParams.set('tab', tabId);
+      window.history.replaceState({ page: 'admin', tab: tabId }, '', url.toString());
+    } catch {}
   };
 
-  const handleSelectTab = (tabId: AdminTab, e?: React.MouseEvent) => {
+  const handleSelectTab = (tabId: AdminTab) => {
     setActiveTab(tabId);
-    if (e?.currentTarget) {
-      (e.currentTarget as HTMLElement).scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
-    }
+    syncTabToUrl(tabId);
+    setMobileNavOpen(false);
   };
 
-  const onTabsMouseDown = (e: React.MouseEvent) => {
-    if (!tabsTrackRef.current) return;
-    setIsDraggingTabs(true);
-    setDragStartX(e.pageX - tabsTrackRef.current.offsetLeft);
-    setDragScrollLeft(tabsTrackRef.current.scrollLeft);
-  };
-
-  const onTabsMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingTabs || !tabsTrackRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - tabsTrackRef.current.offsetLeft;
-    const walk = (x - dragStartX) * 1.5;
-    tabsTrackRef.current.scrollLeft = dragScrollLeft - walk;
-    checkTabScrollBounds();
-  };
-
-  const onTabsMouseUp = () => {
-    setIsDraggingTabs(false);
-  };
+  // Respond to browser back / forward navigation between admin tabs.
+  useEffect(() => {
+    const onPopState = () => {
+      try {
+        const param = new URLSearchParams(window.location.search).get('tab');
+        if (param && (ADMIN_TAB_KEYS as readonly string[]).includes(param)) {
+          setActiveTab(param as AdminTab);
+        }
+      } catch {}
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Fetch admin data with role-based least privilege enforcement
   const fetchAdminData = async () => {
@@ -844,6 +918,182 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     }
   };
 
+  // Badge count helper for metrics-driven nav items
+  const getBadgeCount = (tabId: AdminTab): number => {
+    switch (tabId) {
+      case 'users':
+        return Number(metrics.totalUsers || usersList.length || 0);
+      case 'orders':
+        return Number(metrics.totalOrders || ordersList.length || 0);
+      case 'invoices':
+        return Number(metrics.totalInvoices || invoicesList.length || 0);
+      case 'tasks':
+        return Number(metrics.totalTasks || tasksList.length || 0);
+      case 'disputes':
+        return Number(
+          metrics.openDisputes ||
+            ticketsList.filter((t) => t.status === 'open' || t.status === 'in_progress').length ||
+            0
+        );
+      default:
+        return 0;
+    }
+  };
+
+  // Shared sidebar content (desktop rail + mobile drawer)
+  const renderSidebar = (collapsed: boolean, inDrawer: boolean) => {
+    const initials = (user?.name || 'Admin')
+      .split(' ')
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+
+    return (
+      <div className="flex flex-col h-full min-h-0">
+        {/* Portal label */}
+        <div className={`flex items-center gap-3 mb-5 ${collapsed ? 'justify-center px-2' : 'px-1'}`}>
+          <div className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-black shadow-lg shadow-amber-600/30">
+            <Award className="w-5 h-5" />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="font-black font-rajdhani uppercase tracking-wider text-white text-sm leading-tight truncate">
+                VIB Admin
+              </div>
+              <div className="text-[10px] font-mono text-gray-500 uppercase truncate">Control Console</div>
+            </div>
+          )}
+          {inDrawer ? (
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(false)}
+              className="ml-auto p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 cursor-pointer"
+              aria-label="Close navigation menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          ) : collapsed ? (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-amber-300 cursor-pointer transition-colors hidden lg:inline-flex"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              className="ml-auto p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-amber-300 cursor-pointer transition-colors hidden lg:inline-flex"
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* User mini-card */}
+        <div
+          className={`mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-3 flex items-center gap-3 ${
+            collapsed ? 'justify-center px-2' : ''
+          }`}
+        >
+          <div className="w-9 h-9 shrink-0 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold text-xs font-rajdhani">
+            {initials}
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-white font-rajdhani uppercase truncate">
+                {user?.name || 'Staff Member'}
+              </div>
+              <div className="text-[10px] font-mono text-gray-500 uppercase truncate">
+                {user?.role?.replace('_', ' ') || 'Admin'}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Groups */}
+        <nav className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-5 no-scrollbar">
+          {ADMIN_NAV_GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1">
+              {!collapsed ? (
+                <div className="px-2.5 pb-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500 font-bold">
+                  {group.label}
+                </div>
+              ) : (
+                <div className="mx-2 mb-1.5 h-px bg-white/10" />
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.tab;
+                  const badge = getBadgeCount(item.tab);
+                  return (
+                    <button
+                      key={item.tab}
+                      type="button"
+                      onClick={() => handleSelectTab(item.tab)}
+                      title={collapsed ? item.label : undefined}
+                      className={`w-full flex items-center gap-2.5 font-bold text-xs font-rajdhani uppercase tracking-wider transition-all cursor-pointer rounded-xl ${
+                        collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+                      } ${
+                        isActive
+                          ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : ''}`} />
+                      {!collapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
+                      {!collapsed && badge > 0 && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold leading-none ${
+                            isActive
+                              ? 'bg-white/25 text-white'
+                              : 'bg-amber-950 text-amber-300 border border-amber-500/30'
+                          }`}
+                        >
+                          {badge}
+                        </span>
+                      )}
+                      {collapsed && badge > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer: Back to storefront */}
+        <div
+          className={`pt-4 mt-4 border-t border-white/10 space-y-1.5 ${
+            collapsed ? 'flex flex-col items-center' : ''
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => onNavigate('home')}
+            title={collapsed ? 'Back To Storefront' : undefined}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer ${
+              collapsed ? 'justify-center px-2' : ''
+            }`}
+          >
+            <ArrowRight className={`w-4 h-4 ${collapsed ? '' : 'rotate-180'}`} />
+            {!collapsed && <span>Back To Storefront</span>}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Top Banner */}
@@ -871,6 +1121,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="lg:hidden p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white cursor-pointer transition-colors"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
               onClick={() => onNavigate('home')}
               className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
             >
@@ -888,324 +1146,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           </div>
         </div>
 
-        {/* Navigation Tabs Option Slider */}
-        <div className="relative mt-6 select-none group">
-          {/* Left Arrow Button */}
-          <button
-            type="button"
-            onClick={() => slideTabs('left')}
-            disabled={!canScrollLeft}
-            aria-label="Slide options left"
-            className={`absolute -left-1 sm:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#121426] border border-amber-500/30 text-amber-300 flex items-center justify-center shadow-xl transition-all ${
-              canScrollLeft
-                ? 'opacity-100 hover:scale-110 hover:border-amber-400 hover:bg-amber-950/90 cursor-pointer'
-                : 'opacity-0 pointer-events-none'
-            }`}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {/* Left Gradient Edge Mask */}
-          <div
-            className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#070814] to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-              canScrollLeft ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-
-          {/* Horizontal Scrollable / Draggable Track */}
-          <div
-            ref={tabsTrackRef}
-            onMouseDown={onTabsMouseDown}
-            onMouseMove={onTabsMouseMove}
-            onMouseUp={onTabsMouseUp}
-            onMouseLeave={onTabsMouseUp}
-            className="flex items-center gap-1.5 border-b border-white/10 overflow-x-auto no-scrollbar pb-1.5 px-3 scroll-smooth cursor-grab active:cursor-grabbing"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('metrics', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'metrics'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>Platform Metrics</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('payment_verification', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'payment_verification'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Payment Verifications &amp; QR</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('advertisements', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'advertisements'
-                  ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Megaphone className="w-4 h-4" />
-              <span>Advertisements &amp; Packages</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('auctions', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'auctions'
-                  ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Gavel className="w-4 h-4" />
-              <span>Auctions Marketplace</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('rentals', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'rentals'
-                  ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Key className="w-4 h-4" />
-              <span>Rentals &amp; Vault</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('legal', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'legal'
-                  ? 'bg-cyan-600 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Legal &amp; DPDPA</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('indian_vp', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'indian_vp'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Zap className="w-4 h-4" />
-              <span>Indian VP Vault</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('regional_orders', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'regional_orders'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Globe className="w-4 h-4" />
-              <span>Regional Orders (WhatsApp)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('add_listing', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'add_listing'
-                  ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                  : 'text-purple-300 hover:text-white hover:bg-purple-900/30 border border-purple-500/30'
-              }`}
-            >
-              <Plus className="w-4 h-4 text-purple-400" />
-              <span>Add Account Listing</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('listings_review', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'listings_review'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Listings Review</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('email_logs', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'email_logs'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              <span>Email Logs</span>
-            </button>
-
-                        <button
-              type="button"
-              onClick={(e) => handleSelectTab('staff', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'staff'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Staff &amp; Permissions</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('users', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'users'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Users &amp; CRM ({metrics.totalUsers || usersList.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('orders', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'orders'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              <span>Orders ({metrics.totalOrders || ordersList.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('invoices', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'invoices'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Invoices &amp; Billing ({metrics.totalInvoices || invoicesList.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('finance', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'finance'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <DollarSign className="w-4 h-4" />
-              <span>Financial Control</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('tasks', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'tasks'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Briefcase className="w-4 h-4" />
-              <span>Staff Tasks ({metrics.totalTasks || tasksList.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('disputes', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'disputes'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Headphones className="w-4 h-4" />
-              <span>Disputes ({metrics.openDisputes || ticketsList.filter(t => t.status === 'open' || t.status === 'in_progress').length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('communication', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'communication'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              <span>Communication Center</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => handleSelectTab('audit', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'audit'
-                  ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Audit Trail</span>
-            </button>
-          </div>
-
-          {/* Right Gradient Edge Mask */}
-          <div
-            className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#070814] to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-              canScrollRight ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-
-          {/* Right Arrow Button */}
-          <button
-            type="button"
-            onClick={() => slideTabs('right')}
-            disabled={!canScrollRight}
-            aria-label="Slide options right"
-            className={`absolute -right-1 sm:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#121426] border border-amber-500/30 text-amber-300 flex items-center justify-center shadow-xl transition-all ${
-              canScrollRight
-                ? 'opacity-100 hover:scale-110 hover:border-amber-400 hover:bg-amber-950/90 cursor-pointer'
-                : 'opacity-0 pointer-events-none'
-            }`}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
       </div>
+
+      <div className="flex items-start gap-6">
+        {/* Desktop sidebar (lg+) */}
+        <aside className={`hidden lg:block lg:sticky lg:top-6 lg:self-start shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
+          <div className={`rounded-2xl bg-[#0c0d1c] border border-white/10 p-4 flex flex-col max-h-[calc(100vh-3rem)] transition-all duration-300 ${sidebarCollapsed ? 'w-20 px-3' : 'w-64'}`}>
+            {renderSidebar(sidebarCollapsed, false)}
+          </div>
+        </aside>
+        <div className="flex-1 min-w-0 space-y-6">
 
       {/* Main Tab Panels */}
       <div className="space-y-6">
@@ -1230,7 +1180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5">
                 <div className="text-[10px] font-mono uppercase text-gray-400">Gross Volume</div>
                 <div className="text-xl font-black font-rajdhani text-amber-400 mt-1">
-                  ₹{Number(metrics.grossRevenue || 0).toLocaleString('en-IN')}
+                  â‚¹{Number(metrics.grossRevenue || 0).toLocaleString('en-IN')}
                 </div>
               </div>
               <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5">
@@ -1640,7 +1590,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                               {/* Amount */}
                               <td className="p-3.5 font-bold text-emerald-400">
-                                ₹{Number(ord.amount).toLocaleString('en-IN')}
+                                â‚¹{Number(ord.amount).toLocaleString('en-IN')}
                               </td>
 
                               {/* Payment Status */}
@@ -1862,9 +1812,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             <div className="text-[10px] text-gray-400">{inv.customer_email}</div>
                           </td>
                           <td className="p-4 font-sans font-semibold text-white max-w-xs truncate">{inv.product_name}</td>
-                          <td className="p-4">₹{Number(inv.subtotal).toLocaleString('en-IN')}</td>
-                          <td className="p-4 text-amber-300">₹{Number(inv.tax_amount).toLocaleString('en-IN')}</td>
-                          <td className="p-4 font-bold text-emerald-400">₹{Number(inv.final_total).toLocaleString('en-IN')}</td>
+                          <td className="p-4">â‚¹{Number(inv.subtotal).toLocaleString('en-IN')}</td>
+                          <td className="p-4 text-amber-300">â‚¹{Number(inv.tax_amount).toLocaleString('en-IN')}</td>
+                          <td className="p-4 font-bold text-emerald-400">â‚¹{Number(inv.final_total).toLocaleString('en-IN')}</td>
                           <td className="p-4">
                             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 uppercase text-[10px]">
                               {inv.status}
@@ -1932,7 +1882,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">Gross Buyer Volume</div>
                     <div className="text-xl font-black font-rajdhani text-white mt-1">
-                      ₹{Number(financeOverview.grossBuyerPaid).toLocaleString('en-IN')}
+                      â‚¹{Number(financeOverview.grossBuyerPaid).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <button
@@ -1952,7 +1902,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">Platform Commissions (10%)</div>
                     <div className="text-xl font-black font-rajdhani text-purple-300 mt-1">
-                      ₹{Number(financeOverview.platformCommissions).toLocaleString('en-IN')}
+                      â‚¹{Number(financeOverview.platformCommissions).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div className="text-[10px] text-gray-500 font-mono mt-3">Calculated live</div>
@@ -1962,7 +1912,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">GST / Tax Collected (18%)</div>
                     <div className="text-xl font-black font-rajdhani text-amber-300 mt-1">
-                      ₹{Number(financeOverview.totalTaxCollected).toLocaleString('en-IN')}
+                      â‚¹{Number(financeOverview.totalTaxCollected).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <button
@@ -1979,7 +1929,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">Total Operating Expenses</div>
                     <div className="text-xl font-black font-rajdhani text-rose-400 mt-1">
-                      ₹{Number(financeOverview.totalExpenses).toLocaleString('en-IN')}
+                      â‚¹{Number(financeOverview.totalExpenses).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div className="text-[10px] text-gray-500 font-mono mt-3">{expensesList.length} Entries Logged</div>
@@ -2018,7 +1968,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           <td className="p-3 font-bold text-white">{exp.reference_no}</td>
                           <td className="p-3 uppercase text-purple-300">{exp.category}</td>
                           <td className="p-3 font-sans text-gray-200">{exp.description}</td>
-                          <td className="p-3 font-bold text-rose-400">₹{Number(exp.amount).toLocaleString('en-IN')}</td>
+                          <td className="p-3 font-bold text-rose-400">â‚¹{Number(exp.amount).toLocaleString('en-IN')}</td>
                           <td className="p-3">{exp.payment_method}</td>
                           <td className="p-3 text-gray-400">{exp.recorded_by}</td>
                           <td className="p-3 text-gray-400">{new Date(exp.expense_date).toLocaleDateString()}</td>
@@ -2169,7 +2119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       </span>
                     </div>
                     <div className="text-xs text-gray-400 font-mono mt-1">
-                      From: {tkt.user_name} ({tkt.user_email}) • #{tkt.id}
+                      From: {tkt.user_name} ({tkt.user_email}) â€¢ #{tkt.id}
                     </div>
                   </div>
                 ))}
@@ -2312,7 +2262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     disabled={announceSubmitting}
                     className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani tracking-wider cursor-pointer shadow-md"
                   >
-                    {announceSubmitting ? 'Dispatching…' : 'Broadcast Announcement'}
+                    {announceSubmitting ? 'Dispatchingâ€¦' : 'Broadcast Announcement'}
                   </button>
                 </form>
               </div>
@@ -2418,7 +2368,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
         )}
+
+        {/* ============================================================== */}
+        {/* TAB: KYC VERIFICATION REVIEW CONSOLE                         */}
+        {/* ============================================================== */}
+        {activeTab === 'kyc' && (
+          <div className="space-y-4 animate-in fade-in">
+            <AdminKycManagement />
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB: EMI MANAGEMENT CONSOLE                                   */}
+        {/* ============================================================== */}
+        {activeTab === 'emi' && (
+          <div className="space-y-4 animate-in fade-in">
+            <AdminEmiManagement />
+          </div>
+        )}
+        </div>
       </div>
+      </div>
+
+      {/* Mobile slide-in drawer (lg hidden) */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
+          <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-[#0c0d1c] border-r border-white/10 overflow-y-auto p-4 shadow-2xl">
+            {renderSidebar(false, true)}
+          </div>
+        </div>
+      )}
 
       {/* ============================================================== */}
       {/* MODAL: CUSTOMER CRM PROFILE & STAFF NOTES                     */}
@@ -2440,7 +2420,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <h3 id="crm-modal-title" className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">
                     Customer CRM Profile: {selectedUserCRM.name}
                   </h3>
-                  <div className="text-xs text-gray-400 font-mono">{selectedUserCRM.email} • #{selectedUserCRM.id}</div>
+                  <div className="text-xs text-gray-400 font-mono">{selectedUserCRM.email} â€¢ #{selectedUserCRM.id}</div>
                 </div>
               </div>
               <button
@@ -2457,7 +2437,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="p-3 rounded-xl bg-white/5 border border-white/5">
                 <div className="text-[10px] text-gray-400 uppercase">Lifetime Spent</div>
                 <div className="text-base font-bold text-emerald-400 font-rajdhani">
-                  ₹{Number(selectedUserCRM.totalSpent || 0).toLocaleString('en-IN')}
+                  â‚¹{Number(selectedUserCRM.totalSpent || 0).toLocaleString('en-IN')}
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-white/5 border border-white/5">
@@ -2615,7 +2595,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Unit Price (₹) *</label>
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Unit Price (â‚¹) *</label>
                   <input
                     type="number"
                     value={invPrice}
@@ -2721,7 +2701,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Amount (₹) *</label>
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Amount (â‚¹) *</label>
                   <input
                     type="number"
                     value={expAmount}
@@ -2937,7 +2917,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       <strong>PAYMENT DETAILS:</strong><br>
       Method: ${selectedInvoiceView.payment_method || 'UPI'}<br>
       UTR / Ref: ${selectedInvoiceView.payment_reference || 'N/A'}<br>
-      Currency: INR (₹)
+      Currency: INR (â‚¹)
     </div>
   </div>
 
@@ -2954,8 +2934,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       <tr>
         <td><strong>${selectedInvoiceView.product_name}</strong></td>
         <td style="text-align: center;">1</td>
-        <td style="text-align: right;">₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
-        <td style="text-align: right;">₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+        <td style="text-align: right;">â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+        <td style="text-align: right;">â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
       </tr>
     </tbody>
   </table>
@@ -2963,21 +2943,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   <div class="totals">
     <div class="total-row">
       <span>Subtotal (Excl. Tax):</span>
-      <span>₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
+      <span>â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
     </div>
     <div class="total-row">
       <span>GST (18%):</span>
-      <span>₹${Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
+      <span>â‚¹${Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
     </div>
     <div class="total-row final">
       <span>Total Paid:</span>
-      <span>₹${Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
+      <span>â‚¹${Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
     </div>
   </div>
 
   <div class="footer">
     <p>This is a computer-generated commercial tax invoice and requires no physical signature.</p>
-    <p>© ${new Date().getFullYear()} VIB Digital Services. All rights reserved.</p>
+    <p>Â© ${new Date().getFullYear()} VIB Digital Services. All rights reserved.</p>
   </div>
 </body>
 </html>`;
@@ -3090,7 +3070,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     <tr>
                       <td className="p-3 font-sans font-bold text-white">{selectedInvoiceView.product_name}</td>
                       <td className="p-3 text-center">1</td>
-                      <td className="p-3 text-right">₹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+                      <td className="p-3 text-right">â‚¹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -3100,15 +3080,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 <div className="w-64 space-y-1.5 text-right">
                   <div className="flex justify-between text-gray-400">
                     <span>Taxable Subtotal:</span>
-                    <span>₹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
+                    <span>â‚¹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-amber-300">
                     <span>GST (18%):</span>
-                    <span>₹{Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
+                    <span>â‚¹{Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="pt-2 border-t border-white/15 flex justify-between font-bold text-base text-emerald-400 font-rajdhani">
                     <span>Final Total:</span>
-                    <span>₹{Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
+                    <span>â‚¹{Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
@@ -3161,7 +3141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="flex justify-between">
                 <span className="text-gray-400">Amount:</span>
                 <span className="text-emerald-400 font-bold text-sm">
-                  ₹{Number(selectedOrderVerify.amount).toLocaleString('en-IN')}.00
+                  â‚¹{Number(selectedOrderVerify.amount).toLocaleString('en-IN')}.00
                 </span>
               </div>
               <div className="flex justify-between items-center pt-1 border-t border-white/5">
@@ -3229,8 +3209,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     </div>
                     <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
                       {selectedOrderVerify.type === 'vp' && !selectedOrderVerify.title.toLowerCase().includes('php')
-                        ? '• Indian VP Order: A genuine prepaid code will be auto-allocated from the Indian VP Vault and emailed to the customer.'
-                        : '• Manual Delivery Order: Payment status will be confirmed, order placed in fulfillment queue, and an email dispatched to customer to confirm delivery WhatsApp/email.'}
+                        ? 'â€¢ Indian VP Order: A genuine prepaid code will be auto-allocated from the Indian VP Vault and emailed to the customer.'
+                        : 'â€¢ Manual Delivery Order: Payment status will be confirmed, order placed in fulfillment queue, and an email dispatched to customer to confirm delivery WhatsApp/email.'}
                     </p>
                   </div>
 
@@ -3340,7 +3320,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
-                    {adminOrderRoom.title} • ₹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}
+                    {adminOrderRoom.title} â€¢ â‚¹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>
@@ -3398,7 +3378,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     )}
                     <div className="flex justify-between pt-1 border-t border-white/5">
                       <span className="text-gray-400">Total Price:</span>
-                      <span className="font-bold text-emerald-400">₹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}</span>
+                      <span className="font-bold text-emerald-400">â‚¹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>

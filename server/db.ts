@@ -566,6 +566,39 @@ try {
 try { db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN terms_version TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN reset_token_expires_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN first_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN last_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN city TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN state TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN pincode TEXT'); } catch {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_otps (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_email_otps_lookup ON email_otps(email, purpose);
+`);
+
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN documentation_text TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN ai_draft_json TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN custom_faq_json TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN conditions_json TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN reach_estimate TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN placement_tag TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN hero_icon TEXT'); } catch {}
+
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_first_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_last_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_city TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_state TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_pincode TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN user_id TEXT'); } catch {}
 
 // Order Workflow & Manual Payment Safe Column Migrations
 try { db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'AWAITING_PAYMENT'"); } catch {}
@@ -623,6 +656,81 @@ db.prepare(`
     AND payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
 `).run();
 
+// Staff Permissions & Extended Feature Columns (fresh-DB parity with canonical template)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_permissions (
+    user_id TEXT PRIMARY KEY,
+    permissions_json TEXT NOT NULL,
+    assigned_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+
+// auction_lots extended columns
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN category TEXT DEFAULT 'valorant_profile'"); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN account_type TEXT DEFAULT 'radiant_full_access'"); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN visibility TEXT DEFAULT 'public'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN account_name TEXT'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN server_region TEXT DEFAULT 'AP / Mumbai'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN account_level INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN inventory_details TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN included_benefits TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN restrictions TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN transfer_info TEXT'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN additional_info_json TEXT DEFAULT '{}'"); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN gallery_images_json TEXT DEFAULT '[]'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN starts_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN reserve_price REAL'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN instant_buy_price REAL'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN deposit_pct REAL DEFAULT 50.0'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN min_deposit_amount REAL DEFAULT 500'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline_hours INTEGER DEFAULT 24'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline TEXT'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN currency TEXT DEFAULT 'INR'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN tax_rate_pct REAL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN platform_fee_pct REAL DEFAULT 0'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_method TEXT DEFAULT 'escrow_instant_transfer'"); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_eta TEXT DEFAULT 'Instant (< 15 mins)'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN transfer_instructions TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN delivery_conditions TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN customer_info_required TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN post_purchase_support TEXT'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN min_eligibility TEXT DEFAULT 'verified_email'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN verification_required INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN allow_bid_raise INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN allow_cancellation INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN deposit_refund_rules TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN forfeiture_rules TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_user_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN winning_bid_amount REAL'); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN winner_payment_status TEXT DEFAULT 'unpaid'"); } catch {}
+try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_status TEXT DEFAULT 'pending'"); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN paused_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE auction_lots ADD COLUMN pause_reason TEXT'); } catch {}
+
+// payment_settings extended columns
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN account_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN bank_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN account_number TEXT'); } catch {}
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN ifsc_code TEXT'); } catch {}
+try { db.exec("ALTER TABLE payment_settings ADD COLUMN status TEXT DEFAULT 'active'"); } catch {}
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN payment_methods_json TEXT'); } catch {}
+try { db.exec('ALTER TABLE payment_settings ADD COLUMN is_active INTEGER DEFAULT 1'); } catch {}
+
+// rental_listings extended columns
+try { db.exec('ALTER TABLE rental_listings ADD COLUMN seller_whatsapp TEXT'); } catch {}
+try { db.exec('ALTER TABLE rental_listings ADD COLUMN handover_instructions TEXT'); } catch {}
+try { db.exec('ALTER TABLE rental_listings ADD COLUMN whatsapp_handover_enabled INTEGER DEFAULT 1'); } catch {}
+
+// rental_bookings extended columns
+try { db.exec("ALTER TABLE rental_bookings ADD COLUMN handover_status TEXT DEFAULT 'pending'"); } catch {}
+try { db.exec('ALTER TABLE rental_bookings ADD COLUMN whatsapp_contacted_at TEXT'); } catch {}
+
+// orders extended columns
+try { db.exec('ALTER TABLE orders ADD COLUMN delivery_data_json TEXT'); } catch {}
+
 // Riot ID Verification Registry Cache Table
 db.exec(`
   CREATE TABLE IF NOT EXISTS riot_accounts (
@@ -643,6 +751,81 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_riot_name_tag ON riot_accounts(game_name, tag_line);
 `);
 
+// =============================================================================
+// KYC VERIFICATION SUBMISSIONS
+// =============================================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS kyc_submissions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    dob TEXT,
+    address TEXT,
+    id_type TEXT NOT NULL,
+    id_number TEXT NOT NULL,
+    documents_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    rejection_reason TEXT,
+    admin_notes TEXT,
+    submitted_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    reviewed_by TEXT,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_kyc_user ON kyc_submissions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc_submissions(status);
+`);
+
+// =============================================================================
+// EMI FINANCING APPLICATIONS & INSTALLMENT SCHEDULE
+// =============================================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS emi_applications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    order_id TEXT,
+    product_title TEXT NOT NULL,
+    total_amount REAL NOT NULL,
+    initial_payment REAL NOT NULL DEFAULT 0,
+    amount_financed REAL NOT NULL,
+    tenure_months INTEGER NOT NULL,
+    interest_rate_pct REAL NOT NULL DEFAULT 0,
+    emi_amount REAL NOT NULL,
+    total_installments INTEGER NOT NULL,
+    installments_paid INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending_approval',
+    rejection_reason TEXT,
+    start_date TEXT,
+    next_due_date TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    reviewed_by TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_emi_user ON emi_applications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_emi_status ON emi_applications(status);
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS emi_payments (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    installment_no INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    due_date TEXT NOT NULL,
+    paid_at TEXT,
+    payment_method TEXT DEFAULT 'UPI_QR',
+    utr TEXT,
+    evidence_image TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    verified_by TEXT,
+    verified_at TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_emi_pay_app ON emi_payments(application_id);
+  CREATE INDEX IF NOT EXISTS idx_emi_pay_status ON emi_payments(status);
+`);
+
 
 // Password hashing utility using scrypt
 export function hashPassword(password: string): { hash: string; salt: string } {
@@ -658,6 +841,48 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
   } catch {
     return false;
   }
+}
+
+/**
+ * Magic-byte validation for uploaded images/documents (P3-F4).
+ *
+ * Verifies that the decoded bytes actually match the declared MIME/extension so
+ * that a spoofed data URL (e.g. text bytes declared as image/png) cannot be
+ * stored as an image. `mime` may be either a full MIME type
+ * ("image/png", "application/pdf") or a bare extension ("png", "jpg").
+ */
+export function validateImageMagicBytes(buffer: Buffer, mime: string): boolean {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return false;
+  const m = String(mime || '').toLowerCase();
+
+  if (m === 'image/png' || m === 'png') {
+    return buffer.length >= 8 &&
+      buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e &&
+      buffer[3] === 0x47 && buffer[4] === 0x0d && buffer[5] === 0x0a &&
+      buffer[6] === 0x1a && buffer[7] === 0x0a;
+  }
+
+  if (m === 'image/jpeg' || m === 'image/jpg' || m === 'jpeg' || m === 'jpg') {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+
+  if (m === 'image/webp' || m === 'webp') {
+    if (buffer.length < 12) return false;
+    return buffer.toString('ascii', 0, 4) === 'RIFF' &&
+      buffer.toString('ascii', 8, 12) === 'WEBP';
+  }
+
+  if (m === 'image/gif' || m === 'gif') {
+    const head = buffer.toString('ascii', 0, Math.min(6, buffer.length));
+    return head === 'GIF87a' || head === 'GIF89a';
+  }
+
+  if (m === 'application/pdf' || m === 'pdf') {
+    return buffer.slice(0, 5).toString('ascii') === '%PDF-';
+  }
+
+  // Unknown declared type: reject rather than accept unsniffed bytes.
+  return false;
 }
 
 if ((process.env.NODE_ENV === 'production' || process.env.VERCEL) && !process.env.SESSION_SECRET) {

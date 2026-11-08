@@ -24,5 +24,9 @@ data/*.db-shm
 data/vib_backup_*.db
 data/uploads/*
 !data/uploads/.gitkeep
+data/kyc_docs/*
+!data/kyc_docs/.gitkeep
+test-results/
+prompt.txt
 
 

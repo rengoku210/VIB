@@ -3,11 +3,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, databaseDirectory, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins } from './db.js';
+import { db, databaseDirectory, hashPassword, verifyPassword, generateToken, createSignedToken, verifySignedToken, seedDatabase, syncOfficialValorantSkins, validateImageMagicBytes } from './db.js';
 import { verifyRiotId } from './riot.js';
 import { VALORANT_RANKS } from '../src/data/rank-pricing.js';
 import { registerOverhaulRoutes } from './overhaulRoutes.js';
 import { registerAdvertisementRoutes } from './advertisementRoutes.js';
+import { registerKycRoutes } from './kycRoutes.js';
+import { registerEmiRoutes } from './emiRoutes.js';
 import {
   sendOrderPendingVerificationEmail,
   sendIndianVPCodeIssuedEmail,
@@ -18,6 +20,8 @@ import {
   getTransporter,
   isEmailConfigured,
   sendPasswordRecoveryOtpEmail,
+  sendRegistrationOtpEmail,
+  sendLoginOtpEmail,
   sendWelcomeVerificationEmail,
   sendOrderFulfilledEmail
 } from './email.js';
@@ -75,6 +79,12 @@ app.post('/api/upload', (req: Request, res: Response): void => {
 
     const ext = matches[1].toLowerCase() === 'jpeg' ? 'jpg' : matches[1].toLowerCase();
     const buffer = Buffer.from(matches[2], 'base64');
+
+    // P3-F4: verify the decoded bytes match the declared image type before storing.
+    if (!validateImageMagicBytes(buffer, matches[1])) {
+      res.status(400).json({ error: 'File content does not match declared format.' });
+      return;
+    }
 
     if (buffer.length > 10 * 1024 * 1024) {
       res.status(400).json({ error: 'Image exceeds maximum 10MB file size limit.' });
@@ -245,7 +255,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         id: userRow.id,
         email: userRow.email,
         name: userRow.name,
+        first_name: userRow.first_name,
+        last_name: userRow.last_name,
         phone: userRow.phone,
+        city: userRow.city,
+        state: userRow.state,
+        pincode: userRow.pincode,
         riot_id: userRow.riot_id,
         riot_verified: userRow.riot_verified || 0,
         role: userRow.role,
@@ -267,7 +282,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   // 2. Check sessions table (for legacy or direct random tokens)
   const sessionStmt = db.prepare(`
     SELECT s.token, s.user_id, s.expires_at,
-           u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
+           u.id, u.email, u.name, u.first_name, u.last_name, u.phone, u.city, u.state, u.pincode, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
            p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
            COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
     FROM sessions s
@@ -299,7 +314,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       id: row.id,
       email: row.email,
       name: row.name,
+      first_name: row.first_name,
+      last_name: row.last_name,
       phone: row.phone,
+      city: row.city,
+      state: row.state,
+      pincode: row.pincode,
       riot_id: row.riot_id,
       riot_verified: row.riot_verified || 0,
       role: row.role,
@@ -370,6 +390,45 @@ export function extractClientIp(req: any): string {
   const isIpv6 = /^[0-9a-fA-F:]{2,39}$/.test(rawIp);
 
   return isIpv4 || isIpv6 ? rawIp : 'unavailable';
+}
+
+// ==========================================
+// Login rate limiting (P2-F5): lightweight in-memory limiter keyed by IP.
+// Counts failed login attempts within a sliding 15-minute window; a successful
+// login clears the counter for that IP. Only affects POST /api/auth/login.
+// ==========================================
+const LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_RATE_MAX_FAILURES = 10;
+const loginFailuresByIp = new Map<string, number[]>();
+
+function pruneLoginFailures(ip: string, now: number): void {
+  const list = loginFailuresByIp.get(ip);
+  if (!list) return;
+  const fresh = list.filter((t) => now - t < LOGIN_RATE_WINDOW_MS);
+  if (fresh.length === 0) {
+    loginFailuresByIp.delete(ip);
+  } else {
+    loginFailuresByIp.set(ip, fresh);
+  }
+}
+
+function recordLoginFailure(ip: string): void {
+  const now = Date.now();
+  pruneLoginFailures(ip, now);
+  const list = loginFailuresByIp.get(ip) || [];
+  list.push(now);
+  loginFailuresByIp.set(ip, list);
+}
+
+function isLoginRateLimited(ip: string): boolean {
+  const now = Date.now();
+  pruneLoginFailures(ip, now);
+  const list = loginFailuresByIp.get(ip);
+  return !!list && list.length >= LOGIN_RATE_MAX_FAILURES;
+}
+
+function clearLoginFailures(ip: string): void {
+  loginFailuresByIp.delete(ip);
 }
 
 // Helper to log administrative actions with normalized IP
@@ -490,6 +549,377 @@ app.get('/api/products/:id', (req: Request, res: Response): void => {
 // ==========================================
 // AUTHENTICATION ROUTES
 // ==========================================
+
+// 0A. Send Registration Email OTP
+app.post('/api/auth/register-otp/send', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, firstName } = req.body || {};
+    if (!email || !String(email).trim()) {
+      res.status(400).json({ error: 'Email address is required.' });
+      return;
+    }
+    const emailTrimmed = String(email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      res.status(400).json({ error: 'Invalid email address format.' });
+      return;
+    }
+
+    // Check duplicate
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(emailTrimmed);
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email address already exists. Please sign in instead.' });
+      return;
+    }
+
+    // Cooldown check (60s)
+    const recentOtp = db.prepare(`
+      SELECT created_at FROM email_otps
+      WHERE email = ? AND purpose = 'register'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed) as any;
+
+    if (recentOtp) {
+      const diffMs = Date.now() - new Date(recentOtp.created_at).getTime();
+      if (diffMs < 60000) {
+        const remaining = Math.ceil((60000 - diffMs) / 1000);
+        res.status(429).json({ error: `Please wait ${remaining}s before requesting a new OTP.` });
+        return;
+      }
+    }
+
+    // Generate 6-digit crypto OTP
+    const otpCode = crypto.randomInt(100000, 999999).toString();
+    const id = 'otp_' + crypto.randomBytes(8).toString('hex');
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO email_otps (id, email, otp_code, purpose, attempts, expires_at, created_at)
+      VALUES (?, ?, ?, 'register', 0, ?, ?)
+    `).run(id, emailTrimmed, otpCode, expiresAt, now);
+
+    const delivery = await sendRegistrationOtpEmail(emailTrimmed, otpCode, firstName);
+    console.log(`[Registration OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+
+    res.json({
+      success: true,
+      message: `Verification code sent to ${emailTrimmed}. Valid for 10 minutes.`,
+      testCode: !delivery.success ? otpCode : undefined,
+    });
+  } catch (err: any) {
+    console.error('[Register OTP Send Error]:', err);
+    res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
+  }
+});
+
+// 0B. Register With Email OTP
+app.post('/api/auth/register-with-otp', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      otp,
+      phone,
+      city,
+      state,
+      pincode,
+    } = req.body || {};
+
+    if (!firstName?.trim() || !lastName?.trim()) {
+      res.status(400).json({ error: 'First name and last name are required.' });
+      return;
+    }
+    if (!email?.trim()) {
+      res.status(400).json({ error: 'Email address is required.' });
+      return;
+    }
+    if (!otp?.trim()) {
+      res.status(400).json({ error: 'Email verification OTP is required.' });
+      return;
+    }
+    const cleanPhone = phone?.trim().replace(/[\s+-]/g, '').slice(-10);
+    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      res.status(400).json({ error: 'Please enter a valid 10-digit mobile number.' });
+      return;
+    }
+    if (!city?.trim() || !state?.trim()) {
+      res.status(400).json({ error: 'City and state are required.' });
+      return;
+    }
+    if (!pincode?.trim() || !/^\d{6}$/.test(pincode.trim())) {
+      res.status(400).json({ error: 'Please enter a valid 6-digit Indian PIN code.' });
+      return;
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+
+    // Verify OTP
+    const otpRecord = db.prepare(`
+      SELECT * FROM email_otps
+      WHERE email = ? AND purpose = 'register'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed) as any;
+
+    if (!otpRecord) {
+      res.status(400).json({ error: 'No verification code found. Please request a new code.' });
+      return;
+    }
+
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+      return;
+    }
+
+    if (otpRecord.attempts >= 5) {
+      res.status(429).json({ error: 'Too many invalid attempts. Please request a new OTP.' });
+      return;
+    }
+
+    if (otpRecord.otp_code !== otp.trim()) {
+      db.prepare('UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?').run(otpRecord.id);
+      res.status(400).json({ error: 'Invalid verification code. Please check your email and try again.' });
+      return;
+    }
+
+    // Clean up used OTP
+    db.prepare("DELETE FROM email_otps WHERE email = ? AND purpose = 'register'").run(emailTrimmed);
+
+    // Duplicate check
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(emailTrimmed);
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email address already exists. Please sign in.' });
+      return;
+    }
+
+    const userId = 'usr_' + crypto.randomBytes(8).toString('hex');
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    const autoPassword = crypto.randomBytes(16).toString('hex');
+    const { hash, salt } = hashPassword(autoPassword);
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO users (
+        id, email, password_hash, salt, name, first_name, last_name, phone,
+        city, state, pincode, role, status, email_verified, terms_accepted_at,
+        terms_version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, 'platform-escrow-v1', ?, ?)
+    `).run(
+      userId,
+      emailTrimmed,
+      hash,
+      salt,
+      fullName,
+      firstName.trim(),
+      lastName.trim(),
+      cleanPhone,
+      city.trim(),
+      state.trim(),
+      pincode.trim(),
+      now,
+      now,
+      now
+    );
+
+    // Profile record
+    db.prepare(`
+      INSERT INTO profiles (user_id, bio, avatar, discord_tag, wallet_balance, kyc_status, total_orders, created_at)
+      VALUES (?, ?, ?, ?, 0.0, 'unverified', 0, ?)
+    `).run(
+      userId,
+      'Verified VIB Member',
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      null,
+      now
+    );
+
+    const token = createSignedToken({
+      id: userId,
+      email: emailTrimmed,
+      name: fullName,
+      role: 'user',
+      status: 'active',
+    });
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO sessions (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, userId, expiresAt, now);
+
+    const userObj = {
+      id: userId,
+      email: emailTrimmed,
+      name: fullName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      phone: cleanPhone,
+      city: city.trim(),
+      state: state.trim(),
+      pincode: pincode.trim(),
+      role: 'user',
+      status: 'active',
+      email_verified: 1,
+    };
+
+    res.json({
+      success: true,
+      token,
+      user: userObj,
+      message: 'Account successfully registered and verified.',
+    });
+  } catch (err: any) {
+    console.error('[Register With OTP Error]:', err);
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
+  }
+});
+
+// 0C. Send Login Email OTP
+app.post('/api/auth/login-otp/send', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body || {};
+    if (!email || !String(email).trim()) {
+      res.status(400).json({ error: 'Email address is required.' });
+      return;
+    }
+    const emailTrimmed = String(email).trim().toLowerCase();
+
+    // Check account exists
+    const user = db.prepare('SELECT id, name, status FROM users WHERE email = ?').get(emailTrimmed) as any;
+    if (!user) {
+      res.status(404).json({ error: 'No account found with this email. Please create an account.' });
+      return;
+    }
+
+    if (user.status === 'suspended' || user.status === 'banned') {
+      res.status(403).json({ error: 'Your account is suspended. Please contact support.' });
+      return;
+    }
+
+    // Cooldown check (60s)
+    const recentOtp = db.prepare(`
+      SELECT created_at FROM email_otps
+      WHERE email = ? AND purpose = 'login'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed) as any;
+
+    if (recentOtp) {
+      const diffMs = Date.now() - new Date(recentOtp.created_at).getTime();
+      if (diffMs < 60000) {
+        const remaining = Math.ceil((60000 - diffMs) / 1000);
+        res.status(429).json({ error: `Please wait ${remaining}s before requesting another OTP.` });
+        return;
+      }
+    }
+
+    const otpCode = crypto.randomInt(100000, 999999).toString();
+    const id = 'otp_' + crypto.randomBytes(8).toString('hex');
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO email_otps (id, email, otp_code, purpose, attempts, expires_at, created_at)
+      VALUES (?, ?, ?, 'login', 0, ?, ?)
+    `).run(id, emailTrimmed, otpCode, expiresAt, now);
+
+    const delivery = await sendLoginOtpEmail(emailTrimmed, otpCode);
+    console.log(`[Login OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+
+    res.json({
+      success: true,
+      message: `Sign-in code sent to ${emailTrimmed}. Valid for 10 minutes.`,
+      testCode: !delivery.success ? otpCode : undefined,
+    });
+  } catch (err: any) {
+    console.error('[Login OTP Send Error]:', err);
+    res.status(500).json({ error: 'Failed to send sign-in code.' });
+  }
+});
+
+// 0D. Verify Login Email OTP
+app.post('/api/auth/login-with-otp', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, otp } = req.body || {};
+    if (!email?.trim() || !otp?.trim()) {
+      res.status(400).json({ error: 'Email and verification OTP are required.' });
+      return;
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+    const otpRecord = db.prepare(`
+      SELECT * FROM email_otps
+      WHERE email = ? AND purpose = 'login'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed) as any;
+
+    if (!otpRecord) {
+      res.status(400).json({ error: 'No active sign-in code found. Please request a new code.' });
+      return;
+    }
+
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      res.status(400).json({ error: 'Sign-in code has expired. Please request a new code.' });
+      return;
+    }
+
+    if (otpRecord.attempts >= 5) {
+      res.status(429).json({ error: 'Too many invalid attempts. Please request a new code.' });
+      return;
+    }
+
+    if (otpRecord.otp_code !== otp.trim()) {
+      db.prepare('UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?').run(otpRecord.id);
+      res.status(400).json({ error: 'Invalid sign-in code. Please try again.' });
+      return;
+    }
+
+    db.prepare("DELETE FROM email_otps WHERE email = ? AND purpose = 'login'").run(emailTrimmed);
+
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(emailTrimmed) as any;
+    if (!user) {
+      res.status(404).json({ error: 'User record not found.' });
+      return;
+    }
+
+    const token = createSignedToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+    });
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO sessions (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, user.id, expiresAt, now);
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        city: user.city,
+        state: user.state,
+        pincode: user.pincode,
+        role: user.role,
+        status: user.status,
+        email_verified: 1,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Login With OTP Error]:', err);
+    res.status(500).json({ error: 'Failed to sign in with OTP.' });
+  }
+});
 
 // 1. Register
 app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
@@ -638,6 +1068,7 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
 // 2. Login
 app.post('/api/auth/login', (req: Request, res: Response): void => {
   try {
+    const ip = extractClientIp(req);
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -656,6 +1087,12 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
     `).get(emailTrimmed) as any;
 
     if (!userRow) {
+      // P2-F5: rate-limit failed logins per IP.
+      if (isLoginRateLimited(ip)) {
+        res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+        return;
+      }
+      recordLoginFailure(ip);
       res.status(401).json({ error: 'Invalid email or password.' });
       return;
     }
@@ -665,6 +1102,11 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
       passwordValid = true;
     }
     if (!passwordValid) {
+      if (isLoginRateLimited(ip)) {
+        res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+        return;
+      }
+      recordLoginFailure(ip);
       res.status(401).json({ error: 'Invalid email or password.' });
       return;
     }
@@ -678,6 +1120,9 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
       res.status(403).json({ error: 'This account is currently suspended. Please contact customer support.' });
       return;
     }
+
+    // Successful login resets this IP's failure counter.
+    clearLoginFailures(ip);
 
     // Generate Session
     const token = createSignedToken({
@@ -1491,7 +1936,10 @@ app.get('/api/orders/:id/room', authenticate, (req: AuthRequest, res: Response):
       payment_evidence_image: order.payment_evidence_image,
       fulfillment_notes: order.fulfillment_notes || order.issued_code,
       issued_code: order.issued_code,
-      delivery_data: order.delivery_data_json ? JSON.parse(order.delivery_data_json) : null,
+      delivery_data: (() => {
+        if (!order.delivery_data_json) return null;
+        try { return JSON.parse(order.delivery_data_json); } catch { return null; }
+      })(),
       paymentMethod: order.payment_method,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
@@ -1905,9 +2353,14 @@ app.put('/api/user/notifications/:id/read', authenticate, (req: AuthRequest, res
 // ADMIN DASHBOARD ROUTES
 // ==========================================
 
+// Role authorization matrix (P1-F1/F2/F3):
+// - staffOnly     → operational work: admin / superadmin / moderator
+// - adminOnly     → sensitive areas (users, finance, staff, payment settings,
+//                   audit, delete asset, invoices admin, skins sync): admin / superadmin ONLY
+// - superAdminOnly → role/privilege management: superadmin ONLY
 const staffOnly = requireRole(['admin', 'superadmin', 'moderator']);
-const adminOnly = requireRole(['admin', 'superadmin', 'moderator']);
-const superAdminOnly = requireRole(['superadmin', 'admin']);
+const adminOnly = requireRole(['admin', 'superadmin']);
+const superAdminOnly = requireRole(['superadmin']);
 
 // 1. Admin Stats & Analytics
 const getAdminStatsHandler = (req: AuthRequest, res: Response): void => {
@@ -2018,9 +2471,34 @@ app.put('/api/admin/users/:id/status', authenticate, adminOnly, (req: AuthReques
 app.put('/api/admin/users/:id/role', authenticate, superAdminOnly, (req: AuthRequest, res: Response): void => {
   const { role } = req.body;
   const targetId = req.params.id;
+  const callerRole = req.user!.role;
 
   if (!['user', 'seller', 'moderator', 'admin', 'superadmin'].includes(role)) {
     res.status(400).json({ error: 'Invalid role.' });
+    return;
+  }
+
+  // P1-F7: only a superadmin may grant or demote a superadmin.
+  if (role === 'superadmin' && callerRole !== 'superadmin') {
+    res.status(403).json({ error: 'Only Superadmin can grant the superadmin role.' });
+    return;
+  }
+
+  const targetUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(targetId) as any;
+  if (!targetUser) {
+    res.status(404).json({ error: 'User not found.' });
+    return;
+  }
+
+  // P1-F7: only a superadmin may change another superadmin's role.
+  if (targetUser.role === 'superadmin' && callerRole !== 'superadmin') {
+    res.status(403).json({ error: 'Only Superadmin can modify another Superadmin.' });
+    return;
+  }
+
+  // Prevent a superadmin from self-demoting (avoid removing the last superadmin).
+  if (targetUser.id === req.user!.id && callerRole === 'superadmin' && role !== 'superadmin') {
+    res.status(400).json({ error: 'Cannot demote yourself.' });
     return;
   }
 
@@ -2355,7 +2833,8 @@ app.put('/api/admin/tickets/:id', authenticate, staffOnly, (req: AuthRequest, re
 });
 
 // 8. Communication Center Announcements Dispatcher
-app.post('/api/admin/announcements', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+// Operational broadcast: moderators may send support announcements (staffOnly).
+app.post('/api/admin/announcements', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const targetGroup = req.body?.targetGroup ?? req.body?.target ?? 'all';
@@ -2973,6 +3452,11 @@ app.post('/api/orders/:id/payment-evidence', authenticate, (req: AuthRequest, re
       if (matches) {
         const ext = matches[1].toLowerCase() === 'jpeg' ? 'jpg' : matches[1].toLowerCase();
         const buffer = Buffer.from(matches[2], 'base64');
+        // P3-F4: reject screenshots whose bytes don't match the declared format.
+        if (!validateImageMagicBytes(buffer, matches[1])) {
+          res.status(400).json({ error: 'File content does not match declared format.' });
+          return;
+        }
         const safeName = `receipt_${orderId}_${Date.now()}.${ext}`;
         const filePath = path.join(uploadsDir, safeName);
         fs.writeFileSync(filePath, buffer);
@@ -3734,7 +4218,9 @@ app.post('/api/admin/vp-codes', authenticate, staffOnly, (req: AuthRequest, res:
 });
 
 // Delete or Invalidate Unused VP Code
-app.delete('/api/admin/vp-codes/:id', authenticate, adminOnly, (req: AuthRequest, res: Response): void => {
+// VP code vault management is operational (staffOnly); deleting an *issued* code
+// remains blocked below, preserving audit integrity.
+app.delete('/api/admin/vp-codes/:id', authenticate, staffOnly, (req: AuthRequest, res: Response): void => {
   const codeId = req.params.id;
   const code = db.prepare('SELECT * FROM vp_codes WHERE id = ?').get(codeId) as any;
   if (!code) {
@@ -4224,19 +4710,11 @@ app.post('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res:
     );
 
     // Record in audit log
-    try {
-      db.prepare(`
-        INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
-        VALUES (?, ?, 'CREATE_MARKETPLACE_LISTING', 'listing', ?, ?, ?, ?)
-      `).run(
-        'aud_' + crypto.randomBytes(6).toString('hex'),
-        req.user!.id,
-        listingId,
-        `Directly created ${status} marketplace listing "${title}" (₹${parsedPrice.toLocaleString()})`,
-        req.ip || '127.0.0.1',
-        now
-      );
-    } catch {}
+    logAudit(req.user!.id, req.user!.name, 'CREATE_MARKETPLACE_LISTING', 'listing', listingId, {
+      title,
+      status,
+      price: parsedPrice
+    }, req.ip || '127.0.0.1');
 
     const created = db.prepare('SELECT * FROM listings WHERE id = ?').get(listingId) as any;
     res.status(201).json({
@@ -4530,16 +5008,21 @@ app.post('/api/admin/email/compose', authenticate, staffOnly, async (req: AuthRe
       recipients = [specific_email.trim()];
     } else if (recipient_type === 'segment') {
       if (segment === 'buyers') {
-        const rows = db.prepare("SELECT DISTINCT user_email FROM orders WHERE status = 'completed' AND user_email IS NOT NULL").all() as any[];
-        recipients = rows.map(r => r.user_email).filter(Boolean);
+        const rows = db.prepare("SELECT DISTINCT u.email FROM orders o JOIN users u ON u.id = o.user_id WHERE o.user_id IS NOT NULL").all() as any[];
+        recipients = rows.map(r => r.email).filter(Boolean);
       } else if (segment === 'renters') {
         const rows = db.prepare("SELECT DISTINCT u.email FROM rental_bookings rb JOIN users u ON rb.user_id = u.id").all() as any[];
         recipients = rows.map(r => r.email).filter(Boolean);
       } else if (segment === 'bidders') {
-        const rows = db.prepare("SELECT DISTINCT u.email FROM auction_bids ab JOIN users u ON ab.bidder_id = u.id").all() as any[];
+        const rows = db.prepare("SELECT DISTINCT u.email FROM auction_bids ab JOIN users u ON u.id = ab.user_id").all() as any[];
+        recipients = rows.map(r => r.email).filter(Boolean);
+      } else if (segment === 'users') {
+        // All non-staff registered users
+        const rows = db.prepare("SELECT email FROM users WHERE role IN ('user','seller') AND email IS NOT NULL").all() as any[];
         recipients = rows.map(r => r.email).filter(Boolean);
       } else {
-        const rows = db.prepare("SELECT email FROM users WHERE role = 'customer' AND email IS NOT NULL").all() as any[];
+        // Fallback: all non-staff registered users
+        const rows = db.prepare("SELECT email FROM users WHERE role IN ('user','seller') AND email IS NOT NULL").all() as any[];
         recipients = rows.map(r => r.email).filter(Boolean);
       }
     } else {
@@ -4597,8 +5080,30 @@ app.post('/api/admin/email/compose', authenticate, staffOnly, async (req: AuthRe
 // 23. LIVE AUCTION HOUSE, RENTALS & LEGAL OVERHAUL ENGINE
 // ==========================================
 
-registerOverhaulRoutes(app, db, authenticate, adminOnly);
+registerOverhaulRoutes(app, db, authenticate, staffOnly, adminOnly);
 registerAdvertisementRoutes(app, db, authenticate, adminOnly);
+
+// ==========================================
+// 24. KYC VERIFICATION & EMI FINANCING HOOKS
+// ==========================================
+registerKycRoutes(app, {
+  authenticate,
+  staffOnly,
+  adminOnly,
+  superAdminOnly,
+  sendEmail,
+  isEmailConfigured,
+  logAudit
+});
+registerEmiRoutes(app, {
+  authenticate,
+  staffOnly,
+  adminOnly,
+  superAdminOnly,
+  sendEmail,
+  isEmailConfigured,
+  logAudit
+});
 
 // Start Express Server
 if (!process.env.VERCEL) {

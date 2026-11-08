@@ -31,6 +31,14 @@ import {
 import { Currency } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
 import { ClientPage } from './Header';
+import { useAuth } from '../../context/AuthContext';
+import {
+  ADVERTISEMENT_PRODUCT_DETAILS,
+  PackageDetailData,
+} from '../../data/advertisementProductDetails';
+import { AdvertisementProductPage } from '../advertise/AdvertisementProductPage';
+import { AdCustomerAuthModal } from '../auth/AdCustomerAuthModal';
+import { ManualPaymentGateway } from '../payment/ManualPaymentGateway';
 
 export interface AdvertisementPlan {
   id: string;
@@ -405,8 +413,18 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'standard' | 'trade' | 'premium' | 'bonus'>('all');
   const [loading, setLoading] = useState(true);
 
-  // Active view: 'plans' or 'submit' (for post-approval form)
-  const [activeView, setActiveView] = useState<'plans' | 'submit'>(initialStep);
+  const { user } = useAuth();
+
+  // Active view: 'plans' | 'product' | 'checkout' | 'submit'
+  const [activeView, setActiveView] = useState<'plans' | 'product' | 'checkout' | 'submit'>(initialStep);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProductPackage, setSelectedProductPackage] = useState<PackageDetailData | null>(null);
+
+  // Dedicated Checkout state
+  const [activeCheckoutOrderId, setActiveCheckoutOrderId] = useState<string | null>(initialOrderId || null);
+  const [activeCheckoutOrder, setActiveCheckoutOrder] = useState<any | null>(null);
+  const [isAdAuthOpen, setIsAdAuthOpen] = useState(false);
+  const [pendingPackageToBuy, setPendingPackageToBuy] = useState<PackageDetailData | null>(null);
 
   // Checkout modal state
   const [checkoutPlan, setCheckoutPlan] = useState<AdvertisementPlan | null>(null);
@@ -515,21 +533,79 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
       .catch(() => {});
   }, []);
 
-  // Parse URL parameters for direct submission link
+  // Parse URL pathname and parameters for deep routes
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const stepParam = params.get('step');
-      const orderParam = params.get('orderId');
-      const tokenParam = params.get('token');
+    const handleUrlRoute = () => {
+      try {
+        const path = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
 
-      if (stepParam === 'submit' || (orderParam && tokenParam)) {
-        setActiveView('submit');
-        if (orderParam) setSubmitOrderId(orderParam);
-        if (tokenParam) setSubmitToken(tokenParam);
-      }
-    } catch {}
+        // 1. Direct submission link check
+        const stepParam = params.get('step');
+        const orderParam = params.get('orderId');
+        const tokenParam = params.get('token');
+        if (stepParam === 'submit' || (orderParam && tokenParam)) {
+          setActiveView('submit');
+          if (orderParam) setSubmitOrderId(orderParam);
+          if (tokenParam) setSubmitToken(tokenParam);
+          return;
+        }
+
+        // 2. Product details route check: /advertise/product/:id or ?product=:id
+        const productMatch = path.match(/^\/advertise\/product\/([^/]+)/);
+        const productParam = params.get('product');
+        const targetPlanId = (productMatch ? productMatch[1] : productParam) || '';
+        if (targetPlanId && ADVERTISEMENT_PRODUCT_DETAILS[targetPlanId]) {
+          setSelectedProductId(targetPlanId);
+          setSelectedProductPackage(ADVERTISEMENT_PRODUCT_DETAILS[targetPlanId]);
+          setActiveView('product');
+          return;
+        }
+
+        // 3. Checkout route check: /advertise/checkout/:id or ?checkout=:id
+        const checkoutMatch = path.match(/^\/advertise\/checkout\/([^/]+)/);
+        const checkoutParam = params.get('checkout');
+        const targetOrderId = (checkoutMatch ? checkoutMatch[1] : checkoutParam) || '';
+        if (targetOrderId) {
+          setActiveCheckoutOrderId(targetOrderId);
+          setActiveView('checkout');
+          return;
+        }
+
+        // Default: plans view
+        if (activeView !== 'plans' && !initialOrderId) {
+          setActiveView('plans');
+        }
+      } catch {}
+    };
+
+    handleUrlRoute();
+    window.addEventListener('popstate', handleUrlRoute);
+    return () => window.removeEventListener('popstate', handleUrlRoute);
   }, []);
+
+  // Fetch active checkout order and plan specs if viewing checkout
+  useEffect(() => {
+    if (activeView === 'checkout' && activeCheckoutOrderId) {
+      fetch(`/api/advertisement/orders/${activeCheckoutOrderId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.success && data.order) {
+            setActiveCheckoutOrder(data.order);
+            if (data.order.plan_id && ADVERTISEMENT_PRODUCT_DETAILS[data.order.plan_id]) {
+              setSelectedProductPackage(ADVERTISEMENT_PRODUCT_DETAILS[data.order.plan_id]);
+            }
+            if (data.paymentSettings) {
+              setPaymentSettings((prev) => ({
+                ...prev,
+                ...data.paymentSettings,
+              }));
+            }
+          }
+        })
+        .catch((e) => console.error('[Fetch Checkout Order Error]:', e));
+    }
+  }, [activeView, activeCheckoutOrderId]);
 
   // Verify submission token if present
   useEffect(() => {
@@ -568,14 +644,83 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     return p.category === selectedCategory;
   });
 
+  const handleOpenProduct = (planId: string) => {
+    const pkg = ADVERTISEMENT_PRODUCT_DETAILS[planId] || null;
+    setSelectedProductId(planId);
+    setSelectedProductPackage(pkg);
+    setActiveView('product');
+    try {
+      window.history.pushState({ view: 'product', planId }, '', `/advertise/product/${planId}`);
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToPlans = () => {
+    setActiveView('plans');
+    setSelectedProductId(null);
+    setSelectedProductPackage(null);
+    setActiveCheckoutOrderId(null);
+    setActiveCheckoutOrder(null);
+    try {
+      window.history.pushState({ view: 'plans' }, '', '/advertise');
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBuyProduct = async (pkg: PackageDetailData) => {
+    setPendingPackageToBuy(pkg);
+    if (!user) {
+      // Scenario A: Customer is not logged in -> Prompt registration / sign in
+      setIsAdAuthOpen(true);
+      return;
+    }
+    // Scenario B: Customer is already logged in -> Continue directly to checkout
+    await proceedToOrderDraft(pkg, user);
+  };
+
+  const proceedToOrderDraft = async (pkg: PackageDetailData, currentUser: any) => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/advertisement/orders/create-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: pkg.id,
+          firstName: currentUser.first_name || '',
+          lastName: currentUser.last_name || '',
+          customerName: currentUser.displayName || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'VIB Customer',
+          customerEmail: currentUser.email || '',
+          customerPhone: currentUser.phone || '',
+          customerCity: currentUser.city || '',
+          customerState: currentUser.state || '',
+          customerPincode: currentUser.pincode || '',
+          userId: currentUser.id || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to initialize purchase.');
+      }
+
+      setActiveCheckoutOrderId(data.orderId);
+      setActiveCheckoutOrder(data.order);
+      setSelectedProductPackage(pkg);
+      setActiveView('checkout');
+      try {
+        window.history.pushState({ view: 'checkout', orderId: data.orderId }, '', `/advertise/checkout/${data.orderId}`);
+      } catch {}
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) {
+      console.error('[Draft Order Error]:', err);
+      alert(err.message || 'Unable to proceed to checkout. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleStartPurchase = (plan: AdvertisementPlan) => {
-    setCheckoutPlan(plan);
-    setCheckoutStep(1);
-    setOrderResult(null);
-    setOrderError(null);
-    setUtrRef('');
-    setScreenshotData(null);
-    setScreenshotName(null);
+    handleOpenProduct(plan.id);
   };
 
   const scrollToComparison = () => {
@@ -772,6 +917,92 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     setter(true);
     setTimeout(() => setter(false), 2000);
   };
+
+  if (activeView === 'product' && selectedProductPackage) {
+    return (
+      <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white font-sans min-h-screen">
+        <AdvertisementProductPage
+          packageData={selectedProductPackage}
+          currency={currency}
+          onBuyNow={() => handleBuyProduct(selectedProductPackage)}
+          onBackToPlans={handleBackToPlans}
+          onComparePlans={() => {
+            handleBackToPlans();
+            setTimeout(scrollToComparison, 100);
+          }}
+        />
+        <AdCustomerAuthModal
+          isOpen={isAdAuthOpen}
+          onClose={() => setIsAdAuthOpen(false)}
+          selectedPackageName={pendingPackageToBuy?.name || selectedProductPackage.name}
+          selectedPackagePrice={pendingPackageToBuy?.price || selectedProductPackage.price}
+          onAuthenticated={() => {
+            setIsAdAuthOpen(false);
+            fetch('/api/auth/me')
+              .then((r) => r.json())
+              .then((userData) => {
+                const u = userData?.user;
+                if (u && pendingPackageToBuy) {
+                  proceedToOrderDraft(pendingPackageToBuy, u);
+                }
+              })
+              .catch(() => {});
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (activeView === 'checkout' && activeCheckoutOrderId) {
+    return (
+      <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white font-sans min-h-screen">
+        <ManualPaymentGateway
+          orderId={activeCheckoutOrderId}
+          itemTitle={selectedProductPackage?.name || activeCheckoutOrder?.plan_name || 'Advertisement Package'}
+          itemCategory={selectedProductPackage?.categoryLabel || 'Advertisement Plan'}
+          itemDescription={selectedProductPackage?.description || ''}
+          itemPrice={selectedProductPackage?.price ?? activeCheckoutOrder?.plan_price ?? 0}
+          currency={currency}
+          specs={[
+            { label: 'Duration', value: selectedProductPackage?.promotion_duration || '24 Hours' },
+            { label: 'Reach', value: selectedProductPackage?.reach || '50K+ Community' },
+            { label: 'Placement', value: selectedProductPackage?.placement || 'Instagram Story' },
+            { label: 'Processing', value: 'After Payment Verification' },
+          ]}
+          iconType={selectedProductPackage?.heroIconType || 'megaphone'}
+          breadcrumbService="Advertise"
+          upiId={paymentSettings.upi_id}
+          payeeName={paymentSettings.payee_name}
+          qrImageUrl={paymentSettings.qr_image_url}
+          supportWhatsapp="+918076612143"
+          onBack={handleBackToPlans}
+          onSubmitProof={async (utr, screenshotData) => {
+            const res = await fetch(`/api/advertisement/orders/${activeCheckoutOrderId}/submit-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                paymentReference: utr,
+                paymentScreenshot: screenshotData,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || 'Failed to submit payment verification.');
+            }
+            return true;
+          }}
+          onComplete={() => {}}
+        />
+        <AdCustomerAuthModal
+          isOpen={isAdAuthOpen}
+          onClose={() => setIsAdAuthOpen(false)}
+          selectedPackageName={selectedProductPackage?.name || 'Advertisement Package'}
+          selectedPackagePrice={selectedProductPackage?.price || 0}
+          onAuthenticated={() => setIsAdAuthOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white pb-24 font-sans min-h-screen">
@@ -2093,6 +2324,26 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Authentication Modal with 8 Required Registration Fields & Email OTP */}
+      <AdCustomerAuthModal
+        isOpen={isAdAuthOpen}
+        onClose={() => setIsAdAuthOpen(false)}
+        selectedPackageName={pendingPackageToBuy?.name || selectedProductPackage?.name || 'Advertisement Package'}
+        selectedPackagePrice={pendingPackageToBuy?.price || selectedProductPackage?.price || 0}
+        onAuthenticated={() => {
+          setIsAdAuthOpen(false);
+          fetch('/api/auth/me')
+            .then((r) => r.json())
+            .then((userData) => {
+              const u = userData?.user;
+              if (u && pendingPackageToBuy) {
+                proceedToOrderDraft(pendingPackageToBuy, u);
+              }
+            })
+            .catch(() => {});
+        }}
+      />
     </div>
   );
 };

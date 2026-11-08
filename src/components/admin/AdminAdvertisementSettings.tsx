@@ -33,9 +33,14 @@ interface AdvertisementOrder {
   plan_name: string;
   plan_price: number;
   customer_name: string;
+  customer_first_name?: string;
+  customer_last_name?: string;
   customer_email: string;
   customer_phone: string;
-  status: 'pending_payment' | 'approved' | 'rejected' | 'details_submitted' | 'live' | 'completed';
+  customer_city?: string;
+  customer_state?: string;
+  customer_pincode?: string;
+  status: 'pending_payment' | 'submitted_for_verification' | 'approved' | 'rejected' | 'details_submitted' | 'live' | 'completed';
   rejection_reason?: string;
   payment_method: string;
   payment_reference?: string;
@@ -99,6 +104,25 @@ export const AdminAdvertisementSettings: React.FC = () => {
     benefits: ['24-Hour Story Broadcast', 'Direct Profile Mention'],
   });
   const [newBenefit, setNewBenefit] = useState('');
+
+  // AI Draft & Documentation Modal State
+  const [selectedPlanForDocs, setSelectedPlanForDocs] = useState<AdvertisementPlan | null>(null);
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [docTextContent, setDocTextContent] = useState('');
+  const [docFilename, setDocFilename] = useState('');
+  const [docUploading, setDocUploading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [isPublishingDraft, setIsPublishingDraft] = useState(false);
+
+  // Editable draft state
+  const [draftDescription, setDraftDescription] = useState('');
+  const [draftHighlights, setDraftHighlights] = useState<string[]>([]);
+  const [draftInstructions, setDraftInstructions] = useState<string[]>([]);
+  const [draftFaqs, setDraftFaqs] = useState<{ question: string; answer: string }[]>([]);
+  const [newHighlight, setNewHighlight] = useState('');
+  const [newInstruction, setNewInstruction] = useState('');
+  const [newFaqQ, setNewFaqQ] = useState('');
+  const [newFaqA, setNewFaqA] = useState('');
 
   // Fetch orders
   const fetchOrders = () => {
@@ -218,6 +242,138 @@ export const AdminAdvertisementSettings: React.FC = () => {
       alert(err.message);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // AI & Documentation Handlers
+  const handleOpenDocsModal = (plan: AdvertisementPlan) => {
+    setSelectedPlanForDocs(plan);
+    setIsDocsModalOpen(true);
+    setDocTextContent('');
+    setDocFilename('');
+    setDraftDescription('');
+    setDraftHighlights([]);
+    setDraftInstructions([]);
+    setDraftFaqs([]);
+
+    fetch(`/api/advertisement/plans/${plan.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.plan) {
+          const p = data.plan;
+          if (p.documentation_text) setDocTextContent(p.documentation_text);
+          if (p.ai_draft_json) {
+            try {
+              const draft = typeof p.ai_draft_json === 'string' ? JSON.parse(p.ai_draft_json) : p.ai_draft_json;
+              if (draft) {
+                if (draft.description) setDraftDescription(draft.description);
+                if (Array.isArray(draft.highlights)) setDraftHighlights(draft.highlights);
+                if (Array.isArray(draft.instructions)) setDraftInstructions(draft.instructions);
+                if (Array.isArray(draft.faq)) setDraftFaqs(draft.faq);
+              }
+            } catch {}
+          } else {
+            setDraftDescription(p.description || '');
+            setDraftHighlights(p.benefits || []);
+          }
+        }
+      })
+      .catch((err) => console.error('[Fetch Plan Details Error]:', err));
+  };
+
+  const handleDocFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setDocFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      setDocTextContent(text);
+      if (selectedPlanForDocs) {
+        setDocUploading(true);
+        try {
+          const res = await fetch(`/api/admin/advertisement/plans/${selectedPlanForDocs.id}/upload-doc`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              textContent: text || `Uploaded documentation file ${file.name} for ${selectedPlanForDocs.name}`,
+              filename: file.name,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to save document.');
+          setActionFeedback(`Document "${file.name}" uploaded successfully.`);
+        } catch (err: any) {
+          alert(err.message || 'Error uploading document.');
+        } finally {
+          setDocUploading(false);
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleGenerateAiDraft = async () => {
+    if (!selectedPlanForDocs) return;
+    setAiGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/advertisement/plans/${selectedPlanForDocs.id}/generate-ai-draft`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate AI draft.');
+      }
+      const draft = data.aiDraft;
+      if (draft) {
+        setDraftDescription(draft.description || '');
+        setDraftHighlights(draft.highlights || []);
+        setDraftInstructions(draft.instructions || []);
+        setDraftFaqs(draft.faq || []);
+        setActionFeedback('AI draft generated! Review and edit the fields below before publishing.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error generating AI draft.');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handlePublishDraft = async () => {
+    if (!selectedPlanForDocs) return;
+    setIsPublishingDraft(true);
+    try {
+      const res = await fetch(`/api/admin/advertisement/plans/${selectedPlanForDocs.id}/publish-draft`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          description: draftDescription,
+          highlights: draftHighlights,
+          instructions: draftInstructions,
+          faq: draftFaqs,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to publish draft.');
+      }
+      setActionFeedback(`Draft published! New details are now LIVE on /advertise/product/${selectedPlanForDocs.id}`);
+      fetchPlans();
+    } catch (err: any) {
+      alert(err.message || 'Error publishing draft.');
+    } finally {
+      setIsPublishingDraft(false);
     }
   };
 
@@ -459,6 +615,11 @@ export const AdminAdvertisementSettings: React.FC = () => {
                       <td className="p-3">
                         <div className="font-bold text-white">{o.customer_name}</div>
                         <div className="text-[10px] text-gray-400">{o.customer_email} • {o.customer_phone}</div>
+                        {(o.customer_city || o.customer_state) && (
+                          <div className="text-[9px] text-purple-300/80 font-mono">
+                            {[o.customer_city, o.customer_state, o.customer_pincode].filter(Boolean).join(', ')}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3">
                         <div className="font-bold text-white font-rajdhani">{o.plan_name}</div>
@@ -481,7 +642,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                               ? 'bg-fuchsia-950 text-fuchsia-300 border border-fuchsia-500/30'
                               : o.status === 'approved'
                               ? 'bg-sky-950 text-sky-300 border border-sky-500/30'
-                              : o.status === 'pending_payment'
+                              : (o.status === 'pending_payment' || o.status === 'submitted_for_verification')
                               ? 'bg-amber-950 text-amber-300 border border-amber-500/30'
                               : 'bg-rose-950 text-rose-300 border border-rose-500/30'
                           }`}
@@ -504,7 +665,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                             Inspect
                           </button>
 
-                          {o.status === 'pending_payment' && (
+                          {(o.status === 'pending_payment' || o.status === 'submitted_for_verification') && (
                             <button
                               onClick={() => handleApprovePayment(o.id)}
                               className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] font-rajdhani uppercase cursor-pointer"
@@ -613,6 +774,21 @@ export const AdminAdvertisementSettings: React.FC = () => {
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenDocsModal(p)}
+                            className="px-2 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-mono text-[10px] uppercase flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Upload Documentation & Generate AI Product Page"
+                          >
+                            <Sparkles className="w-3 h-3 text-fuchsia-300" />
+                            <span>AI &amp; Docs</span>
+                          </button>
+                          <button
+                            onClick={() => window.open(`/advertise/product/${p.id}`, '_blank')}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors cursor-pointer"
+                            title="Preview Live Product Page"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => handleOpenEditPlan(p)}
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors cursor-pointer"
@@ -787,7 +963,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
               </button>
 
               <div className="flex items-center gap-2">
-                {selectedOrder.status === 'pending_payment' && !isRejecting && (
+                {(selectedOrder.status === 'pending_payment' || selectedOrder.status === 'submitted_for_verification') && !isRejecting && (
                   <>
                     <button
                       onClick={() => setIsRejecting(true)}
@@ -1088,6 +1264,324 @@ export const AdminAdvertisementSettings: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: DOCUMENT UPLOAD & AI PRODUCT PAGE GENERATOR                      */}
+      {/* ========================================================================= */}
+      {isDocsModalOpen && selectedPlanForDocs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-3xl bg-[#0e0a1f] border border-fuchsia-500/40 rounded-2xl p-6 space-y-5 shadow-2xl my-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black uppercase text-white font-rajdhani flex items-center gap-2">
+                    <span>AI Content &amp; Documentation</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30">
+                      {selectedPlanForDocs.name} (₹{selectedPlanForDocs.price})
+                    </span>
+                  </h3>
+                  <div className="text-[11px] font-mono text-gray-400">
+                    Upload plan documents, generate verified AI product drafts, and publish to <code className="text-purple-300">/advertise/product/{selectedPlanForDocs.id}</code>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDocsModalOpen(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-6 max-h-[72vh] overflow-y-auto pr-1">
+              {/* STEP 1: UPLOAD DOCUMENTATION (PDF, DOCX, TXT) */}
+              <div className="p-4 rounded-xl bg-[#140e2b] border border-purple-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-purple-300">
+                    <UploadCloud className="w-4 h-4 text-purple-400" />
+                    <span>Step 1: Upload Package Documentation (PDF, DOCX, TXT)</span>
+                  </div>
+                  {docUploading && (
+                    <span className="text-[11px] font-mono text-purple-300 flex items-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <label className="p-4 rounded-xl border border-dashed border-white/20 hover:border-purple-400 bg-white/[0.02] flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group transition-colors">
+                    <UploadCloud className="w-6 h-6 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold text-white font-rajdhani uppercase">
+                      {docFilename ? docFilename : 'Choose Document File'}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      PDF, DOCX, or TXT
+                    </span>
+                    <input
+                      type="file"
+                      accept=".txt,.pdf,.docx"
+                      onChange={handleDocFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-mono text-gray-400 uppercase">Or Paste / Edit Document Text:</div>
+                    <textarea
+                      rows={3}
+                      value={docTextContent}
+                      onChange={(e) => setDocTextContent(e.target.value)}
+                      placeholder="Paste authentic terms, delivery queues, audience metrics, or refund terms..."
+                      className="w-full bg-[#080514] border border-white/10 rounded-lg p-2 text-xs text-gray-200 placeholder-gray-600 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 2: GENERATE AI DRAFT */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-purple-950/60 to-fuchsia-950/40 border border-fuchsia-500/30">
+                <div>
+                  <div className="font-bold text-sm text-white font-rajdhani uppercase flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-fuchsia-400" />
+                    <span>Step 2: Generate AI Product Draft</span>
+                  </div>
+                  <p className="text-xs text-gray-300 pt-0.5">
+                    AI synthesizes description, benefits, conditions, and FAQs from approved parameters. Remains a draft until you approve.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateAiDraft}
+                  disabled={aiGenerating}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold text-xs uppercase font-rajdhani tracking-wider flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 flex-shrink-0 ml-4"
+                >
+                  {aiGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Generating Draft...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Generate AI Draft</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* STEP 3: DRAFT REVIEW & MANUAL EDITING */}
+              <div className="p-4 rounded-xl bg-[#090615] border border-white/10 space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <div className="font-bold text-xs font-mono uppercase text-gray-300">
+                    Step 3: Review &amp; Edit Product Content
+                  </div>
+                  <span className="text-[10px] font-mono text-purple-400">
+                    Draft Status: Unsaved to live page
+                  </span>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-mono text-gray-400 uppercase">
+                    Customer-Facing Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={draftDescription}
+                    onChange={(e) => setDraftDescription(e.target.value)}
+                    placeholder="Enter customer-facing package description..."
+                    className="w-full bg-[#05030e] border border-white/10 rounded-lg p-2.5 text-xs text-gray-200 leading-relaxed"
+                  />
+                </div>
+
+                {/* Highlights / Benefits */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-mono text-gray-400 uppercase">
+                    Package Highlights &amp; Benefits
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newHighlight}
+                      onChange={(e) => setNewHighlight(e.target.value)}
+                      placeholder="Add highlight (e.g. 50k+ active buyers reach)..."
+                      className="flex-1 bg-[#05030e] border border-white/10 rounded-lg p-2 text-xs text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newHighlight.trim()) {
+                          setDraftHighlights([...draftHighlights, newHighlight.trim()]);
+                          setNewHighlight('');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white uppercase font-rajdhani cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 pt-1">
+                    {draftHighlights.map((hl, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-[#0e0920] border border-white/5 text-xs text-gray-300">
+                        <span>• {hl}</span>
+                        <button
+                          type="button"
+                          onClick={() => setDraftHighlights(draftHighlights.filter((_, i) => i !== idx))}
+                          className="text-gray-500 hover:text-rose-400"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer Instructions & Conditions */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-mono text-gray-400 uppercase">
+                    Customer-Facing Instructions &amp; Conditions
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newInstruction}
+                      onChange={(e) => setNewInstruction(e.target.value)}
+                      placeholder="Add instruction (e.g. only list premium knife skins)..."
+                      className="flex-1 bg-[#05030e] border border-white/10 rounded-lg p-2 text-xs text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newInstruction.trim()) {
+                          setDraftInstructions([...draftInstructions, newInstruction.trim()]);
+                          setNewInstruction('');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white uppercase font-rajdhani cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 pt-1">
+                    {draftInstructions.map((ins, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-[#0e0920] border border-white/5 text-xs text-amber-300/80">
+                        <span>• {ins}</span>
+                        <button
+                          type="button"
+                          onClick={() => setDraftInstructions(draftInstructions.filter((_, i) => i !== idx))}
+                          className="text-gray-500 hover:text-rose-400"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* FAQs */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-mono text-gray-400 uppercase">
+                    Frequently Asked Questions (FAQ)
+                  </label>
+                  <div className="space-y-2 p-3 rounded-lg bg-[#05030e] border border-white/10">
+                    <input
+                      type="text"
+                      value={newFaqQ}
+                      onChange={(e) => setNewFaqQ(e.target.value)}
+                      placeholder="Question: e.g. When will my story be posted?"
+                      className="w-full bg-[#0c0819] border border-white/10 rounded-lg p-2 text-xs text-white"
+                    />
+                    <textarea
+                      rows={2}
+                      value={newFaqA}
+                      onChange={(e) => setNewFaqA(e.target.value)}
+                      placeholder="Answer: e.g. Within 15-45 minutes after payment verification."
+                      className="w-full bg-[#0c0819] border border-white/10 rounded-lg p-2 text-xs text-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newFaqQ.trim() && newFaqA.trim()) {
+                          setDraftFaqs([...draftFaqs, { question: newFaqQ.trim(), answer: newFaqA.trim() }]);
+                          setNewFaqQ('');
+                          setNewFaqA('');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white uppercase font-rajdhani cursor-pointer"
+                    >
+                      Add FAQ
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    {draftFaqs.map((faq, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-[#0e0920] border border-white/5 space-y-1 text-xs">
+                        <div className="flex items-center justify-between font-bold text-white font-rajdhani">
+                          <span>Q: {faq.question}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDraftFaqs(draftFaqs.filter((_, i) => i !== idx))}
+                            className="text-gray-500 hover:text-rose-400"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-gray-400 text-[11px]">{faq.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex items-center justify-between pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setIsDocsModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold font-rajdhani uppercase cursor-pointer"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.open(`/advertise/product/${selectedPlanForDocs.id}`, '_blank')}
+                  className="px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 text-gray-200 text-xs font-bold font-rajdhani uppercase flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Preview Product Page</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePublishDraft}
+                  disabled={isPublishingDraft}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 disabled:opacity-50"
+                >
+                  {isPublishingDraft ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Publishing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Publish Final Description</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

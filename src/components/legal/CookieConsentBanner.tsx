@@ -45,7 +45,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onNavi
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-5 bg-[#090a16]/95 backdrop-blur-md border-t border-purple-500/30 shadow-[0_-10px_35px_rgba(0,0,0,0.6)] animate-in slide-in-from-bottom duration-300">
+    <div className="fixed bottom-0 left-0 right-0 z-30 p-4 sm:p-5 bg-[#090a16]/95 backdrop-blur-md border-t border-purple-500/30 shadow-[0_-10px_35px_rgba(0,0,0,0.6)] animate-in slide-in-from-bottom duration-300">
       <div className="max-w-[1360px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0 mt-0.5">

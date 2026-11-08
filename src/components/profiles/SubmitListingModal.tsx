@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Upload,
@@ -87,6 +87,12 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
   const [images, setImages] = useState<string[]>([]);
   const [customImageUrl, setCustomImageUrl] = useState('');
 
+  // Per-file upload progress keyed by an ephemeral file key ({ [key]: percentLoaded })
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // Ordered list of file keys currently being read into base64 (shown as pending thumbs)
+  const [pendingUploadKeys, setPendingUploadKeys] = useState<string[]>([]);
+  const uploadKeyCounterRef = useRef(0);
+
   // Riot ID In-Game Account Information Autofill
   const [riotIdInput, setRiotIdInput] = useState('');
   const [isVerifyingRiot, setIsVerifyingRiot] = useState(false);
@@ -99,6 +105,10 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
 
   // Initialize or reset form state on open / initialListing change
   useEffect(() => {
+    // Clear any stale in-flight upload progress whenever the modal opens or closes
+    setUploadProgress({});
+    setPendingUploadKeys([]);
+
     if (!isOpen) return;
 
     if (initialListing) {
@@ -181,13 +191,35 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
     }
   };
 
+  // Estimated byte length of a data URL (base64 body) — used for the combined payload budget
+  const getDataUrlByteLength = (dataUrl: string): number => {
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex === -1) return dataUrl.length;
+    const base64 = dataUrl.slice(commaIndex + 1);
+    if (!base64) return 0;
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+    return Math.floor((base64.length * 3) / 4) - padding;
+  };
+
+  const clearPendingUpload = (key: string) => {
+    setUploadProgress((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setPendingUploadKeys((prev) => prev.filter((k) => k !== key));
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setError(null);
     const maxFiles = 6;
-    const remainingSlots = maxFiles - images.length;
+    const maxFileSize = 2.5 * 1024 * 1024;
+    const maxCombinedSize = 12 * 1024 * 1024;
+    const remainingSlots = maxFiles - images.length - pendingUploadKeys.length;
 
     if (remainingSlots <= 0) {
       setError(`Maximum ${maxFiles} screenshots allowed per listing.`);
@@ -196,29 +228,55 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
 
     const filesToProcess: File[] = (Array.from(files) as File[]).slice(0, remainingSlots);
 
+    // Enforce total combined image budget (existing base64 thumbs + newly selected files)
+    const existingBytes = images.reduce((sum, img) => sum + getDataUrlByteLength(img), 0);
+    const projectedBytes = existingBytes + filesToProcess.reduce((sum, f) => sum + f.size, 0);
+    if (projectedBytes > maxCombinedSize) {
+      setError('Combined image size exceeds 12MB — remove some images.');
+      return;
+    }
+
     for (const file of filesToProcess) {
       if (!file.type.startsWith('image/')) {
         setError('Only image files (PNG, JPG, WebP) are supported.');
         continue;
       }
-      if (file.size > 3 * 1024 * 1024) {
-        setError(`File "${file.name}" exceeds 3MB limit.`);
+      if (file.size > maxFileSize) {
+        setError(`File "${file.name}" exceeds 2.5MB limit.`);
         continue;
       }
 
+      const key = `upload-${++uploadKeyCounterRef.current}`;
+      setUploadProgress((prev) => ({ ...prev, [key]: 0 }));
+      setPendingUploadKeys((prev) => [...prev, key]);
+
       const reader = new FileReader();
+      reader.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress((prev) => (prev[key] !== undefined ? { ...prev, [key]: percent } : prev));
+        }
+      };
       reader.onload = (event) => {
         if (event.target?.result) {
+          clearPendingUpload(key);
           setImages((prev) => [...prev, event.target!.result as string]);
         }
       };
+      reader.onerror = () => {
+        clearPendingUpload(key);
+        setError(`Failed to read file "${file.name}".`);
+      };
       reader.readAsDataURL(file);
     }
+
+    // Allow re-selecting the same file after a completed (or rejected) attempt
+    e.target.value = '';
   };
 
   const handleAddImageUrl = () => {
     if (!customImageUrl.trim()) return;
-    if (images.length >= 6) {
+    if (images.length + pendingUploadKeys.length >= 6) {
       setError('Maximum 6 screenshots allowed per listing.');
       return;
     }
@@ -563,7 +621,7 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
             <div className="flex flex-col sm:flex-row gap-2">
               <label className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-900/30 text-purple-200 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors">
                 <Upload className="w-4 h-4 text-purple-400" />
-                <span>Upload Screenshots (Max 3MB each)</span>
+                <span>Upload Screenshots (Max 2.5MB each)</span>
                 <input
                   type="file"
                   multiple
@@ -593,9 +651,31 @@ export const SubmitListingModal: React.FC<SubmitListingModalProps> = ({
               </div>
             </div>
 
-            {/* Uploaded Thumbnails Preview Grid */}
-            {images.length > 0 ? (
+            {/* Uploaded Thumbnails Preview Grid (+ in-flight upload progress slots) */}
+            {pendingUploadKeys.length > 0 || images.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1">
+                {pendingUploadKeys.map((key) => {
+                  const percent = uploadProgress[key] ?? 0;
+                  return (
+                    <div
+                      key={key}
+                      className="relative aspect-video rounded-lg overflow-hidden border border-purple-500/30 bg-black/60"
+                      role="status"
+                      aria-label={`Uploading screenshot ${percent}%`}
+                    >
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+                        <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                        <span className="text-[9px] font-mono text-purple-300">{percent}%</span>
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 h-1 bg-white/10">
+                        <div
+                          className="h-full bg-purple-500 transition-all duration-150"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
                 {images.map((img, idx) => (
                   <div
                     key={idx}

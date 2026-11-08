@@ -34,11 +34,45 @@ import {
   Key,
   Lock,
   AlertTriangle,
+  IdCard,
+  CalendarClock,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth, type User } from '../../context/AuthContext';
 import { Currency } from '../../types';
 import { verifyRiotIdOnServer, RiotVerificationResponse } from '../../lib/riot';
 import { SubmitListingModal } from '../profiles/SubmitListingModal';
+import KycSection from './KycSection';
+import EmiSection from './EmiSection';
+import type { LucideIcon } from 'lucide-react';
+
+type DashboardTab =
+  | 'overview'
+  | 'orders'
+  | 'my_auctions'
+  | 'my_rentals'
+  | 'listings'
+  | 'transactions'
+  | 'invoices'
+  | 'tickets'
+  | 'notifications'
+  | 'settings'
+  | 'kyc'
+  | 'emi';
+
+interface DashboardNavItem {
+  key: DashboardTab;
+  label: string;
+  icon: LucideIcon;
+  badge?: number;
+}
+
+interface DashboardNavGroup {
+  label: string;
+  items: DashboardNavItem[];
+}
 
 interface UserDashboardProps {
   currency: Currency;
@@ -54,7 +88,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenTracking,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin, isStaff } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'my_auctions' | 'my_rentals' | 'transactions' | 'invoices' | 'tickets' | 'notifications' | 'settings' | 'listings'>('overview');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
 
   // Live state from backend
   const [orders, setOrders] = useState<any[]>([]);
@@ -74,6 +108,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [editingListing, setEditingListing] = useState<any | null>(null);
   const [listingActionLoading, setListingActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Sidebar navigation UI state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('vib_dash_sidebar_collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Settings form state
   const [name, setName] = useState(user?.name || '');
@@ -185,6 +229,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   useEffect(() => {
     fetchDashboardData();
   }, [token]);
+
+  // Persist sidebar collapse preference
+  useEffect(() => {
+    try {
+      localStorage.setItem('vib_dash_sidebar_collapsed', sidebarCollapsed ? '1' : '0');
+    } catch {}
+  }, [sidebarCollapsed]);
 
   const handleClaimAuctionRefund = async (lotId: string) => {
     if (!confirm('Claim 100% refund of your security deposit?')) return;
@@ -497,68 +548,274 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const unreadNotifs = notifications.filter((n) => !n.read).length;
 
-  return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Top Profile Banner Card */}
-      <div className="relative rounded-3xl bg-gradient-to-r from-[#0d0c1b] via-[#15122c] to-[#0c0d1c] border border-purple-500/30 p-6 sm:p-8 overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+  // ============ Professional grouped sidebar navigation model ============
+  const openTicketsCount = tickets.filter(
+    (t) => t.status === 'open' || t.status === 'in_progress'
+  ).length;
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-purple-400/50 shadow-lg flex-shrink-0 bg-purple-950/40">
-              <img
-                src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
-                alt={user.name}
-                className="w-full h-full object-cover"
-              />
+  const navGroups: DashboardNavGroup[] = [
+    {
+      label: 'Dashboard',
+      items: [{ key: 'overview', label: 'Overview', icon: Zap }],
+    },
+    {
+      label: 'My Activity',
+      items: [
+        { key: 'orders', label: 'Orders', icon: Package, badge: orders.length },
+        { key: 'my_auctions', label: 'My Auctions', icon: Gavel, badge: userAuctions.length },
+        { key: 'my_rentals', label: 'My Rentals', icon: Key, badge: userRentals.length },
+        { key: 'listings', label: 'My Listings', icon: ShieldCheck, badge: userListings.length },
+      ],
+    },
+    {
+      label: 'Finance',
+      items: [
+        { key: 'transactions', label: 'Transactions', icon: CreditCard, badge: transactions.length },
+        { key: 'invoices', label: 'Tax Invoices', icon: FileText, badge: invoices.length },
+        { key: 'emi', label: 'EMI Plans', icon: CalendarClock },
+      ],
+    },
+    {
+      label: 'Support',
+      items: [
+        { key: 'tickets', label: 'Support & Disputes', icon: Headphones, badge: openTicketsCount },
+        { key: 'notifications', label: 'Notifications', icon: Bell, badge: unreadNotifs },
+      ],
+    },
+    {
+      label: 'Account',
+      items: [
+        { key: 'settings', label: 'Profile Settings', icon: Settings },
+        { key: 'kyc', label: 'KYC Verification', icon: IdCard },
+      ],
+    },
+  ];
+
+  const handleTabSelect = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    setMobileNavOpen(false);
+    requestAnimationFrame(() => {
+      const el = document.getElementById('dashboard-content');
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < 0) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  };
+
+  const renderSidebarNav = (collapsed: boolean) => (
+    <>
+      {/* Brand / portal label */}
+      <div className={`flex items-center gap-2 mb-5 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        {!collapsed && (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shrink-0 shadow-lg shadow-purple-900/40">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl font-black font-rajdhani text-white uppercase tracking-wide">
-                  {user.name}
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono tracking-wider uppercase bg-purple-900/60 border border-purple-500/40 text-purple-300">
-                  {user.role}
-                </span>
-                {user.email_verified === 1 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>Verified</span>
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-4 text-xs text-gray-400 font-mono flex-wrap">
-                <span>{user.email}</span>
-                {user.riot_id && (
-                  <span className="flex items-center gap-1.5">
-                    • Riot: <strong className="text-purple-300">{user.riot_id}</strong>
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-[9px] font-mono font-bold text-emerald-300">
-                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                      VALORANT VERIFIED
-                    </span>
-                  </span>
-                )}
-              </div>
+            <div className="min-w-0">
+              <div className="font-black font-rajdhani text-white uppercase tracking-wider text-sm leading-tight">VIB</div>
+              <div className="text-[9px] font-mono uppercase tracking-widest text-purple-300">Dashboard</div>
             </div>
           </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed((v) => !v)}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="hidden lg:flex p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
+        >
+          {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        </button>
+      </div>
 
-          {/* Quick Metrics & Actions */}
-          <div className="flex items-center gap-3 relative z-10 flex-wrap">
-            <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+      {/* User mini-card */}
+      <div className={`mb-5 p-3 rounded-2xl bg-white/5 border border-white/10 ${collapsed ? 'flex justify-center' : 'flex items-center gap-3'}`}>
+        <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-purple-400/40 bg-purple-950/40 shrink-0">
+          <img
+            src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
+            alt={user.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        {!collapsed && (
+          <div className="min-w-0 space-y-1">
+            <div className="truncate font-bold text-white font-rajdhani uppercase text-xs tracking-wide">{user.name}</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="px-1.5 py-px rounded-full text-[9px] font-bold font-mono tracking-wider uppercase bg-purple-900/60 border border-purple-500/40 text-purple-300">
+                {user.role}
+              </span>
+              {user.email_verified === 1 && (
+                <span className="flex items-center gap-0.5 text-[9px] font-bold font-mono uppercase text-emerald-300">
+                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>Verified</span>
+                </span>
+              )}
+            </div>
+            <div className="truncate text-[10px] text-gray-400 font-mono">{user.email}</div>
+            {user.riot_id && (
+              <div className="truncate text-[10px] text-gray-500 font-mono">
+                Riot: <span className="text-purple-300">{user.riot_id}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Navigational groups */}
+      <div className="space-y-5 flex-1">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            {!collapsed && (
+              <div className="px-3 mb-1.5 text-[10px] font-mono uppercase tracking-widest text-gray-500">
+                {group.label}
+              </div>
+            )}
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const isActive = activeTab === item.key;
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleTabSelect(item.key)}
+                    title={collapsed ? item.label : undefined}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer ${
+                      collapsed ? 'justify-center' : ''
+                    } ${
+                      isActive
+                        ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left truncate">{item.label}</span>
+                        {typeof item.badge === 'number' && item.badge > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono ${
+                            isActive
+                              ? 'bg-white/25 text-white'
+                              : 'bg-purple-900/60 text-purple-300 border border-purple-500/30'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {collapsed && typeof item.badge === 'number' && item.badge > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-purple-400" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sidebar footer actions */}
+      <div className="mt-auto pt-4 border-t border-white/10 space-y-2">
+        {isStaff && (
+          <button
+            type="button"
+            onClick={() => onNavigate('admin')}
+            title={collapsed ? 'Admin Console' : undefined}
+            className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer ${
+              collapsed ? 'justify-center' : ''
+            } bg-gradient-to-r from-amber-600/20 to-rose-600/20 border border-amber-500/30 text-amber-300 hover:from-amber-600/40 hover:to-rose-600/40 hover:text-white`}
+          >
+            <Award className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Admin Console</span>}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={logout}
+          title={collapsed ? 'Logout' : undefined}
+          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer ${
+            collapsed ? 'justify-center' : ''
+          } bg-white/5 hover:bg-rose-950/40 border border-white/10 hover:border-rose-500/40 text-gray-300 hover:text-rose-300`}
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!collapsed && <span className="flex-1 text-left">Logout</span>}
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Mobile top bar */}
+      <div className="lg:hidden flex items-center justify-between gap-3 mb-4">
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(true)}
+          aria-label="Open navigation menu"
+          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-colors cursor-pointer"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shrink-0">
+            <Zap className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-black font-rajdhani text-white uppercase tracking-wider text-sm truncate">VIB Dashboard</span>
+        </div>
+      </div>
+
+      <div className="lg:flex lg:gap-6 lg:items-start">
+        {/* Desktop sidebar */}
+        <aside className={`hidden lg:block lg:sticky lg:top-6 lg:self-start shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
+          <div className={`rounded-2xl bg-[#0c0d1c] border border-white/10 p-4 flex flex-col max-h-[calc(100vh-3rem)] transition-all duration-300 ${sidebarCollapsed ? 'w-20 px-3' : 'w-64'}`}>
+            {renderSidebarNav(sidebarCollapsed)}
+          </div>
+        </aside>
+
+        {/* Mobile slide-in drawer */}
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
+            <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-[#0c0d1c] border-r border-white/10 shadow-2xl flex flex-col min-h-full p-4 overflow-y-auto">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="font-black font-rajdhani text-white uppercase tracking-wider text-sm truncate">VIB Dashboard</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  aria-label="Close navigation menu"
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {renderSidebarNav(false)}
+            </div>
+          </div>
+        )}
+
+        {/* Main content column */}
+        <div id="dashboard-content" className="flex-1 min-w-0 space-y-6">
+          {/* Compact profile summary & actions */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="px-4 py-2 rounded-xl bg-[#0c0d1c] border border-white/10 text-center">
               <div className="text-[10px] font-mono uppercase text-gray-400">Wallet Balance</div>
               <div className="text-lg font-black font-rajdhani text-emerald-400">
                 ₹{((user.wallet_balance || 0)).toLocaleString('en-IN')}
               </div>
             </div>
-
-            <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-center">
+            <div className="px-4 py-2 rounded-xl bg-[#0c0d1c] border border-white/10 text-center">
               <div className="text-[10px] font-mono uppercase text-gray-400">Total Orders</div>
-              <div className="text-lg font-black font-rajdhani text-purple-300">
-                {orders.length}
-              </div>
+              <div className="text-lg font-black font-rajdhani text-purple-300">{orders.length}</div>
             </div>
-
             {isStaff && (
               <button
                 type="button"
@@ -569,7 +826,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <span>Admin Console</span>
               </button>
             )}
-
             <button
               type="button"
               onClick={logout}
@@ -580,149 +836,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
-        </div>
 
-        {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto no-scrollbar pb-1 mt-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'overview'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Zap className="w-4 h-4" />
-            <span>Overview</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'orders'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Orders ({orders.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('my_auctions')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'my_auctions'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Gavel className="w-4 h-4" />
-            <span>My Auctions ({userAuctions.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('my_rentals')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'my_rentals'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Key className="w-4 h-4" />
-            <span>My Rentals ({userRentals.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('listings')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'listings'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>My Listings ({userListings.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('transactions')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'transactions'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Transactions ({transactions.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('invoices')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'invoices'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Tax Invoices ({invoices.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('tickets')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'tickets'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Headphones className="w-4 h-4" />
-            <span>Support &amp; Disputes ({tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('notifications')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 relative ${
-              activeTab === 'notifications'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Bell className="w-4 h-4" />
-            <span>Notifications</span>
-            {unreadNotifs > 0 && (
-              <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
-                {unreadNotifs}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs font-rajdhani uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-              activeTab === 'settings'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>Profile Settings</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Tab Panels */}
-      <div className="space-y-6">
+          {/* Main Tab Panels */}
+          <div className="space-y-6">
         {/* ============================================================== */}
         {/* TAB 1: OVERVIEW                                                */}
         {/* ============================================================== */}
@@ -1753,6 +1869,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         )}
 
+        {/* ============================================================== */}
+        {/* TAB 8: KYC VERIFICATION (customer KYC flow)                   */}
+        {/* ============================================================== */}
+        {activeTab === 'kyc' && (
+          <div className="space-y-4 animate-in fade-in">
+            <KycSection />
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 9: EMI PLANS (customer EMI workspace)                     */}
+        {/* ============================================================== */}
+        {activeTab === 'emi' && (
+          <div className="space-y-4 animate-in fade-in">
+            <EmiSection />
+          </div>
+        )}
+
         {/* Listings Tab */}
         {activeTab === 'listings' && (
           <div className="space-y-6">
@@ -1905,7 +2039,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
           </div>
         )}
+        </div>
       </div>
+    </div>
 
       {/* ============================================================== */}
       {/* MODAL 1: ORDER ROOM (UNIVERSAL ORDER FLOW & INTERNAL CHAT)      */}

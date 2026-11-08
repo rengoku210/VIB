@@ -24955,6 +24955,90 @@ try {
 } catch {
 }
 try {
+  db.exec("ALTER TABLE users ADD COLUMN first_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN last_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN city TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN state TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN pincode TEXT");
+} catch {
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_otps (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_email_otps_lookup ON email_otps(email, purpose);
+`);
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN documentation_text TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN ai_draft_json TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN custom_faq_json TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN conditions_json TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN reach_estimate TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN placement_tag TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_plans ADD COLUMN hero_icon TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN customer_first_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN customer_last_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN customer_city TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN customer_state TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN customer_pincode TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN user_id TEXT");
+} catch {
+}
+try {
   db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'AWAITING_PAYMENT'");
 } catch {
 }
@@ -40795,6 +40879,69 @@ async function sendOrderPaymentVerifiedEmail(order, isManualDelivery = true) {
     context: { orderId: order.id, amount: order.amount, title: order.title, isManualDelivery }
   });
 }
+async function sendRegistrationOtpEmail(email, code, name2) {
+  const greeting = name2 ? `Hello ${name2},` : "Hello Gamer,";
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB ACCOUNT REGISTRATION CODE</h2>
+      <p>${greeting}</p>
+      <p>Thank you for registering on VIB Digital Services. Please use the 6-digit verification code below to verify your email address and activate your account:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #9333ea; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: 6px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        This code is valid for 10 minutes. Never share this code with anyone.
+      </p>
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Security Desk | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+  return sendEmail({
+    to: email,
+    subject: `Your VIB Verification Code: ${code}`,
+    html,
+    text: `Your VIB verification code is: ${code}. Valid for 10 minutes.`,
+    templateName: "registration_otp",
+    context: { email, code }
+  });
+}
+async function sendLoginOtpEmail(email, code) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB SIGN-IN VERIFICATION CODE</h2>
+      <p>Hello,</p>
+      <p>Use the 6-digit one-time code below to securely sign in to your VIB account:</p>
+      
+      <div style="background-color: #1a162b; border: 2px dashed #9333ea; padding: 18px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <span style="font-family: monospace; font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: 6px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="color: #cbd5e1; font-size: 13px;">
+        This code is valid for 10 minutes. If you did not request this code, please contact our support team immediately.
+      </p>
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">
+        VIB Official Security Desk | Support WhatsApp: ${SUPPORT_WHATSAPP}
+      </p>
+    </div>
+  `;
+  return sendEmail({
+    to: email,
+    subject: `Your VIB Sign-In Code: ${code}`,
+    html,
+    text: `Your VIB sign-in code is: ${code}. Valid for 10 minutes.`,
+    templateName: "login_otp",
+    context: { email, code }
+  });
+}
 async function sendPasswordRecoveryOtpEmail(email, code) {
   const html = `
     <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
@@ -41113,6 +41260,37 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to retrieve advertisement plans." });
     }
   });
+  app2.get("/api/advertisement/plans/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const r = db2.prepare("SELECT * FROM advertisement_plans WHERE id = ?").get(id);
+      if (!r) {
+        res.status(404).json({ error: "Advertisement plan not found." });
+        return;
+      }
+      const plan = {
+        ...r,
+        is_active: Boolean(r.is_active),
+        instagram_story: Boolean(r.instagram_story),
+        instagram_post: Boolean(r.instagram_post),
+        highlight_placement: Boolean(r.highlight_placement),
+        website_listing: Boolean(r.website_listing),
+        inventory_editing: Boolean(r.inventory_editing),
+        buyer_assistance: Boolean(r.buyer_assistance),
+        priority_placement: Boolean(r.priority_placement),
+        dedicated_agent: Boolean(r.dedicated_agent),
+        lifetime_guaranteed: Boolean(r.lifetime_guaranteed),
+        benefits: typeof r.benefits_json === "string" ? JSON.parse(r.benefits_json || "[]") : [],
+        custom_faq: typeof r.custom_faq_json === "string" ? JSON.parse(r.custom_faq_json || "[]") : [],
+        conditions: typeof r.conditions_json === "string" ? JSON.parse(r.conditions_json || "[]") : [],
+        ai_draft: typeof r.ai_draft_json === "string" ? JSON.parse(r.ai_draft_json || "{}") : null
+      };
+      res.json({ success: true, plan });
+    } catch (err) {
+      console.error("[Ad Plan Fetch Error]:", err);
+      res.status(500).json({ error: "Failed to retrieve advertisement plan." });
+    }
+  });
   app2.get("/api/admin/advertisement/plans", authenticate2, adminOnly2, (req, res) => {
     try {
       const rows = db2.prepare(`
@@ -41302,6 +41480,185 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
     } catch (err) {
       console.error("[Delete Ad Plan Error]:", err);
       res.status(500).json({ error: "Failed to delete advertisement plan." });
+    }
+  });
+  app2.post("/api/advertisement/orders/create-draft", async (req, res) => {
+    try {
+      const {
+        planId,
+        firstName,
+        lastName,
+        customerName,
+        customerEmail,
+        customerPhone,
+        customerCity,
+        customerState,
+        customerPincode,
+        userId
+      } = req.body || {};
+      if (!planId) {
+        res.status(400).json({ error: "Package ID is required." });
+        return;
+      }
+      const plan = db2.prepare("SELECT * FROM advertisement_plans WHERE id = ?").get(planId);
+      if (!plan) {
+        res.status(404).json({ error: "Selected advertisement package not found." });
+        return;
+      }
+      let resolvedFirstName = firstName?.trim() || null;
+      let resolvedLastName = lastName?.trim() || null;
+      let resolvedEmail = customerEmail?.trim().toLowerCase() || "";
+      let resolvedPhone = customerPhone?.trim() || "";
+      let resolvedCity = customerCity?.trim() || null;
+      let resolvedState = customerState?.trim() || null;
+      let resolvedPincode = customerPincode?.trim() || null;
+      let resolvedUserId = userId || null;
+      const dbUser = resolvedUserId ? db2.prepare("SELECT * FROM users WHERE id = ?").get(resolvedUserId) : resolvedEmail ? db2.prepare("SELECT * FROM users WHERE email = ?").get(resolvedEmail) : null;
+      if (dbUser) {
+        resolvedUserId = dbUser.id;
+        resolvedFirstName = resolvedFirstName || dbUser.first_name || null;
+        resolvedLastName = resolvedLastName || dbUser.last_name || null;
+        resolvedEmail = resolvedEmail || dbUser.email || "";
+        resolvedPhone = resolvedPhone || dbUser.phone || "";
+        resolvedCity = resolvedCity || dbUser.city || null;
+        resolvedState = resolvedState || dbUser.state || null;
+        resolvedPincode = resolvedPincode || dbUser.pincode || null;
+      }
+      const fullName = (customerName || `${resolvedFirstName || ""} ${resolvedLastName || ""}`).trim() || dbUser?.name || "VIB Customer";
+      const orderId = `AD-VIB-${Date.now().toString(36).toUpperCase()}-${crypto12.randomBytes(3).toString("hex").toUpperCase()}`;
+      const submissionToken = `tok_${crypto12.randomBytes(16).toString("hex")}`;
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        INSERT INTO advertisement_orders (
+          id, plan_id, plan_name, plan_price, customer_name, customer_first_name, customer_last_name,
+          customer_email, customer_phone, customer_city, customer_state, customer_pincode, user_id,
+          status, payment_method, submission_token, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'upi', ?, ?, ?)
+      `).run(
+        orderId,
+        plan.id,
+        plan.name,
+        Number(plan.price),
+        fullName,
+        resolvedFirstName,
+        resolvedLastName,
+        resolvedEmail,
+        resolvedPhone,
+        resolvedCity,
+        resolvedState,
+        resolvedPincode,
+        resolvedUserId,
+        submissionToken,
+        now,
+        now
+      );
+      const createdOrder = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(orderId);
+      res.json({
+        success: true,
+        orderId,
+        order: createdOrder,
+        plan: {
+          id: plan.id,
+          name: plan.name,
+          price: plan.price,
+          category: plan.category,
+          description: plan.description,
+          promotion_duration: plan.promotion_duration
+        }
+      });
+    } catch (err) {
+      console.error("[Create Draft Ad Order Error]:", err);
+      res.status(500).json({ error: "Failed to create draft order." });
+    }
+  });
+  app2.get("/api/advertisement/orders/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const order = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      if (!order) {
+        res.status(404).json({ error: "Advertisement order not found." });
+        return;
+      }
+      const settings = db2.prepare("SELECT * FROM payment_settings WHERE id = ?").get("default") || {
+        upi_id: "thevibofficial@okhdfcbank",
+        payee_name: "VIB Digital Services",
+        account_name: "VIB Digital Services Platform",
+        instructions: "Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or transfer to UPI ID."
+      };
+      const plan = db2.prepare("SELECT * FROM advertisement_plans WHERE id = ?").get(order.plan_id);
+      res.json({
+        success: true,
+        order,
+        plan: plan ? {
+          ...plan,
+          benefits: typeof plan.benefits_json === "string" ? JSON.parse(plan.benefits_json || "[]") : []
+        } : null,
+        paymentSettings: {
+          upi_id: settings.upi_id || "thevibofficial@okhdfcbank",
+          payee_name: settings.payee_name || settings.account_name || "VIB Digital Services Platform",
+          qr_image_url: settings.qr_image_url,
+          instructions: settings.instructions,
+          support_whatsapp: settings.support_whatsapp || "+918076612143"
+        }
+      });
+    } catch (err) {
+      console.error("[Get Ad Order Error]:", err);
+      res.status(500).json({ error: "Failed to retrieve order details." });
+    }
+  });
+  app2.post("/api/advertisement/orders/:id/submit-payment", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { paymentReference, paymentScreenshot } = req.body || {};
+      const order = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      if (!order) {
+        res.status(404).json({ error: "Advertisement order not found." });
+        return;
+      }
+      const isFree = order.plan_price === 0;
+      if (!isFree) {
+        if (!paymentReference?.trim()) {
+          res.status(400).json({ error: "Transaction ID / UTR reference number is required." });
+          return;
+        }
+        if (!paymentScreenshot) {
+          res.status(400).json({ error: "Payment screenshot proof is required." });
+          return;
+        }
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const newStatus = isFree ? "approved" : "submitted_for_verification";
+      db2.prepare(`
+        UPDATE advertisement_orders
+        SET status = ?,
+            payment_reference = ?,
+            payment_screenshot = ?,
+            approved_at = CASE WHEN ? = 'approved' THEN ? ELSE approved_at END,
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        newStatus,
+        paymentReference?.trim() || null,
+        paymentScreenshot || null,
+        newStatus,
+        now,
+        now,
+        id
+      );
+      const updatedOrder = db2.prepare("SELECT * FROM advertisement_orders WHERE id = ?").get(id);
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : void 0);
+      sendAdminAdOrderNotification(updatedOrder, origin).catch(
+        (e) => console.warn("[Ad Order Notification Email Error]:", e.message)
+      );
+      res.json({
+        success: true,
+        orderId: id,
+        status: newStatus,
+        message: isFree ? "Free listing order confirmed! You can now submit your account details." : "Payment submitted for verification. We will verify and notify you shortly."
+      });
+    } catch (err) {
+      console.error("[Submit Payment Error]:", err);
+      res.status(500).json({ error: "Failed to submit payment evidence." });
     }
   });
   app2.post("/api/advertisement/orders", async (req, res) => {
@@ -41583,20 +41940,150 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to reject advertisement payment." });
     }
   });
-  app2.post("/api/admin/advertisement/orders/:id/mark-live", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/advertisement/plans/:id/upload-doc", authenticate2, adminOnly2, async (req, res) => {
     try {
       const { id } = req.params;
+      const { textContent, filename } = req.body || {};
+      if (!textContent || !String(textContent).trim()) {
+        res.status(400).json({ error: "Document text content is required." });
+        return;
+      }
+      const plan = db2.prepare("SELECT id, name FROM advertisement_plans WHERE id = ?").get(id);
+      if (!plan) {
+        res.status(404).json({ error: "Advertisement plan not found." });
+        return;
+      }
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db2.prepare(`
-        UPDATE advertisement_orders
-        SET status = 'live',
+        UPDATE advertisement_plans
+        SET documentation_text = ?,
             updated_at = ?
         WHERE id = ?
-      `).run(now, id);
-      res.json({ success: true, message: "Advertisement campaign marked as LIVE." });
+      `).run(textContent.trim(), now, id);
+      res.json({
+        success: true,
+        message: `Documentation "${filename || "document"}" saved for ${plan.name}.`
+      });
     } catch (err) {
-      console.error("[Mark Ad Live Error]:", err);
-      res.status(500).json({ error: "Failed to mark advertisement as live." });
+      console.error("[Upload Doc Error]:", err);
+      res.status(500).json({ error: "Failed to save documentation." });
+    }
+  });
+  app2.post("/api/admin/advertisement/plans/:id/generate-ai-draft", authenticate2, adminOnly2, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const plan = db2.prepare("SELECT * FROM advertisement_plans WHERE id = ?").get(id);
+      if (!plan) {
+        res.status(404).json({ error: "Advertisement plan not found." });
+        return;
+      }
+      const docContext = plan.documentation_text || "";
+      const benefits = typeof plan.benefits_json === "string" ? JSON.parse(plan.benefits_json || "[]") : [];
+      let reach = "50,000+ Indian Valorant Gamers";
+      let placement = "Instagram Story";
+      if (plan.instagram_post) placement = "Instagram Permanent Feed Post";
+      if (plan.highlight_placement) placement += " + Permanent Highlight";
+      if (plan.website_listing) placement += " + Website Listing";
+      if (plan.category === "premium") {
+        reach = "100,000+ Verified Buyers & VIP Network";
+      } else if (plan.category === "trade") {
+        reach = "Active Weapon Skin Traders & Collectors Across India";
+      }
+      const draftDescription = docContext.length > 50 ? `Official VIB ${plan.name} Campaign. ${docContext.slice(0, 300)}...` : `Broadcast your Valorant inventory with our official ${plan.name} campaign. Designed for players seeking high-converting visibility across our community of over 50,000 verified gamers. ${plan.description}`;
+      const draftHighlights = [
+        `Direct Instagram seller tag & clickable DM contact`,
+        `Average 15-minute queue activation after payment approval`,
+        `100% scam-free escrow middleman support on all inquiries`,
+        ...benefits.slice(0, 3)
+      ];
+      const draftInstructions = [
+        "Only list premium and exclusive knife/gun skins (do not include standard battle pass items).",
+        "Upload one clear high-resolution screenshot displaying the in-game collection grid.",
+        "Keep your Instagram account public and direct messages open for interested buyers.",
+        "Verify your WhatsApp number for instant middleman notifications."
+      ];
+      const draftFaq = [
+        {
+          question: `How fast will my ${plan.name} campaign be published?`,
+          answer: `Once your payment is verified and you submit your account screenshot, our marketing team formats the creative and schedules your promotion within 15 to 45 minutes.`
+        },
+        {
+          question: "Do buyers contact me directly or through VIB?",
+          answer: "Interested buyers will contact your tagged Instagram handle directly. Once you agree on price, our verified middleman agents facilitate the account handover with 100% escrow protection."
+        },
+        {
+          question: "What happens if my profile does not sell immediately?",
+          answer: plan.category === "premium" ? "Our VIP Luxury and Guaranteed Sale packages include continuous buyer matchmaking and repeated story pushes until a confirmed sale occurs." : "You can upgrade your package or extend with a trade highlight at any time through your VIB dashboard."
+        }
+      ];
+      const aiDraft = {
+        title: plan.name,
+        price: plan.price,
+        description: draftDescription,
+        highlights: draftHighlights,
+        instructions: draftInstructions,
+        reach,
+        placement,
+        faq: draftFaq,
+        generated_at: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_plans
+        SET ai_draft_json = ?,
+            updated_at = ?
+        WHERE id = ?
+      `).run(JSON.stringify(aiDraft), now, id);
+      res.json({
+        success: true,
+        aiDraft,
+        message: "AI draft generated successfully. Review and approve before publishing."
+      });
+    } catch (err) {
+      console.error("[Generate AI Draft Error]:", err);
+      res.status(500).json({ error: "Failed to generate AI draft." });
+    }
+  });
+  app2.post("/api/admin/advertisement/plans/:id/publish-draft", authenticate2, adminOnly2, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { description, highlights, instructions, faq, reach, placement } = req.body || {};
+      const plan = db2.prepare("SELECT id, name FROM advertisement_plans WHERE id = ?").get(id);
+      if (!plan) {
+        res.status(404).json({ error: "Advertisement plan not found." });
+        return;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db2.prepare(`
+        UPDATE advertisement_plans
+        SET description = COALESCE(?, description),
+            benefits_json = CASE WHEN ? IS NOT NULL THEN ? ELSE benefits_json END,
+            conditions_json = CASE WHEN ? IS NOT NULL THEN ? ELSE conditions_json END,
+            custom_faq_json = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_faq_json END,
+            reach_estimate = COALESCE(?, reach_estimate),
+            placement_tag = COALESCE(?, placement_tag),
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        description || null,
+        highlights ? 1 : null,
+        highlights ? JSON.stringify(highlights) : null,
+        instructions ? 1 : null,
+        instructions ? JSON.stringify(instructions) : null,
+        faq ? 1 : null,
+        faq ? JSON.stringify(faq) : null,
+        reach || null,
+        placement || null,
+        now,
+        id
+      );
+      res.json({
+        success: true,
+        message: `Package "${plan.name}" published successfully! Live product page is updated.`
+      });
+    } catch (err) {
+      console.error("[Publish Draft Error]:", err);
+      res.status(500).json({ error: "Failed to publish draft." });
     }
   });
 }
@@ -42892,7 +43379,12 @@ function authenticate(req, res, next) {
         id: userRow.id,
         email: userRow.email,
         name: userRow.name,
+        first_name: userRow.first_name,
+        last_name: userRow.last_name,
         phone: userRow.phone,
+        city: userRow.city,
+        state: userRow.state,
+        pincode: userRow.pincode,
         riot_id: userRow.riot_id,
         riot_verified: userRow.riot_verified || 0,
         role: userRow.role,
@@ -42912,7 +43404,7 @@ function authenticate(req, res, next) {
   }
   const sessionStmt = db.prepare(`
     SELECT s.token, s.user_id, s.expires_at,
-           u.id, u.email, u.name, u.phone, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
+           u.id, u.email, u.name, u.first_name, u.last_name, u.phone, u.city, u.state, u.pincode, u.riot_id, u.riot_verified, u.role, u.status, u.email_verified,
            p.bio, p.avatar, p.discord_tag, p.wallet_balance, p.kyc_status,
            COALESCE((SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id), 0) AS total_orders
     FROM sessions s
@@ -42939,7 +43431,12 @@ function authenticate(req, res, next) {
       id: row.id,
       email: row.email,
       name: row.name,
+      first_name: row.first_name,
+      last_name: row.last_name,
       phone: row.phone,
+      city: row.city,
+      state: row.state,
+      pincode: row.pincode,
       riot_id: row.riot_id,
       riot_verified: row.riot_verified || 0,
       role: row.role,
@@ -43118,6 +43615,319 @@ app.get("/api/products/:id", (req, res) => {
       details: product.details_json ? JSON.parse(product.details_json) : {}
     }
   });
+});
+app.post("/api/auth/register-otp/send", async (req, res) => {
+  try {
+    const { email, firstName } = req.body || {};
+    if (!email || !String(email).trim()) {
+      res.status(400).json({ error: "Email address is required." });
+      return;
+    }
+    const emailTrimmed = String(email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      res.status(400).json({ error: "Invalid email address format." });
+      return;
+    }
+    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(emailTrimmed);
+    if (existing) {
+      res.status(409).json({ error: "An account with this email address already exists. Please sign in instead." });
+      return;
+    }
+    const recentOtp = db.prepare(`
+      SELECT created_at FROM email_otps
+      WHERE email = ? AND purpose = 'register'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed);
+    if (recentOtp) {
+      const diffMs = Date.now() - new Date(recentOtp.created_at).getTime();
+      if (diffMs < 6e4) {
+        const remaining = Math.ceil((6e4 - diffMs) / 1e3);
+        res.status(429).json({ error: `Please wait ${remaining}s before requesting a new OTP.` });
+        return;
+      }
+    }
+    const otpCode = crypto15.randomInt(1e5, 999999).toString();
+    const id = "otp_" + crypto15.randomBytes(8).toString("hex");
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1e3).toISOString();
+    db.prepare(`
+      INSERT INTO email_otps (id, email, otp_code, purpose, attempts, expires_at, created_at)
+      VALUES (?, ?, ?, 'register', 0, ?, ?)
+    `).run(id, emailTrimmed, otpCode, expiresAt, now);
+    const delivery = await sendRegistrationOtpEmail(emailTrimmed, otpCode, firstName);
+    console.log(`[Registration OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+    res.json({
+      success: true,
+      message: `Verification code sent to ${emailTrimmed}. Valid for 10 minutes.`,
+      testCode: !delivery.success ? otpCode : void 0
+    });
+  } catch (err) {
+    console.error("[Register OTP Send Error]:", err);
+    res.status(500).json({ error: "Failed to send verification code. Please try again." });
+  }
+});
+app.post("/api/auth/register-with-otp", async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      otp,
+      phone,
+      city,
+      state,
+      pincode
+    } = req.body || {};
+    if (!firstName?.trim() || !lastName?.trim()) {
+      res.status(400).json({ error: "First name and last name are required." });
+      return;
+    }
+    if (!email?.trim()) {
+      res.status(400).json({ error: "Email address is required." });
+      return;
+    }
+    if (!otp?.trim()) {
+      res.status(400).json({ error: "Email verification OTP is required." });
+      return;
+    }
+    const cleanPhone = phone?.trim().replace(/[\s+-]/g, "").slice(-10);
+    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+      return;
+    }
+    if (!city?.trim() || !state?.trim()) {
+      res.status(400).json({ error: "City and state are required." });
+      return;
+    }
+    if (!pincode?.trim() || !/^\d{6}$/.test(pincode.trim())) {
+      res.status(400).json({ error: "Please enter a valid 6-digit Indian PIN code." });
+      return;
+    }
+    const emailTrimmed = email.trim().toLowerCase();
+    const otpRecord = db.prepare(`
+      SELECT * FROM email_otps
+      WHERE email = ? AND purpose = 'register'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed);
+    if (!otpRecord) {
+      res.status(400).json({ error: "No verification code found. Please request a new code." });
+      return;
+    }
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      res.status(400).json({ error: "Verification code has expired. Please request a new code." });
+      return;
+    }
+    if (otpRecord.attempts >= 5) {
+      res.status(429).json({ error: "Too many invalid attempts. Please request a new OTP." });
+      return;
+    }
+    if (otpRecord.otp_code !== otp.trim()) {
+      db.prepare("UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?").run(otpRecord.id);
+      res.status(400).json({ error: "Invalid verification code. Please check your email and try again." });
+      return;
+    }
+    db.prepare("DELETE FROM email_otps WHERE email = ? AND purpose = 'register'").run(emailTrimmed);
+    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(emailTrimmed);
+    if (existing) {
+      res.status(409).json({ error: "An account with this email address already exists. Please sign in." });
+      return;
+    }
+    const userId = "usr_" + crypto15.randomBytes(8).toString("hex");
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    const autoPassword = crypto15.randomBytes(16).toString("hex");
+    const { hash, salt } = hashPassword(autoPassword);
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    db.prepare(`
+      INSERT INTO users (
+        id, email, password_hash, salt, name, first_name, last_name, phone,
+        city, state, pincode, role, status, email_verified, terms_accepted_at,
+        terms_version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 'active', 1, ?, 'platform-escrow-v1', ?, ?)
+    `).run(
+      userId,
+      emailTrimmed,
+      hash,
+      salt,
+      fullName,
+      firstName.trim(),
+      lastName.trim(),
+      cleanPhone,
+      city.trim(),
+      state.trim(),
+      pincode.trim(),
+      now,
+      now,
+      now
+    );
+    db.prepare(`
+      INSERT INTO profiles (user_id, bio, avatar, discord_tag, wallet_balance, kyc_status, total_orders, created_at)
+      VALUES (?, ?, ?, ?, 0.0, 'unverified', 0, ?)
+    `).run(
+      userId,
+      "Verified VIB Member",
+      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80",
+      null,
+      now
+    );
+    const token = createSignedToken({
+      id: userId,
+      email: emailTrimmed,
+      name: fullName,
+      role: "user",
+      status: "active"
+    });
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString();
+    db.prepare(`
+      INSERT INTO sessions (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, userId, expiresAt, now);
+    const userObj = {
+      id: userId,
+      email: emailTrimmed,
+      name: fullName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      phone: cleanPhone,
+      city: city.trim(),
+      state: state.trim(),
+      pincode: pincode.trim(),
+      role: "user",
+      status: "active",
+      email_verified: 1
+    };
+    res.json({
+      success: true,
+      token,
+      user: userObj,
+      message: "Account successfully registered and verified."
+    });
+  } catch (err) {
+    console.error("[Register With OTP Error]:", err);
+    res.status(500).json({ error: "Registration failed. Please try again." });
+  }
+});
+app.post("/api/auth/login-otp/send", async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || !String(email).trim()) {
+      res.status(400).json({ error: "Email address is required." });
+      return;
+    }
+    const emailTrimmed = String(email).trim().toLowerCase();
+    const user = db.prepare("SELECT id, name, status FROM users WHERE email = ?").get(emailTrimmed);
+    if (!user) {
+      res.status(404).json({ error: "No account found with this email. Please create an account." });
+      return;
+    }
+    if (user.status === "suspended" || user.status === "banned") {
+      res.status(403).json({ error: "Your account is suspended. Please contact support." });
+      return;
+    }
+    const recentOtp = db.prepare(`
+      SELECT created_at FROM email_otps
+      WHERE email = ? AND purpose = 'login'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed);
+    if (recentOtp) {
+      const diffMs = Date.now() - new Date(recentOtp.created_at).getTime();
+      if (diffMs < 6e4) {
+        const remaining = Math.ceil((6e4 - diffMs) / 1e3);
+        res.status(429).json({ error: `Please wait ${remaining}s before requesting another OTP.` });
+        return;
+      }
+    }
+    const otpCode = crypto15.randomInt(1e5, 999999).toString();
+    const id = "otp_" + crypto15.randomBytes(8).toString("hex");
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1e3).toISOString();
+    db.prepare(`
+      INSERT INTO email_otps (id, email, otp_code, purpose, attempts, expires_at, created_at)
+      VALUES (?, ?, ?, 'login', 0, ?, ?)
+    `).run(id, emailTrimmed, otpCode, expiresAt, now);
+    const delivery = await sendLoginOtpEmail(emailTrimmed, otpCode);
+    console.log(`[Login OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+    res.json({
+      success: true,
+      message: `Sign-in code sent to ${emailTrimmed}. Valid for 10 minutes.`,
+      testCode: !delivery.success ? otpCode : void 0
+    });
+  } catch (err) {
+    console.error("[Login OTP Send Error]:", err);
+    res.status(500).json({ error: "Failed to send sign-in code." });
+  }
+});
+app.post("/api/auth/login-with-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body || {};
+    if (!email?.trim() || !otp?.trim()) {
+      res.status(400).json({ error: "Email and verification OTP are required." });
+      return;
+    }
+    const emailTrimmed = email.trim().toLowerCase();
+    const otpRecord = db.prepare(`
+      SELECT * FROM email_otps
+      WHERE email = ? AND purpose = 'login'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(emailTrimmed);
+    if (!otpRecord) {
+      res.status(400).json({ error: "No active sign-in code found. Please request a new code." });
+      return;
+    }
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      res.status(400).json({ error: "Sign-in code has expired. Please request a new code." });
+      return;
+    }
+    if (otpRecord.attempts >= 5) {
+      res.status(429).json({ error: "Too many invalid attempts. Please request a new code." });
+      return;
+    }
+    if (otpRecord.otp_code !== otp.trim()) {
+      db.prepare("UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?").run(otpRecord.id);
+      res.status(400).json({ error: "Invalid sign-in code. Please try again." });
+      return;
+    }
+    db.prepare("DELETE FROM email_otps WHERE email = ? AND purpose = 'login'").run(emailTrimmed);
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(emailTrimmed);
+    if (!user) {
+      res.status(404).json({ error: "User record not found." });
+      return;
+    }
+    const token = createSignedToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status
+    });
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString();
+    db.prepare(`
+      INSERT INTO sessions (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, user.id, expiresAt, now);
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        city: user.city,
+        state: user.state,
+        pincode: user.pincode,
+        role: user.role,
+        status: user.status,
+        email_verified: 1
+      }
+    });
+  } catch (err) {
+    console.error("[Login With OTP Error]:", err);
+    res.status(500).json({ error: "Failed to sign in with OTP." });
+  }
 });
 app.post("/api/auth/register", async (req, res) => {
   try {

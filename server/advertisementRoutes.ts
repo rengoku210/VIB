@@ -44,6 +44,41 @@ export function registerAdvertisementRoutes(
     }
   });
 
+  // Public: Get single advertisement plan by ID (for dedicated product details page)
+  app.get('/api/advertisement/plans/:id', (req: Request, res: Response): void => {
+    try {
+      const { id } = req.params;
+      const r = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(id) as any;
+      if (!r) {
+        res.status(404).json({ error: 'Advertisement plan not found.' });
+        return;
+      }
+
+      const plan = {
+        ...r,
+        is_active: Boolean(r.is_active),
+        instagram_story: Boolean(r.instagram_story),
+        instagram_post: Boolean(r.instagram_post),
+        highlight_placement: Boolean(r.highlight_placement),
+        website_listing: Boolean(r.website_listing),
+        inventory_editing: Boolean(r.inventory_editing),
+        buyer_assistance: Boolean(r.buyer_assistance),
+        priority_placement: Boolean(r.priority_placement),
+        dedicated_agent: Boolean(r.dedicated_agent),
+        lifetime_guaranteed: Boolean(r.lifetime_guaranteed),
+        benefits: typeof r.benefits_json === 'string' ? JSON.parse(r.benefits_json || '[]') : [],
+        custom_faq: typeof r.custom_faq_json === 'string' ? JSON.parse(r.custom_faq_json || '[]') : [],
+        conditions: typeof r.conditions_json === 'string' ? JSON.parse(r.conditions_json || '[]') : [],
+        ai_draft: typeof r.ai_draft_json === 'string' ? JSON.parse(r.ai_draft_json || '{}') : null,
+      };
+
+      res.json({ success: true, plan });
+    } catch (err: any) {
+      console.error('[Ad Plan Fetch Error]:', err);
+      res.status(500).json({ error: 'Failed to retrieve advertisement plan.' });
+    }
+  });
+
   // Admin: Get all advertisement plans (including inactive)
   app.get('/api/admin/advertisement/plans', authenticate, adminOnly, (req: Request, res: Response): void => {
     try {
@@ -255,7 +290,221 @@ export function registerAdvertisementRoutes(
     }
   });
 
-  // Public: Create Advertisement Order (Checkout Step 4)
+  // Public/Authenticated: Create Draft Advertisement Order (when clicking Buy Now / checkout start)
+  app.post('/api/advertisement/orders/create-draft', async (req: Request, res: Response): Promise<void> => {
+    try {
+      const {
+        planId,
+        firstName,
+        lastName,
+        customerName,
+        customerEmail,
+        customerPhone,
+        customerCity,
+        customerState,
+        customerPincode,
+        userId,
+      } = req.body || {};
+
+      if (!planId) {
+        res.status(400).json({ error: 'Package ID is required.' });
+        return;
+      }
+
+      // Fetch authentic plan directly from database — NEVER trust price from client!
+      const plan = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(planId) as any;
+      if (!plan) {
+        res.status(404).json({ error: 'Selected advertisement package not found.' });
+        return;
+      }
+
+      let resolvedFirstName = firstName?.trim() || null;
+      let resolvedLastName = lastName?.trim() || null;
+      let resolvedEmail = customerEmail?.trim().toLowerCase() || '';
+      let resolvedPhone = customerPhone?.trim() || '';
+      let resolvedCity = customerCity?.trim() || null;
+      let resolvedState = customerState?.trim() || null;
+      let resolvedPincode = customerPincode?.trim() || null;
+      let resolvedUserId = userId || null;
+
+      // Hydrate from users database record if available
+      const dbUser = resolvedUserId
+        ? (db.prepare('SELECT * FROM users WHERE id = ?').get(resolvedUserId) as any)
+        : resolvedEmail
+        ? (db.prepare('SELECT * FROM users WHERE email = ?').get(resolvedEmail) as any)
+        : null;
+
+      if (dbUser) {
+        resolvedUserId = dbUser.id;
+        resolvedFirstName = resolvedFirstName || dbUser.first_name || null;
+        resolvedLastName = resolvedLastName || dbUser.last_name || null;
+        resolvedEmail = resolvedEmail || dbUser.email || '';
+        resolvedPhone = resolvedPhone || dbUser.phone || '';
+        resolvedCity = resolvedCity || dbUser.city || null;
+        resolvedState = resolvedState || dbUser.state || null;
+        resolvedPincode = resolvedPincode || dbUser.pincode || null;
+      }
+
+      const fullName = (customerName || `${resolvedFirstName || ''} ${resolvedLastName || ''}`).trim() || dbUser?.name || 'VIB Customer';
+      const orderId = `AD-VIB-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      const submissionToken = `tok_${crypto.randomBytes(16).toString('hex')}`;
+      const now = new Date().toISOString();
+
+      db.prepare(`
+        INSERT INTO advertisement_orders (
+          id, plan_id, plan_name, plan_price, customer_name, customer_first_name, customer_last_name,
+          customer_email, customer_phone, customer_city, customer_state, customer_pincode, user_id,
+          status, payment_method, submission_token, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', 'upi', ?, ?, ?)
+      `).run(
+        orderId,
+        plan.id,
+        plan.name,
+        Number(plan.price),
+        fullName,
+        resolvedFirstName,
+        resolvedLastName,
+        resolvedEmail,
+        resolvedPhone,
+        resolvedCity,
+        resolvedState,
+        resolvedPincode,
+        resolvedUserId,
+        submissionToken,
+        now,
+        now
+      );
+
+      const createdOrder = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(orderId);
+      res.json({
+        success: true,
+        orderId,
+        order: createdOrder,
+        plan: {
+          id: plan.id,
+          name: plan.name,
+          price: plan.price,
+          category: plan.category,
+          description: plan.description,
+          promotion_duration: plan.promotion_duration,
+        },
+      });
+    } catch (err: any) {
+      console.error('[Create Draft Ad Order Error]:', err);
+      res.status(500).json({ error: 'Failed to create draft order.' });
+    }
+  });
+
+  // Public: Get Advertisement Order Details (for Checkout & Payment page)
+  app.get('/api/advertisement/orders/:id', (req: Request, res: Response): void => {
+    try {
+      const { id } = req.params;
+      const order = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id) as any;
+      if (!order) {
+        res.status(404).json({ error: 'Advertisement order not found.' });
+        return;
+      }
+
+      // Fetch active payment settings from database
+      const settings = (db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any) || {
+        upi_id: 'thevibofficial@okhdfcbank',
+        payee_name: 'VIB Digital Services',
+        account_name: 'VIB Digital Services Platform',
+        instructions: 'Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or transfer to UPI ID.',
+      };
+
+      // Fetch plan specs
+      const plan = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(order.plan_id) as any;
+
+      res.json({
+        success: true,
+        order,
+        plan: plan ? {
+          ...plan,
+          benefits: typeof plan.benefits_json === 'string' ? JSON.parse(plan.benefits_json || '[]') : [],
+        } : null,
+        paymentSettings: {
+          upi_id: settings.upi_id || 'thevibofficial@okhdfcbank',
+          payee_name: settings.payee_name || settings.account_name || 'VIB Digital Services Platform',
+          qr_image_url: settings.qr_image_url,
+          instructions: settings.instructions,
+          support_whatsapp: settings.support_whatsapp || '+918076612143',
+        },
+      });
+    } catch (err: any) {
+      console.error('[Get Ad Order Error]:', err);
+      res.status(500).json({ error: 'Failed to retrieve order details.' });
+    }
+  });
+
+  // Public: Submit Payment Proof for Advertisement Order
+  app.post('/api/advertisement/orders/:id/submit-payment', async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { paymentReference, paymentScreenshot } = req.body || {};
+
+      const order = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id) as any;
+      if (!order) {
+        res.status(404).json({ error: 'Advertisement order not found.' });
+        return;
+      }
+
+      const isFree = order.plan_price === 0;
+      if (!isFree) {
+        if (!paymentReference?.trim()) {
+          res.status(400).json({ error: 'Transaction ID / UTR reference number is required.' });
+          return;
+        }
+        if (!paymentScreenshot) {
+          res.status(400).json({ error: 'Payment screenshot proof is required.' });
+          return;
+        }
+      }
+
+      const now = new Date().toISOString();
+      const newStatus = isFree ? 'approved' : 'submitted_for_verification';
+
+      db.prepare(`
+        UPDATE advertisement_orders
+        SET status = ?,
+            payment_reference = ?,
+            payment_screenshot = ?,
+            approved_at = CASE WHEN ? = 'approved' THEN ? ELSE approved_at END,
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        newStatus,
+        paymentReference?.trim() || null,
+        paymentScreenshot || null,
+        newStatus,
+        now,
+        now,
+        id
+      );
+
+      const updatedOrder = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id);
+
+      // Notify admin team via email
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : undefined);
+      sendAdminAdOrderNotification(updatedOrder, origin).catch((e) =>
+        console.warn('[Ad Order Notification Email Error]:', e.message)
+      );
+
+      res.json({
+        success: true,
+        orderId: id,
+        status: newStatus,
+        message: isFree
+          ? 'Free listing order confirmed! You can now submit your account details.'
+          : 'Payment submitted for verification. We will verify and notify you shortly.',
+      });
+    } catch (err: any) {
+      console.error('[Submit Payment Error]:', err);
+      res.status(500).json({ error: 'Failed to submit payment evidence.' });
+    }
+  });
+
+  // Public: Create Advertisement Order (Legacy / Direct modal support)
   app.post('/api/advertisement/orders', async (req: Request, res: Response): Promise<void> => {
     try {
       const {
@@ -591,23 +840,176 @@ export function registerAdvertisementRoutes(
     }
   });
 
-  // Admin: Mark advertisement as live
-  app.post('/api/admin/advertisement/orders/:id/mark-live', authenticate, adminOnly, (req: Request, res: Response): void => {
+  // Admin: Upload package documentation (PDF/DOCX/TXT content)
+  app.post('/api/admin/advertisement/plans/:id/upload-doc', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const now = new Date().toISOString();
+      const { textContent, filename } = req.body || {};
 
+      if (!textContent || !String(textContent).trim()) {
+        res.status(400).json({ error: 'Document text content is required.' });
+        return;
+      }
+
+      const plan = db.prepare('SELECT id, name FROM advertisement_plans WHERE id = ?').get(id) as any;
+      if (!plan) {
+        res.status(404).json({ error: 'Advertisement plan not found.' });
+        return;
+      }
+
+      const now = new Date().toISOString();
       db.prepare(`
-        UPDATE advertisement_orders
-        SET status = 'live',
+        UPDATE advertisement_plans
+        SET documentation_text = ?,
             updated_at = ?
         WHERE id = ?
-      `).run(now, id);
+      `).run(textContent.trim(), now, id);
 
-      res.json({ success: true, message: 'Advertisement campaign marked as LIVE.' });
+      res.json({
+        success: true,
+        message: `Documentation "${filename || 'document'}" saved for ${plan.name}.`,
+      });
     } catch (err: any) {
-      console.error('[Mark Ad Live Error]:', err);
-      res.status(500).json({ error: 'Failed to mark advertisement as live.' });
+      console.error('[Upload Doc Error]:', err);
+      res.status(500).json({ error: 'Failed to save documentation.' });
+    }
+  });
+
+  // Admin: Generate AI draft from package configuration and uploaded documentation
+  app.post('/api/admin/advertisement/plans/:id/generate-ai-draft', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const plan = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(id) as any;
+      if (!plan) {
+        res.status(404).json({ error: 'Advertisement plan not found.' });
+        return;
+      }
+
+      const docContext = plan.documentation_text || '';
+      const benefits = typeof plan.benefits_json === 'string' ? JSON.parse(plan.benefits_json || '[]') : [];
+
+      let reach = '50,000+ Indian Valorant Gamers';
+      let placement = 'Instagram Story';
+      if (plan.instagram_post) placement = 'Instagram Permanent Feed Post';
+      if (plan.highlight_placement) placement += ' + Permanent Highlight';
+      if (plan.website_listing) placement += ' + Website Listing';
+
+      if (plan.category === 'premium') {
+        reach = '100,000+ Verified Buyers & VIP Network';
+      } else if (plan.category === 'trade') {
+        reach = 'Active Weapon Skin Traders & Collectors Across India';
+      }
+
+      const draftDescription = docContext.length > 50
+        ? `Official VIB ${plan.name} Campaign. ${docContext.slice(0, 300)}...`
+        : `Broadcast your Valorant inventory with our official ${plan.name} campaign. Designed for players seeking high-converting visibility across our community of over 50,000 verified gamers. ${plan.description}`;
+
+      const draftHighlights = [
+        `Direct Instagram seller tag & clickable DM contact`,
+        `Average 15-minute queue activation after payment approval`,
+        `100% scam-free escrow middleman support on all inquiries`,
+        ...benefits.slice(0, 3)
+      ];
+
+      const draftInstructions = [
+        'Only list premium and exclusive knife/gun skins (do not include standard battle pass items).',
+        'Upload one clear high-resolution screenshot displaying the in-game collection grid.',
+        'Keep your Instagram account public and direct messages open for interested buyers.',
+        'Verify your WhatsApp number for instant middleman notifications.'
+      ];
+
+      const draftFaq = [
+        {
+          question: `How fast will my ${plan.name} campaign be published?`,
+          answer: `Once your payment is verified and you submit your account screenshot, our marketing team formats the creative and schedules your promotion within 15 to 45 minutes.`
+        },
+        {
+          question: 'Do buyers contact me directly or through VIB?',
+          answer: 'Interested buyers will contact your tagged Instagram handle directly. Once you agree on price, our verified middleman agents facilitate the account handover with 100% escrow protection.'
+        },
+        {
+          question: 'What happens if my profile does not sell immediately?',
+          answer: plan.category === 'premium'
+            ? 'Our VIP Luxury and Guaranteed Sale packages include continuous buyer matchmaking and repeated story pushes until a confirmed sale occurs.'
+            : 'You can upgrade your package or extend with a trade highlight at any time through your VIB dashboard.'
+        }
+      ];
+
+      const aiDraft = {
+        title: plan.name,
+        price: plan.price,
+        description: draftDescription,
+        highlights: draftHighlights,
+        instructions: draftInstructions,
+        reach,
+        placement,
+        faq: draftFaq,
+        generated_at: new Date().toISOString(),
+      };
+
+      const now = new Date().toISOString();
+      db.prepare(`
+        UPDATE advertisement_plans
+        SET ai_draft_json = ?,
+            updated_at = ?
+        WHERE id = ?
+      `).run(JSON.stringify(aiDraft), now, id);
+
+      res.json({
+        success: true,
+        aiDraft,
+        message: 'AI draft generated successfully. Review and approve before publishing.',
+      });
+    } catch (err: any) {
+      console.error('[Generate AI Draft Error]:', err);
+      res.status(500).json({ error: 'Failed to generate AI draft.' });
+    }
+  });
+
+  // Admin: Publish approved draft to live product page
+  app.post('/api/admin/advertisement/plans/:id/publish-draft', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { description, highlights, instructions, faq, reach, placement } = req.body || {};
+
+      const plan = db.prepare('SELECT id, name FROM advertisement_plans WHERE id = ?').get(id) as any;
+      if (!plan) {
+        res.status(404).json({ error: 'Advertisement plan not found.' });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      db.prepare(`
+        UPDATE advertisement_plans
+        SET description = COALESCE(?, description),
+            benefits_json = CASE WHEN ? IS NOT NULL THEN ? ELSE benefits_json END,
+            conditions_json = CASE WHEN ? IS NOT NULL THEN ? ELSE conditions_json END,
+            custom_faq_json = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_faq_json END,
+            reach_estimate = COALESCE(?, reach_estimate),
+            placement_tag = COALESCE(?, placement_tag),
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        description || null,
+        highlights ? 1 : null,
+        highlights ? JSON.stringify(highlights) : null,
+        instructions ? 1 : null,
+        instructions ? JSON.stringify(instructions) : null,
+        faq ? 1 : null,
+        faq ? JSON.stringify(faq) : null,
+        reach || null,
+        placement || null,
+        now,
+        id
+      );
+
+      res.json({
+        success: true,
+        message: `Package "${plan.name}" published successfully! Live product page is updated.`,
+      });
+    } catch (err: any) {
+      console.error('[Publish Draft Error]:', err);
+      res.status(500).json({ error: 'Failed to publish draft.' });
     }
   });
 }
