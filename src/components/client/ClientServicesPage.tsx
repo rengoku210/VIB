@@ -30,6 +30,9 @@ import {
   Crosshair,
   TrendingUp,
   TrendingDown,
+  AlertCircle,
+  RefreshCw,
+  Repeat,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -40,7 +43,7 @@ import { getAuctionTimeLeft } from '../../utils/auction';
 
 interface ClientServicesPageProps {
   currency: Currency;
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, id?: string) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number) => void;
   initialSection?: string;
@@ -117,6 +120,36 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   };
 
   useEffect(() => { void fetchFeaturedAuction(); }, []);
+
+  // ---------------------------------------------------------------------------
+  // FEATURED LISTINGS — real published marketplace listings (public feed)
+  // ---------------------------------------------------------------------------
+  const [featuredDbListings, setFeaturedDbListings] = useState<any[]>([]);
+  const [isListingsLoading, setIsListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState<string | null>(null);
+
+  const fetchFeaturedListings = async () => {
+    setIsListingsLoading(true);
+    setListingsError(null);
+    try {
+      const response = await fetch('/api/listings?limit=8&status=published');
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data || !Array.isArray(data.listings)) {
+        throw new Error('Invalid listings response.');
+      }
+      setFeaturedDbListings(data.listings);
+    } catch (err) {
+      console.warn('Could not load featured listings:', err);
+      setListingsError('Unable to load featured listings.');
+    } finally {
+      setIsListingsLoading(false);
+    }
+  };
+
+  useEffect(() => { void fetchFeaturedListings(); }, []);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -303,48 +336,36 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
     },
   ];
 
-  const featuredListings = [
-    {
-      id: 'l-1',
-      badge: 'FEATURED',
-      badgeColor: 'amber',
-      code: 'Profile #A1023',
-      sub: 'Level Ready • Multiple Features',
-      priceINR: 4999,
-      weapon: '/assets/items/vandal-prime.png',
-      weaponName: 'Prime Vandal Edition',
-    },
-    {
-      id: 'l-2',
-      badge: 'POPULAR',
-      badgeColor: 'amber',
-      code: 'Profile #B4481',
-      sub: 'Well Configured • Great Value',
-      priceINR: 3499,
-      weapon: '/assets/items/vandal-rgx.png',
-      weaponName: 'RGX 11z Pro Vandal',
-    },
-    {
-      id: 'l-3',
-      badge: '',
-      badgeColor: '',
-      code: 'Profile #C7710',
-      sub: 'Premium Setup • Ready to Use',
-      priceINR: 5999,
-      weapon: '/assets/items/phantom-rgx.png',
-      weaponName: 'RGX 11z Pro Phantom',
-    },
-    {
-      id: 'l-4',
-      badge: 'NEW',
-      badgeColor: 'cyan',
-      code: 'Profile #D3091',
-      sub: 'Balanced Profile • Smooth Progress',
-      priceINR: 2499,
-      weapon: '/assets/items/vandal-reaper.png',
-      weaponName: 'Reaver Vandal Spec',
-    },
-  ];
+  // Map real published listings from the public API to the featured-listing card shape
+  const mapFeaturedListing = (item: any) => {
+    let images: string[] = [];
+    try {
+      images = Array.isArray(item.images) ? item.images : (item.images_json ? JSON.parse(item.images_json) : []);
+    } catch {}
+
+    const rankStr = item.rank || 'Diamond';
+    const rankFirstWord = rankStr.toLowerCase().split(' ')[0];
+    const fallbackImg = rankFirstWord === 'immortal'
+      ? '/assets/hires/profiles/card1_exact.jpg'
+      : rankFirstWord === 'ascendant'
+      ? '/assets/hires/profiles/card2_exact.jpg'
+      : rankFirstWord === 'radiant'
+      ? '/assets/hires/profiles/card3_exact.jpg'
+      : '/assets/hires/profiles/card4_exact.jpg';
+
+    return {
+      id: item.id,
+      badge: item.featured ? 'FEATURED' : '',
+      badgeColor: item.featured ? 'amber' : '',
+      code: item.title,
+      sub: `Level ${item.level || 1} • ${rankStr}`,
+      priceINR: Number(item.price_inr),
+      weapon: images.length > 0 && images[0] ? images[0] : fallbackImg,
+      weaponName: item.title || 'Valorant Account',
+    };
+  };
+
+  const featuredListings = featuredDbListings.map(mapFeaturedListing);
 
   return (
     <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white space-y-12 pb-20 font-sans">
@@ -842,8 +863,17 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
               <button
+                type="button"
+                onClick={() => onNavigate('advertise', 'trade-exchange-plans')}
+                className="px-5 py-2.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 hover:text-white font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Repeat className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Trade / Exchange Plans</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => onNavigate('community')}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 transition-all cursor-pointer flex items-center gap-1.5"
               >
@@ -1241,65 +1271,121 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {featuredListings.map((l) => (
-              <div
-                key={l.id}
-                className="rounded-xl bg-[#090714] border border-white/[0.08] hover:border-purple-500/50 overflow-hidden flex flex-col justify-between group shadow-md transition-all duration-300"
-              >
-                <div className="relative aspect-[16/9] w-full bg-gradient-to-b from-[#140e28] to-[#090714] p-3 flex items-center justify-center overflow-hidden border-b border-white/[0.06]">
-                  {l.badge && (
-                    <span
-                      className={`absolute top-2 left-2 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-rajdhani z-10 shadow-sm ${
-                        l.badgeColor === 'cyan'
-                          ? 'bg-sky-500 text-black'
-                          : 'bg-[#f59e0b] text-black'
-                      }`}
-                    >
-                      {l.badge}
-                    </span>
-                  )}
-
-                  <img
-                    src={l.weapon}
-                    alt={l.weaponName}
-                    className="w-[85%] h-auto object-contain filter drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] group-hover:scale-105 transition-transform duration-300 relative z-10"
-                  />
-                </div>
-
-                <div className="p-3.5 space-y-2">
-                  <div>
-                    <div className="font-extrabold text-sm text-white font-rajdhani tracking-wide">
-                      {l.code}
+          {isListingsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl bg-[#090714] border border-white/[0.08] overflow-hidden flex flex-col animate-pulse"
+                >
+                  <div className="aspect-[16/9] w-full bg-gradient-to-b from-[#140e28] to-[#090714]" />
+                  <div className="p-3.5 space-y-2.5">
+                    <div className="h-4 w-3/4 rounded bg-white/10" />
+                    <div className="h-3 w-1/2 rounded bg-white/5" />
+                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+                      <div className="h-4 w-16 rounded bg-white/10" />
+                      <div className="h-8 w-8 rounded-lg bg-white/10" />
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">{l.sub}</div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-between border-t border-white/[0.06]">
-                    <div className="font-black text-sm text-white font-rajdhani tracking-wide">
-                      {formatCurrencyPrice(l.priceINR, currency)}
-                    </div>
-                    <button
-                      onClick={() =>
-                        onAddToCart({
-                          id: l.id,
-                          title: l.code,
-                          subtitle: l.sub,
-                          priceINR: l.priceINR,
-                          type: 'profile',
-                          image: l.weapon,
-                          quantity: 1,
-                        })
-                      }
-                      className="p-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/30 transition-colors cursor-pointer shadow-sm"
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
+          ) : listingsError ? (
+            <div className="p-5 rounded-xl bg-rose-950/30 border border-rose-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>Unable to load featured listings.</span>
               </div>
-            ))}
-          </div>
+              <button
+                type="button"
+                onClick={() => void fetchFeaturedListings()}
+                className="min-h-[40px] px-4 py-2 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/40 text-rose-200 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : featuredListings.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {featuredListings.map((l) => (
+                <div
+                  key={l.id}
+                  className="rounded-xl bg-[#090714] border border-white/[0.08] hover:border-purple-500/50 overflow-hidden flex flex-col justify-between group shadow-md transition-all duration-300"
+                >
+                  <div className="relative aspect-[16/9] w-full bg-gradient-to-b from-[#140e28] to-[#090714] p-3 flex items-center justify-center overflow-hidden border-b border-white/[0.06]">
+                    {l.badge && (
+                      <span
+                        className={`absolute top-2 left-2 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-rajdhani z-10 shadow-sm ${
+                          l.badgeColor === 'cyan'
+                            ? 'bg-sky-500 text-black'
+                            : 'bg-[#f59e0b] text-black'
+                        }`}
+                      >
+                        {l.badge}
+                      </span>
+                    )}
+
+                    <img
+                      src={l.weapon}
+                      alt={l.weaponName}
+                      className="w-[85%] h-auto object-contain filter drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] group-hover:scale-105 transition-transform duration-300 relative z-10"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/items/vandal-prime.png';
+                      }}
+                    />
+                  </div>
+
+                  <div className="p-3.5 space-y-2">
+                    <div>
+                      <div className="font-extrabold text-sm text-white font-rajdhani tracking-wide">
+                        {l.code}
+                      </div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{l.sub}</div>
+                    </div>
+
+                    <div className="pt-2 space-y-2 border-t border-white/[0.06]">
+                      <div className="flex items-center justify-between">
+                        <div className="font-black text-sm text-white font-rajdhani tracking-wide">
+                          {formatCurrencyPrice(l.priceINR, currency)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onAddToCart({
+                              id: l.id,
+                              title: l.code,
+                              subtitle: l.sub,
+                              priceINR: l.priceINR,
+                              type: 'profile',
+                              image: l.weapon,
+                              quantity: 1,
+                            })
+                          }
+                          aria-label={`Add ${l.code} to cart`}
+                          title="Add to Cart"
+                          className="min-w-[40px] min-h-[40px] p-2 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/30 transition-colors cursor-pointer shadow-sm flex items-center justify-center"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('listing', l.id)}
+                        className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#4c1d95] to-[#581c87] hover:from-[#6b21a8] hover:to-[#7e22ce] text-white text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-purple-500/40 flex items-center justify-center gap-1.5"
+                      >
+                        <span>View</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[11px] text-gray-500 italic text-center py-4 font-sans">
+              No published listings are available right now.
+            </div>
+          )}
         </div>
       </section>
 

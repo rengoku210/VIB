@@ -292,6 +292,11 @@ function AppContent() {
         url.searchParams.delete('page');
         url.searchParams.delete('id');
         url.searchParams.delete('slug');
+        if (id) {
+          url.hash = id.startsWith('#') ? id : '#' + id;
+        } else {
+          url.hash = '';
+        }
       } else {
         url.pathname = '/';
         url.searchParams.set('page', page);
@@ -310,12 +315,17 @@ function AppContent() {
     } catch {}
     if (id && page !== 'listing' && page !== 'legal') {
       const cleanId = id.startsWith('#') ? id.slice(1) : id;
-      setTimeout(() => {
+      let attempts = 0;
+      const attemptScroll = () => {
         const el = document.getElementById(cleanId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (attempts < 10) {
+          attempts++;
+          setTimeout(attemptScroll, 80);
         }
-      }, 150);
+      };
+      setTimeout(attemptScroll, 100);
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

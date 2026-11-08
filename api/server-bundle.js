@@ -34,10 +34,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
-    var fs6 = __require("fs");
-    var path5 = __require("path");
+    var fs8 = __require("fs");
+    var path7 = __require("path");
     var os3 = __require("os");
-    var crypto14 = __require("crypto");
+    var crypto16 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -166,7 +166,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs6.existsSync(filepath)) {
+            if (fs8.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -174,15 +174,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path5.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
       }
-      if (fs6.existsSync(possibleVaultPath)) {
+      if (fs8.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path5.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path7.join(os3.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -199,7 +199,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path5.resolve(process.cwd(), ".env");
+      const dotenvPath = path7.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -227,13 +227,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path6 of optionPaths) {
+      for (const path8 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs6.readFileSync(path6, { encoding }));
+          const parsed = DotenvModule.parse(fs8.readFileSync(path8, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path6} ${e.message}`);
+            _debug(`failed to load ${path8} ${e.message}`);
           }
           lastError = e;
         }
@@ -246,7 +246,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path5.relative(process.cwd(), filePath);
+            const relative = path7.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -281,7 +281,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto14.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto16.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error2) {
@@ -1656,8 +1656,8 @@ var require_node = __commonJS({
           }
           break;
         case "FILE":
-          var fs6 = __require("fs");
-          stream2 = new fs6.SyncWriteStream(fd2, { autoClose: false });
+          var fs8 = __require("fs");
+          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -14444,11 +14444,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path5) {
-      if (!path5 || typeof path5 !== "string") {
+    function lookup(path7) {
+      if (!path7 || typeof path7 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path5).toLowerCase().substr(1);
+      var extension2 = extname("x." + path7).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -18101,8 +18101,8 @@ var require_node2 = __commonJS({
           }
           break;
         case "FILE":
-          var fs6 = __require("fs");
-          stream2 = new fs6.SyncWriteStream(fd2, { autoClose: false });
+          var fs8 = __require("fs");
+          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -18168,8 +18168,8 @@ var require_escape_html = __commonJS({
   "node_modules/escape-html/index.js"(exports, module) {
     "use strict";
     var matchHtmlRegExp = /["'&<>]/;
-    module.exports = escapeHtml;
-    function escapeHtml(string) {
+    module.exports = escapeHtml3;
+    function escapeHtml3(string) {
       var str = "" + string;
       var match = matchHtmlRegExp.exec(str);
       if (!match) {
@@ -18300,7 +18300,7 @@ var require_finalhandler = __commonJS({
     "use strict";
     var debug = require_src2()("finalhandler");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml3 = require_escape_html();
     var onFinished = require_on_finished();
     var parseUrl = require_parseurl();
     var statuses = require_statuses();
@@ -18312,7 +18312,7 @@ var require_finalhandler = __commonJS({
     };
     var isFinished = onFinished.isFinished;
     function createHtmlDocument(message) {
-      var body = escapeHtml(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
+      var body = escapeHtml3(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
       return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body + "</pre>\n</body>\n</html>\n";
     }
     module.exports = finalhandler;
@@ -18820,8 +18820,8 @@ var require_node3 = __commonJS({
           }
           break;
         case "FILE":
-          var fs6 = __require("fs");
-          stream2 = new fs6.SyncWriteStream(fd2, { autoClose: false });
+          var fs8 = __require("fs");
+          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -18909,7 +18909,7 @@ var require_path_to_regexp = __commonJS({
   "node_modules/path-to-regexp/index.js"(exports, module) {
     module.exports = pathToRegexp;
     var MATCHING_GROUP_REGEXP = /\\.|\((?:\?<(.*?)>)?(?!\?)/g;
-    function pathToRegexp(path5, keys, options) {
+    function pathToRegexp(path7, keys, options) {
       options = options || {};
       keys = keys || [];
       var strict = options.strict;
@@ -18923,8 +18923,8 @@ var require_path_to_regexp = __commonJS({
       var pos = 0;
       var backtrack = "";
       var m;
-      if (path5 instanceof RegExp) {
-        while (m = MATCHING_GROUP_REGEXP.exec(path5.source)) {
+      if (path7 instanceof RegExp) {
+        while (m = MATCHING_GROUP_REGEXP.exec(path7.source)) {
           if (m[0][0] === "\\") continue;
           keys.push({
             name: m[1] || name2++,
@@ -18932,18 +18932,18 @@ var require_path_to_regexp = __commonJS({
             offset: m.index
           });
         }
-        return path5;
+        return path7;
       }
-      if (Array.isArray(path5)) {
-        path5 = path5.map(function(value) {
+      if (Array.isArray(path7)) {
+        path7 = path7.map(function(value) {
           return pathToRegexp(value, keys, options).source;
         });
-        return new RegExp(path5.join("|"), flags);
+        return new RegExp(path7.join("|"), flags);
       }
-      if (typeof path5 !== "string") {
+      if (typeof path7 !== "string") {
         throw new TypeError("path must be a string, array of strings, or regular expression");
       }
-      path5 = path5.replace(
+      path7 = path7.replace(
         /\\.|(\/)?(\.)?:(\w+)(\(.*?\))?(\*)?(\?)?|[.*]|\/\(/g,
         function(match, slash, format, key, capture, star, optional, offset) {
           if (match[0] === "\\") {
@@ -18960,7 +18960,7 @@ var require_path_to_regexp = __commonJS({
           if (slash || format) {
             backtrack = "";
           } else {
-            backtrack += path5.slice(pos, offset);
+            backtrack += path7.slice(pos, offset);
           }
           pos = offset + match.length;
           if (match === "*") {
@@ -18990,7 +18990,7 @@ var require_path_to_regexp = __commonJS({
           return result;
         }
       );
-      while (m = MATCHING_GROUP_REGEXP.exec(path5)) {
+      while (m = MATCHING_GROUP_REGEXP.exec(path7)) {
         if (m[0][0] === "\\") continue;
         if (keysOffset + i === keys.length || keys[keysOffset + i].offset > m.index) {
           keys.splice(keysOffset + i, 0, {
@@ -19002,13 +19002,13 @@ var require_path_to_regexp = __commonJS({
         }
         i++;
       }
-      path5 += strict ? "" : path5[path5.length - 1] === "/" ? "?" : "/?";
+      path7 += strict ? "" : path7[path7.length - 1] === "/" ? "?" : "/?";
       if (end) {
-        path5 += "$";
-      } else if (path5[path5.length - 1] !== "/") {
-        path5 += lookahead ? "(?=/|$)" : "(?:/|$)";
+        path7 += "$";
+      } else if (path7[path7.length - 1] !== "/") {
+        path7 += lookahead ? "(?=/|$)" : "(?:/|$)";
       }
-      return new RegExp("^" + path5, flags);
+      return new RegExp("^" + path7, flags);
     }
   }
 });
@@ -19021,19 +19021,19 @@ var require_layer = __commonJS({
     var debug = require_src3()("express:router:layer");
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     module.exports = Layer;
-    function Layer(path5, options, fn) {
+    function Layer(path7, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path5, options, fn);
+        return new Layer(path7, options, fn);
       }
-      debug("new %o", path5);
+      debug("new %o", path7);
       var opts = options || {};
       this.handle = fn;
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.regexp = pathRegexp(path5, this.keys = [], opts);
-      this.regexp.fast_star = path5 === "*";
-      this.regexp.fast_slash = path5 === "/" && opts.end === false;
+      this.regexp = pathRegexp(path7, this.keys = [], opts);
+      this.regexp.fast_star = path7 === "*";
+      this.regexp.fast_slash = path7 === "/" && opts.end === false;
     }
     Layer.prototype.handle_error = function handle_error(error2, req, res, next) {
       var fn = this.handle;
@@ -19057,20 +19057,20 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match(path5) {
+    Layer.prototype.match = function match(path7) {
       var match2;
-      if (path5 != null) {
+      if (path7 != null) {
         if (this.regexp.fast_slash) {
           this.params = {};
           this.path = "";
           return true;
         }
         if (this.regexp.fast_star) {
-          this.params = { "0": decode_param(path5) };
-          this.path = path5;
+          this.params = { "0": decode_param(path7) };
+          this.path = path7;
           return true;
         }
-        match2 = this.regexp.exec(path5);
+        match2 = this.regexp.exec(path7);
       }
       if (!match2) {
         this.params = void 0;
@@ -19163,10 +19163,10 @@ var require_route = __commonJS({
     var slice = Array.prototype.slice;
     var toString = Object.prototype.toString;
     module.exports = Route;
-    function Route(path5) {
-      this.path = path5;
+    function Route(path7) {
+      this.path = path7;
       this.stack = [];
-      debug("new %o", path5);
+      debug("new %o", path7);
       this.methods = {};
     }
     Route.prototype._handles_method = function _handles_method(method) {
@@ -19378,8 +19378,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        var path5 = getPathname(req);
-        if (path5 == null) {
+        var path7 = getPathname(req);
+        if (path7 == null) {
           return done(layerError);
         }
         var layer;
@@ -19387,7 +19387,7 @@ var require_router = __commonJS({
         var route;
         while (match !== true && idx < stack.length) {
           layer = stack[idx++];
-          match = matchLayer(layer, path5);
+          match = matchLayer(layer, path7);
           route = layer.route;
           if (typeof match !== "boolean") {
             layerError = layerError || match;
@@ -19425,18 +19425,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handle_request(req, res, next);
           } else {
-            trim_prefix(layer, layerError, layerPath, path5);
+            trim_prefix(layer, layerError, layerPath, path7);
           }
           sync = 0;
         });
       }
-      function trim_prefix(layer, layerError, layerPath, path5) {
+      function trim_prefix(layer, layerError, layerPath, path7) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path5.slice(0, layerPath.length)) {
+          if (layerPath !== path7.slice(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          var c = path5[layerPath.length];
+          var c = path7[layerPath.length];
           if (c && c !== "/" && c !== ".") return next(layerError);
           debug("trim prefix (%s) from url %s", layerPath, req.url);
           removed = layerPath;
@@ -19514,7 +19514,7 @@ var require_router = __commonJS({
     };
     proto.use = function use(fn) {
       var offset = 0;
-      var path5 = "/";
+      var path7 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -19522,7 +19522,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path5 = fn;
+          path7 = fn;
         }
       }
       var callbacks = flatten(slice.call(arguments, offset));
@@ -19534,8 +19534,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("Router.use() requires a middleware function but got a " + gettype(fn));
         }
-        debug("use %o %s", path5, fn.name || "<anonymous>");
-        var layer = new Layer(path5, {
+        debug("use %o %s", path7, fn.name || "<anonymous>");
+        var layer = new Layer(path7, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -19545,9 +19545,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    proto.route = function route(path5) {
-      var route2 = new Route(path5);
-      var layer = new Layer(path5, {
+    proto.route = function route(path7) {
+      var route2 = new Route(path7);
+      var layer = new Layer(path7, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -19557,8 +19557,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      proto[method] = function(path5) {
-        var route = this.route(path5);
+      proto[method] = function(path7) {
+        var route = this.route(path7);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -19594,9 +19594,9 @@ var require_router = __commonJS({
       }
       return toString.call(obj).replace(objectRegExp, "$1");
     }
-    function matchLayer(layer, path5) {
+    function matchLayer(layer, path7) {
       try {
-        return layer.match(path5);
+        return layer.match(path7);
       } catch (err) {
         return err;
       }
@@ -19714,13 +19714,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports, module) {
     "use strict";
     var debug = require_src3()("express:view");
-    var path5 = __require("path");
-    var fs6 = __require("fs");
-    var dirname = path5.dirname;
-    var basename = path5.basename;
-    var extname = path5.extname;
-    var join = path5.join;
-    var resolve3 = path5.resolve;
+    var path7 = __require("path");
+    var fs8 = __require("fs");
+    var dirname = path7.dirname;
+    var basename = path7.basename;
+    var extname = path7.extname;
+    var join = path7.join;
+    var resolve3 = path7.resolve;
     module.exports = View;
     function View(name2, options) {
       var opts = options || {};
@@ -19749,17 +19749,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name2) {
-      var path6;
+      var path8;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name2);
-      for (var i = 0; i < roots.length && !path6; i++) {
+      for (var i = 0; i < roots.length && !path8; i++) {
         var root = roots[i];
         var loc = resolve3(root, name2);
         var dir = dirname(loc);
         var file = basename(loc);
-        path6 = this.resolve(dir, file);
+        path8 = this.resolve(dir, file);
       }
-      return path6;
+      return path8;
     };
     View.prototype.render = function render(options, callback) {
       debug('render "%s"', this.path);
@@ -19767,21 +19767,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve4(dir, file) {
       var ext = this.ext;
-      var path6 = join(dir, file);
-      var stat = tryStat(path6);
+      var path8 = join(dir, file);
+      var stat = tryStat(path8);
       if (stat && stat.isFile()) {
-        return path6;
+        return path8;
       }
-      path6 = join(dir, basename(file, ext), "index" + ext);
-      stat = tryStat(path6);
+      path8 = join(dir, basename(file, ext), "index" + ext);
+      stat = tryStat(path8);
       if (stat && stat.isFile()) {
-        return path6;
+        return path8;
       }
     };
-    function tryStat(path6) {
-      debug('stat "%s"', path6);
+    function tryStat(path8) {
+      debug('stat "%s"', path8);
       try {
-        return fs6.statSync(path6);
+        return fs8.statSync(path8);
       } catch (e) {
         return void 0;
       }
@@ -20386,8 +20386,8 @@ var require_node4 = __commonJS({
           }
           break;
         case "FILE":
-          var fs6 = __require("fs");
-          stream2 = new fs6.SyncWriteStream(fd2, { autoClose: false });
+          var fs8 = __require("fs");
+          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -20439,14 +20439,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto14 = __require("crypto");
+    var crypto16 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto14.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto16.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -20559,8 +20559,8 @@ var require_types = __commonJS({
 // node_modules/mime/mime.js
 var require_mime = __commonJS({
   "node_modules/mime/mime.js"(exports, module) {
-    var path5 = __require("path");
-    var fs6 = __require("fs");
+    var path7 = __require("path");
+    var fs8 = __require("fs");
     function Mime() {
       this.types = /* @__PURE__ */ Object.create(null);
       this.extensions = /* @__PURE__ */ Object.create(null);
@@ -20581,7 +20581,7 @@ var require_mime = __commonJS({
     };
     Mime.prototype.load = function(file) {
       this._loading = file;
-      var map2 = {}, content = fs6.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
+      var map2 = {}, content = fs8.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
       lines.forEach(function(line) {
         var fields = line.replace(/\s*#.*|^\s*|\s*$/g, "").split(/\s+/);
         map2[fields.shift()] = fields;
@@ -20589,8 +20589,8 @@ var require_mime = __commonJS({
       this.define(map2);
       this._loading = null;
     };
-    Mime.prototype.lookup = function(path6, fallback) {
-      var ext = path6.replace(/^.*[\.\/\\]/, "").toLowerCase();
+    Mime.prototype.lookup = function(path8, fallback) {
+      var ext = path8.replace(/^.*[\.\/\\]/, "").toLowerCase();
       return this.types[ext] || fallback || this.default_type;
     };
     Mime.prototype.extension = function(mimeType) {
@@ -20816,36 +20816,36 @@ var require_send = __commonJS({
     var deprecate = require_depd()("send");
     var destroy = require_destroy();
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml3 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs6 = __require("fs");
+    var fs8 = __require("fs");
     var mime = require_mime();
     var ms = require_ms5();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path5 = __require("path");
+    var path7 = __require("path");
     var statuses = require_statuses();
     var Stream2 = __require("stream");
     var util3 = __require("util");
-    var extname = path5.extname;
-    var join = path5.join;
-    var normalize = path5.normalize;
-    var resolve3 = path5.resolve;
-    var sep = path5.sep;
+    var extname = path7.extname;
+    var join = path7.join;
+    var normalize = path7.normalize;
+    var resolve3 = path7.resolve;
+    var sep = path7.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module.exports = send;
     module.exports.mime = mime;
-    function send(req, path6, options) {
-      return new SendStream(req, path6, options);
+    function send(req, path8, options) {
+      return new SendStream(req, path8, options);
     }
-    function SendStream(req, path6, options) {
+    function SendStream(req, path8, options) {
       Stream2.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path6;
+      this.path = path8;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -20891,8 +20891,8 @@ var require_send = __commonJS({
       this._index = index2;
       return this;
     }, "send.index: pass index as option");
-    SendStream.prototype.root = function root(path6) {
-      this._root = resolve3(String(path6));
+    SendStream.prototype.root = function root(path8) {
+      this._root = resolve3(String(path8));
       debug("root %s", this._root);
       return this;
     };
@@ -20916,7 +20916,7 @@ var require_send = __commonJS({
       }
       var res = this.res;
       var msg = statuses.message[status] || String(status);
-      var doc = createHtmlDocument("Error", escapeHtml(msg));
+      var doc = createHtmlDocument("Error", escapeHtml3(msg));
       clearHeaders(res);
       if (err && err.headers) {
         setHeaders(res, err.headers);
@@ -21005,10 +21005,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path6) {
+    SendStream.prototype.redirect = function redirect(path8) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path6);
+        this.emit("directory", res, path8);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -21016,7 +21016,7 @@ var require_send = __commonJS({
         return;
       }
       var loc = encodeUrl(collapseLeadingSlashes(this.path + "/"));
-      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml3(loc));
       res.statusCode = 301;
       res.setHeader("Content-Type", "text/html; charset=UTF-8");
       res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -21028,42 +21028,42 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe(res) {
       var root = this._root;
       this.res = res;
-      var path6 = decode2(this.path);
-      if (path6 === -1) {
+      var path8 = decode2(this.path);
+      if (path8 === -1) {
         this.error(400);
         return res;
       }
-      if (~path6.indexOf("\0")) {
+      if (~path8.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path6) {
-          path6 = normalize("." + sep + path6);
+        if (path8) {
+          path8 = normalize("." + sep + path8);
         }
-        if (UP_PATH_REGEXP.test(path6)) {
-          debug('malicious path "%s"', path6);
+        if (UP_PATH_REGEXP.test(path8)) {
+          debug('malicious path "%s"', path8);
           this.error(403);
           return res;
         }
-        parts = path6.split(sep);
-        path6 = normalize(join(root, path6));
+        parts = path8.split(sep);
+        path8 = normalize(join(root, path8));
       } else {
-        if (UP_PATH_REGEXP.test(path6)) {
-          debug('malicious path "%s"', path6);
+        if (UP_PATH_REGEXP.test(path8)) {
+          debug('malicious path "%s"', path8);
           this.error(403);
           return res;
         }
-        parts = normalize(path6).split(sep);
-        path6 = resolve3(path6);
+        parts = normalize(path8).split(sep);
+        path8 = resolve3(path8);
       }
       if (containsDotFile(parts)) {
         var access = this._dotfiles;
         if (access === void 0) {
           access = parts[parts.length - 1][0] === "." ? this._hidden ? "allow" : "ignore" : "allow";
         }
-        debug('%s dotfile "%s"', access, path6);
+        debug('%s dotfile "%s"', access, path8);
         switch (access) {
           case "allow":
             break;
@@ -21077,13 +21077,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path6);
+        this.sendIndex(path8);
         return res;
       }
-      this.sendFile(path6);
+      this.sendFile(path8);
       return res;
     };
-    SendStream.prototype.send = function send2(path6, stat) {
+    SendStream.prototype.send = function send2(path8, stat) {
       var len = stat.size;
       var options = this.options;
       var opts = {};
@@ -21095,9 +21095,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path6);
-      this.setHeader(path6, stat);
-      this.type(path6);
+      debug('pipe "%s"', path8);
+      this.setHeader(path8, stat);
+      this.type(path8);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -21146,28 +21146,28 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path6, opts);
+      this.stream(path8, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path6) {
+    SendStream.prototype.sendFile = function sendFile(path8) {
       var i = 0;
       var self = this;
-      debug('stat "%s"', path6);
-      fs6.stat(path6, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path6) && path6[path6.length - 1] !== sep) {
+      debug('stat "%s"', path8);
+      fs8.stat(path8, function onstat(err, stat) {
+        if (err && err.code === "ENOENT" && !extname(path8) && path8[path8.length - 1] !== sep) {
           return next(err);
         }
         if (err) return self.onStatError(err);
-        if (stat.isDirectory()) return self.redirect(path6);
-        self.emit("file", path6, stat);
-        self.send(path6, stat);
+        if (stat.isDirectory()) return self.redirect(path8);
+        self.emit("file", path8, stat);
+        self.send(path8, stat);
       });
       function next(err) {
         if (self._extensions.length <= i) {
           return err ? self.onStatError(err) : self.error(404);
         }
-        var p = path6 + "." + self._extensions[i++];
+        var p = path8 + "." + self._extensions[i++];
         debug('stat "%s"', p);
-        fs6.stat(p, function(err2, stat) {
+        fs8.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p, stat);
@@ -21175,7 +21175,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path6) {
+    SendStream.prototype.sendIndex = function sendIndex(path8) {
       var i = -1;
       var self = this;
       function next(err) {
@@ -21183,9 +21183,9 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join(path6, self._index[i]);
+        var p = join(path8, self._index[i]);
         debug('stat "%s"', p);
-        fs6.stat(p, function(err2, stat) {
+        fs8.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p, stat);
@@ -21194,10 +21194,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path6, options) {
+    SendStream.prototype.stream = function stream(path8, options) {
       var self = this;
       var res = this.res;
-      var stream2 = fs6.createReadStream(path6, options);
+      var stream2 = fs8.createReadStream(path8, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -21212,10 +21212,10 @@ var require_send = __commonJS({
         self.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path6) {
+    SendStream.prototype.type = function type(path8) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var type2 = mime.lookup(path6);
+      var type2 = mime.lookup(path8);
       if (!type2) {
         debug("no content-type");
         return;
@@ -21224,9 +21224,9 @@ var require_send = __commonJS({
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2 + (charset ? "; charset=" + charset : ""));
     };
-    SendStream.prototype.setHeader = function setHeader(path6, stat) {
+    SendStream.prototype.setHeader = function setHeader(path8, stat) {
       var res = this.res;
-      this.emit("headers", res, path6, stat);
+      this.emit("headers", res, path8, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -21285,9 +21285,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode2(path6) {
+    function decode2(path8) {
       try {
-        return decodeURIComponent(path6);
+        return decodeURIComponent(path8);
       } catch (err) {
         return -1;
       }
@@ -22212,10 +22212,10 @@ var require_utils2 = __commonJS({
     var querystring = __require("querystring");
     exports.etag = createETagGenerator({ weak: false });
     exports.wetag = createETagGenerator({ weak: true });
-    exports.isAbsolute = function(path5) {
-      if ("/" === path5[0]) return true;
-      if (":" === path5[1] && ("\\" === path5[2] || "/" === path5[2])) return true;
-      if ("\\\\" === path5.substring(0, 2)) return true;
+    exports.isAbsolute = function(path7) {
+      if ("/" === path7[0]) return true;
+      if (":" === path7[1] && ("\\" === path7[2] || "/" === path7[2])) return true;
+      if ("\\\\" === path7.substring(0, 2)) return true;
     };
     exports.flatten = deprecate.function(
       flatten,
@@ -22427,7 +22427,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path5 = "/";
+      var path7 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -22435,7 +22435,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path5 = fn;
+          path7 = fn;
         }
       }
       var fns = flatten(slice.call(arguments, offset));
@@ -22446,12 +22446,12 @@ var require_application = __commonJS({
       var router = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path5, fn2);
+          return router.use(path7, fn2);
         }
-        debug(".use app under %s", path5);
-        fn2.mountpath = path5;
+        debug(".use app under %s", path7);
+        fn2.mountpath = path7;
         fn2.parent = this;
-        router.use(path5, function mounted_app(req, res, next) {
+        router.use(path7, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -22463,9 +22463,9 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path5) {
+    app2.route = function route(path7) {
       this.lazyrouter();
-      return this._router.route(path5);
+      return this._router.route(path7);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -22516,7 +22516,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path5() {
+    app2.path = function path7() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -22532,19 +22532,19 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path5) {
+      app2[method] = function(path7) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path5);
+          return this.set(path7);
         }
         this.lazyrouter();
-        var route = this._router.route(path5);
+        var route = this._router.route(path7);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path5) {
+    app2.all = function all(path7) {
       this.lazyrouter();
-      var route = this._router.route(path5);
+      var route = this._router.route(path7);
       var args = slice.call(arguments, 1);
       for (var i = 0; i < methods.length; i++) {
         route[methods[i]].apply(route, args);
@@ -23303,7 +23303,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path5() {
+    defineGetter(req, "path", function path7() {
       return parse2(this).pathname;
     });
     defineGetter(req, "hostname", function hostname() {
@@ -23355,11 +23355,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto14 = __require("crypto");
+    var crypto16 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto14.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto16.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -23368,7 +23368,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto14.createHash("sha1").update(str).digest("hex");
+      return crypto16.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -23621,11 +23621,11 @@ var require_response = __commonJS({
     var createError = require_http_errors();
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml3 = require_escape_html();
     var http2 = __require("http");
     var isAbsolute = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
-    var path5 = __require("path");
+    var path7 = __require("path");
     var statuses = require_statuses();
     var merge = require_utils_merge();
     var sign2 = require_cookie_signature().sign;
@@ -23634,9 +23634,9 @@ var require_response = __commonJS({
     var setCharset = require_utils2().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path5.extname;
+    var extname = path7.extname;
     var mime = send.mime;
-    var resolve3 = path5.resolve;
+    var resolve3 = path7.resolve;
     var vary = require_vary();
     var res = Object.create(http2.ServerResponse.prototype);
     module.exports = res;
@@ -23813,26 +23813,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path6, options, callback) {
+    res.sendFile = function sendFile(path8, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path6) {
+      if (!path8) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path6 !== "string") {
+      if (typeof path8 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute(path6)) {
+      if (!opts.root && !isAbsolute(path8)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path6);
+      var pathname = encodeURI(path8);
       var file = send(req, pathname, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
@@ -23842,7 +23842,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.sendfile = function(path6, options, callback) {
+    res.sendfile = function(path8, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
@@ -23852,7 +23852,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      var file = send(req, path6, opts);
+      var file = send(req, path8, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
         if (err && err.code === "EISDIR") return next();
@@ -23865,7 +23865,7 @@ var require_response = __commonJS({
       res.sendfile,
       "res.sendfile: Use res.sendFile instead"
     );
-    res.download = function download(path6, filename, options, callback) {
+    res.download = function download(path8, filename, options, callback) {
       var done = callback;
       var name2 = filename;
       var opts = options || null;
@@ -23882,7 +23882,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name2 || path6)
+        "Content-Disposition": contentDisposition(name2 || path8)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -23895,7 +23895,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve3(path6) : path6;
+      var fullPath = !opts.root ? resolve3(path8) : path8;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -24027,7 +24027,7 @@ var require_response = __commonJS({
           body = statuses.message[status] + ". Redirecting to " + address;
         },
         html: function() {
-          var u = escapeHtml(address);
+          var u = escapeHtml3(address);
           body = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
         },
         default: function() {
@@ -24159,7 +24159,7 @@ var require_serve_static = __commonJS({
   "node_modules/serve-static/index.js"(exports, module) {
     "use strict";
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml3 = require_escape_html();
     var parseUrl = require_parseurl();
     var resolve3 = __require("path").resolve;
     var send = require_send();
@@ -24196,11 +24196,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path5 = parseUrl(req).pathname;
-        if (path5 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path5 = "";
+        var path7 = parseUrl(req).pathname;
+        if (path7 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path7 = "";
         }
-        var stream = send(req, path5, opts);
+        var stream = send(req, path7, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -24246,7 +24246,7 @@ var require_serve_static = __commonJS({
         originalUrl.path = null;
         originalUrl.pathname = collapseLeadingSlashes(originalUrl.pathname + "/");
         var loc = encodeUrl(url.format(originalUrl));
-        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml3(loc));
         res.statusCode = 301;
         res.setHeader("Content-Type", "text/html; charset=UTF-8");
         res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -24349,9 +24349,9 @@ var require_express2 = __commonJS({
 
 // server/index.ts
 var import_express = __toESM(require_express2(), 1);
-import crypto13 from "node:crypto";
-import fs5 from "node:fs";
-import path4 from "node:path";
+import crypto15 from "node:crypto";
+import fs7 from "node:fs";
+import path6 from "node:path";
 
 // server/db.ts
 import { DatabaseSync } from "node:sqlite";
@@ -25038,6 +25038,231 @@ db.prepare(`
     AND payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
 `).run();
 db.exec(`
+  CREATE TABLE IF NOT EXISTS staff_permissions (
+    user_id TEXT PRIMARY KEY,
+    permissions_json TEXT NOT NULL,
+    assigned_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN category TEXT DEFAULT 'valorant_profile'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN account_type TEXT DEFAULT 'radiant_full_access'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN visibility TEXT DEFAULT 'public'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN account_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN server_region TEXT DEFAULT 'AP / Mumbai'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN account_level INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN inventory_details TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN included_benefits TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN restrictions TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN transfer_info TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN additional_info_json TEXT DEFAULT '{}'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN gallery_images_json TEXT DEFAULT '[]'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN starts_at TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN reserve_price REAL");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN instant_buy_price REAL");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN deposit_pct REAL DEFAULT 50.0");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN min_deposit_amount REAL DEFAULT 500");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline_hours INTEGER DEFAULT 24");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN currency TEXT DEFAULT 'INR'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN tax_rate_pct REAL DEFAULT 0");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN platform_fee_pct REAL DEFAULT 0");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_method TEXT DEFAULT 'escrow_instant_transfer'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_eta TEXT DEFAULT 'Instant (< 15 mins)'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN transfer_instructions TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_conditions TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN customer_info_required TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN post_purchase_support TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN min_eligibility TEXT DEFAULT 'verified_email'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN verification_required INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN allow_bid_raise INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN allow_cancellation INTEGER DEFAULT 0");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN deposit_refund_rules TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN forfeiture_rules TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winner_user_id TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winner_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winning_bid_amount REAL");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN winner_payment_status TEXT DEFAULT 'unpaid'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_status TEXT DEFAULT 'pending'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN paused_at TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE auction_lots ADD COLUMN pause_reason TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN account_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN bank_name TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN account_number TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN ifsc_code TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN status TEXT DEFAULT 'active'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN payment_methods_json TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE payment_settings ADD COLUMN is_active INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE rental_listings ADD COLUMN seller_whatsapp TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE rental_listings ADD COLUMN handover_instructions TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE rental_listings ADD COLUMN whatsapp_handover_enabled INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE rental_bookings ADD COLUMN handover_status TEXT DEFAULT 'pending'");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE rental_bookings ADD COLUMN whatsapp_contacted_at TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE orders ADD COLUMN delivery_data_json TEXT");
+} catch {
+}
+db.exec(`
   CREATE TABLE IF NOT EXISTS riot_accounts (
     id TEXT PRIMARY KEY,
     game_name TEXT NOT NULL COLLATE NOCASE,
@@ -25055,6 +25280,72 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_riot_id ON riot_accounts(riot_id);
   CREATE INDEX IF NOT EXISTS idx_riot_name_tag ON riot_accounts(game_name, tag_line);
 `);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS kyc_submissions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    dob TEXT,
+    address TEXT,
+    id_type TEXT NOT NULL,
+    id_number TEXT NOT NULL,
+    documents_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    rejection_reason TEXT,
+    admin_notes TEXT,
+    submitted_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    reviewed_by TEXT,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_kyc_user ON kyc_submissions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc_submissions(status);
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS emi_applications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    order_id TEXT,
+    product_title TEXT NOT NULL,
+    total_amount REAL NOT NULL,
+    initial_payment REAL NOT NULL DEFAULT 0,
+    amount_financed REAL NOT NULL,
+    tenure_months INTEGER NOT NULL,
+    interest_rate_pct REAL NOT NULL DEFAULT 0,
+    emi_amount REAL NOT NULL,
+    total_installments INTEGER NOT NULL,
+    installments_paid INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending_approval',
+    rejection_reason TEXT,
+    start_date TEXT,
+    next_due_date TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    reviewed_by TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_emi_user ON emi_applications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_emi_status ON emi_applications(status);
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS emi_payments (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    installment_no INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    due_date TEXT NOT NULL,
+    paid_at TEXT,
+    payment_method TEXT DEFAULT 'UPI_QR',
+    utr TEXT,
+    evidence_image TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    verified_by TEXT,
+    verified_at TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_emi_pay_app ON emi_payments(application_id);
+  CREATE INDEX IF NOT EXISTS idx_emi_pay_status ON emi_payments(status);
+`);
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -25067,6 +25358,28 @@ function verifyPassword(password, hash, salt) {
   } catch {
     return false;
   }
+}
+function validateImageMagicBytes(buffer, mime) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return false;
+  const m = String(mime || "").toLowerCase();
+  if (m === "image/png" || m === "png") {
+    return buffer.length >= 8 && buffer[0] === 137 && buffer[1] === 80 && buffer[2] === 78 && buffer[3] === 71 && buffer[4] === 13 && buffer[5] === 10 && buffer[6] === 26 && buffer[7] === 10;
+  }
+  if (m === "image/jpeg" || m === "image/jpg" || m === "jpeg" || m === "jpg") {
+    return buffer.length >= 3 && buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255;
+  }
+  if (m === "image/webp" || m === "webp") {
+    if (buffer.length < 12) return false;
+    return buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+  }
+  if (m === "image/gif" || m === "gif") {
+    const head = buffer.toString("ascii", 0, Math.min(6, buffer.length));
+    return head === "GIF87a" || head === "GIF89a";
+  }
+  if (m === "application/pdf" || m === "pdf") {
+    return buffer.slice(0, 5).toString("ascii") === "%PDF-";
+  }
+  return false;
 }
 if ((process.env.NODE_ENV === "production" || process.env.VERCEL) && !process.env.SESSION_SECRET) {
   console.warn("[Security Warning] SESSION_SECRET environment variable is not set on Vercel/Production. Using default platform session secret.");
@@ -26335,7 +26648,7 @@ async function verifyRiotId(rawName, rawTag) {
 
 // server/overhaulRoutes.ts
 import crypto3 from "node:crypto";
-function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
+function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2) {
   app2.get("/api/rentals", (req, res) => {
     try {
       const listings = db2.prepare("SELECT * FROM rental_listings WHERE status = 'available' ORDER BY created_at DESC").all();
@@ -26426,6 +26739,10 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
         now,
         now
       );
+      db2.prepare(`
+        UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ?
+        WHERE id = ?
+      `).run(bookingId, now, listing.id);
       const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, "") : "") || "919181801766";
       const cleanPhone = sellerPhone.startsWith("91") ? sellerPhone : "91" + sellerPhone;
       const whatsappText = encodeURIComponent(
@@ -26461,7 +26778,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to retrieve your rental bookings." });
     }
   });
-  app2.get("/api/admin/rentals", authenticate2, adminOnly2, (req, res) => {
+  app2.get("/api/admin/rentals", authenticate2, staffOnly2, (req, res) => {
     try {
       const listings = db2.prepare("SELECT * FROM rental_listings ORDER BY created_at DESC").all();
       const bookings = db2.prepare(`
@@ -26477,7 +26794,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to retrieve rental administrative data." });
     }
   });
-  app2.post("/api/admin/rentals", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/rentals", authenticate2, staffOnly2, (req, res) => {
     try {
       const {
         title,
@@ -26535,7 +26852,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to create rental profile." });
     }
   });
-  app2.put("/api/admin/rentals/:id", authenticate2, adminOnly2, (req, res) => {
+  app2.put("/api/admin/rentals/:id", authenticate2, staffOnly2, (req, res) => {
     try {
       const listing = db2.prepare("SELECT * FROM rental_listings WHERE id = ?").get(req.params.id);
       if (!listing) {
@@ -26596,7 +26913,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to update rental profile." });
     }
   });
-  app2.post("/api/admin/rentals/bookings/:id/activate", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/rentals/bookings/:id/activate", authenticate2, staffOnly2, (req, res) => {
     try {
       const booking = db2.prepare("SELECT * FROM rental_bookings WHERE id = ?").get(req.params.id);
       if (!booking) {
@@ -26636,14 +26953,14 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
         startsAt,
         booking.id
       );
-      db2.prepare("UPDATE rental_listings SET status = 'rented', updated_at = ? WHERE id = ?").run(startsAt, booking.listing_id);
+      db2.prepare("UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ? WHERE id = ?").run(booking.id, startsAt, booking.listing_id);
       res.json({ message: "Rental session activated and credentials issued to customer.", expiresAt });
     } catch (err) {
       console.error("Admin activate rental error:", err);
       res.status(500).json({ error: "Failed to activate rental session." });
     }
   });
-  app2.put("/api/admin/rentals/bookings/:id/handover-status", authenticate2, adminOnly2, (req, res) => {
+  app2.put("/api/admin/rentals/bookings/:id/handover-status", authenticate2, staffOnly2, (req, res) => {
     try {
       const bookingId = req.params.id;
       const { handover_status, notes } = req.body || {};
@@ -26669,11 +26986,12 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       `).run(handover_status, contactedAt, notes, notes, now, bookingId);
       try {
         db2.prepare(`
-          INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           "aud_" + crypto3.randomBytes(6).toString("hex"),
           req.user?.id || "admin",
+          req.user?.name || "System Admin",
           "UPDATE_RENTAL_HANDOVER_STATUS",
           "rental_booking",
           bookingId,
@@ -26690,7 +27008,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to update handover status." });
     }
   });
-  app2.post("/api/admin/rentals/bookings/:id/complete", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/rentals/bookings/:id/complete", authenticate2, staffOnly2, (req, res) => {
     try {
       const booking = db2.prepare("SELECT * FROM rental_bookings WHERE id = ?").get(req.params.id);
       if (!booking) {
@@ -26705,7 +27023,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
           updated_at = ?
         WHERE id = ?
       `).run(now, booking.id);
-      db2.prepare("UPDATE rental_listings SET status = 'available', updated_at = ? WHERE id = ?").run(now, booking.listing_id);
+      db2.prepare("UPDATE rental_listings SET status = 'available', current_rental_id = NULL, updated_at = ? WHERE id = ?").run(now, booking.listing_id);
       res.json({ message: "Rental session concluded and listing returned to active pool." });
     } catch (err) {
       console.error("Admin complete rental error:", err);
@@ -27082,29 +27400,73 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
         WHERE id = ?
       `).run(now, lot.id);
       const orderId = "ORD-AUC-" + Date.now().toString().slice(-6);
+      const winnerUser = db2.prepare("SELECT email, name FROM users WHERE id = ?").get(req.user.id);
+      const winnerName = winnerUser?.name || req.user.name || "Auction Winner";
+      const winnerEmail = winnerUser?.email || req.user.email || "";
+      const detailsPayload = {
+        lotId: lot.id,
+        lotNumber: lot.lot_number,
+        winningBid: winningAmount,
+        depositCredited,
+        remainingSettled: remainingBalance,
+        ref: transactionRef,
+        customerName: winnerName,
+        customerEmail: winnerEmail,
+        deliveryDetails: req.body?.delivery_details || null
+      };
       db2.prepare(`
         INSERT INTO orders (
-          id, user_id, title, amount, original_price, currency, status,
-          payment_status, payment_method, customer_name, customer_email,
-          delivery_details, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?, ?, ?)
+          id, user_id, type, title, amount, currency, status,
+          payment_status, payment_method, details_json, created_at, updated_at
+        ) VALUES (?, ?, 'auction', ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?)
       `).run(
         orderId,
         req.user.id,
         `Auction Winner: ${lot.title} (${lot.lot_number})`,
-        remainingBalance,
         winningAmount,
-        req.user.name,
-        req.user.email,
-        JSON.stringify({
-          lotId: lot.id,
-          lotNumber: lot.lot_number,
-          winningBid: winningAmount,
-          depositCredited,
-          remainingSettled: remainingBalance,
-          ref: transactionRef
-        }),
+        JSON.stringify(detailsPayload),
         now,
+        now
+      );
+      const invoiceRows = db2.prepare("SELECT id FROM invoices WHERE id LIKE 'VIB-INV-%'").all();
+      let maxInvoiceNum = 0;
+      for (const r of invoiceRows) {
+        const match = r.id.match(/^VIB-INV-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxInvoiceNum) maxInvoiceNum = num;
+        }
+      }
+      const invoiceId = "VIB-INV-" + String(maxInvoiceNum + 1).padStart(4, "0");
+      db2.prepare(`
+        INSERT INTO invoices (
+          id, order_id, customer_id, customer_name, customer_email, customer_phone,
+          billing_address, seller_name, product_name, description, quantity,
+          unit_price, subtotal, platform_fee, tax_amount, discount_amount, final_total,
+          currency, status, payment_method, payment_reference, notes, invoice_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, '', 'India', 'VIB Official Store', ?, ?, 1, ?, ?, 0, 0, 0, ?, 'INR', 'paid', 'UPI_QR', ?, 'Auction settlement invoice generated automatically.', ?, ?)
+      `).run(
+        invoiceId,
+        orderId,
+        req.user.id,
+        winnerName,
+        winnerEmail,
+        `Auction Winner: ${lot.title} (${lot.lot_number})`,
+        `Auction settlement for ${lot.lot_number}. Winning bid \u20B9${winningAmount}, deposit credited \u20B9${depositCredited}, balance settled \u20B9${remainingBalance}.`,
+        winningAmount,
+        winningAmount,
+        winningAmount,
+        transactionRef || null,
+        now,
+        now
+      );
+      db2.prepare(`
+        INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
+        VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
+      `).run(
+        "msg_" + crypto3.randomBytes(6).toString("hex"),
+        orderId,
+        `Auction balance settled for ${lot.title} (${lot.lot_number}). Your winning account credentials will be delivered here after staff verification.`,
         now
       );
       res.json({
@@ -27119,7 +27481,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to settle winner balance." });
     }
   });
-  app2.get("/api/admin/auctions", authenticate2, adminOnly2, (req, res) => {
+  app2.get("/api/admin/auctions", authenticate2, staffOnly2, (req, res) => {
     try {
       const lots = db2.prepare("SELECT * FROM auction_lots ORDER BY created_at DESC").all();
       res.json({ lots });
@@ -27128,7 +27490,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to retrieve auctions." });
     }
   });
-  app2.post("/api/admin/auctions", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions", authenticate2, staffOnly2, (req, res) => {
     try {
       const {
         title,
@@ -27243,7 +27605,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to create auction lot: " + err.message });
     }
   });
-  app2.put("/api/admin/auctions/:id", authenticate2, adminOnly2, (req, res) => {
+  app2.put("/api/admin/auctions/:id", authenticate2, staffOnly2, (req, res) => {
     try {
       const lot = db2.prepare("SELECT * FROM auction_lots WHERE id = ?").get(req.params.id);
       if (!lot) {
@@ -27296,7 +27658,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to update auction lot." });
     }
   });
-  app2.post("/api/admin/auctions/:id/publish", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions/:id/publish", authenticate2, staffOnly2, (req, res) => {
     try {
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db2.prepare("UPDATE auction_lots SET status = 'active', updated_at = ? WHERE id = ?").run(now, req.params.id);
@@ -27306,7 +27668,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to publish auction." });
     }
   });
-  app2.post("/api/admin/auctions/:id/pause", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions/:id/pause", authenticate2, staffOnly2, (req, res) => {
     try {
       const { reason = "Administrative verification in progress" } = req.body || {};
       const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -27317,7 +27679,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to pause auction." });
     }
   });
-  app2.post("/api/admin/auctions/:id/resume", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions/:id/resume", authenticate2, staffOnly2, (req, res) => {
     try {
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db2.prepare("UPDATE auction_lots SET status = 'active', paused_at = NULL, pause_reason = NULL, updated_at = ? WHERE id = ?").run(now, req.params.id);
@@ -27327,7 +27689,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to resume auction." });
     }
   });
-  app2.post("/api/admin/auctions/:id/cancel", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions/:id/cancel", authenticate2, staffOnly2, (req, res) => {
     try {
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db2.prepare("UPDATE auction_lots SET status = 'cancelled', updated_at = ? WHERE id = ?").run(now, req.params.id);
@@ -27346,7 +27708,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to cancel auction." });
     }
   });
-  app2.post("/api/admin/auctions/:id/close", authenticate2, adminOnly2, (req, res) => {
+  app2.post("/api/admin/auctions/:id/close", authenticate2, staffOnly2, (req, res) => {
     try {
       const lot = db2.prepare("SELECT * FROM auction_lots WHERE id = ?").get(req.params.id);
       if (!lot) {
@@ -27396,7 +27758,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to close auction." });
     }
   });
-  app2.get("/api/admin/auctions/:id/bidders", authenticate2, adminOnly2, (req, res) => {
+  app2.get("/api/admin/auctions/:id/bidders", authenticate2, staffOnly2, (req, res) => {
     try {
       const bids = db2.prepare(`
         SELECT ab.*, u.email as bidder_email, u.phone as bidder_phone
@@ -27494,7 +27856,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to load historical version." });
     }
   });
-  app2.post("/api/legal/consent", (req, res) => {
+  app2.post("/api/legal/consent", authenticate2, (req, res) => {
     try {
       const {
         policySlug,
@@ -27508,18 +27870,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, adminOnly2) {
         const p = db2.prepare("SELECT id FROM legal_policies WHERE slug = ?").get(policySlug);
         if (p) policyId = p.id;
       }
-      let userId = "anonymous_guest";
-      const authHeader = req.headers["authorization"];
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        const signed = verifySignedToken(token);
-        if (signed && signed.id) {
-          userId = signed.id;
-        }
-      }
-      if (userId === "anonymous_guest" && req.body.userId) {
-        userId = req.body.userId;
-      }
+      const userId = req.user?.id || "anonymous_guest";
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
       const userAgent = req.headers["user-agent"] || "Unknown Browser";
       const id = "cns_" + crypto3.randomBytes(6).toString("hex");
@@ -28173,11 +28524,11 @@ var Cookies = class {
   getPath(pathname) {
     const pathParts = (pathname || "/").split("/");
     pathParts.pop();
-    const path5 = pathParts.join("/").trim();
-    if (path5.charAt(0) !== "/") {
+    const path7 = pathParts.join("/").trim();
+    if (path7.charAt(0) !== "/") {
       return "/";
     }
-    return path5;
+    return path7;
   }
 };
 var cookies_default = Cookies;
@@ -41250,6 +41601,1133 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
   });
 }
 
+// server/kycRoutes.ts
+import crypto13 from "node:crypto";
+import fs5 from "node:fs";
+import path4 from "node:path";
+var KYC_DOCS_DIR = path4.join(databaseDirectory, "kyc_docs");
+var MAX_DOC_BYTES = 5 * 1024 * 1024;
+var DATA_URL_RE = /^data:(image\/(?:jpeg|jpg|png|webp|gif)|application\/pdf);base64,(.+)$/i;
+var MIME_TO_EXT = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf"
+};
+function escapeHtml(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function decodeDocumentDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(DATA_URL_RE);
+  if (!match) {
+    return { ok: false, error: "Invalid document format. Expected a base64 image/PDF data URL." };
+  }
+  const mime = match[1].toLowerCase();
+  const ext = MIME_TO_EXT[mime];
+  if (!ext) {
+    return { ok: false, error: "Unsupported document file type. Allowed: jpeg, png, webp, gif, pdf." };
+  }
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length === 0) {
+    return { ok: false, error: "Document data is empty." };
+  }
+  if (buffer.length > MAX_DOC_BYTES) {
+    return { ok: false, error: "Document exceeds the maximum 5MB file size limit." };
+  }
+  if (!validateImageMagicBytes(buffer, mime)) {
+    return { ok: false, error: "File content does not match declared format." };
+  }
+  return { ok: true, buffer, ext };
+}
+function saveDocumentDataUrl(dataUrl) {
+  const decoded = decodeDocumentDataUrl(dataUrl);
+  if (!decoded.ok) {
+    return { ok: false, error: decoded.error };
+  }
+  const filename = `kycdoc_${Date.now()}_${crypto13.randomBytes(4).toString("hex")}.${decoded.ext}`;
+  fs5.writeFileSync(path4.join(KYC_DOCS_DIR, filename), decoded.buffer);
+  return { ok: true, filename };
+}
+function parseDocumentsJson(json) {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) => !!item && typeof item.filename === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+function latestSubmissionForUser(userId) {
+  return db.prepare(`
+    SELECT * FROM kyc_submissions
+    WHERE user_id = ?
+    ORDER BY submitted_at DESC
+    LIMIT 1
+  `).get(userId);
+}
+function upsertProfileKycStatus(userId, status, now) {
+  db.prepare(`
+    INSERT INTO profiles (user_id, wallet_balance, kyc_status, total_orders, created_at)
+    VALUES (?, 0, ?, 0, ?)
+    ON CONFLICT(user_id) DO UPDATE SET kyc_status = excluded.kyc_status
+  `).run(userId, status, now);
+}
+function insertNotification(userId, title, message, now) {
+  db.prepare(`
+    INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+    VALUES (?, ?, ?, ?, 'kyc', 0, ?)
+  `).run("notif_" + crypto13.randomBytes(8).toString("hex"), userId, title, message, now);
+}
+function buildKycEmailHtml(title, message) {
+  return `
+    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #a855f7; border-bottom: 2px solid #581c87; padding-bottom: 8px;">VIB DIGITAL SERVICES</h2>
+      <h3 style="color: #ffffff;">${escapeHtml(title)}</h3>
+      <p style="color: #e2e8f0; line-height: 1.6;">${escapeHtml(message)}</p>
+      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px;">VIB Official Security Desk | Support WhatsApp: +91 91818 01766</p>
+    </div>
+  `;
+}
+function registerKycRoutes(app2, helpers) {
+  const { authenticate: authenticate2, staffOnly: staffOnly2, isEmailConfigured: isEmailConfigured2, sendEmail: sendEmail2, logAudit: logAudit2 } = helpers;
+  app2.post("/api/kyc/submit", authenticate2, (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      const { fullName, dob, address, idType, idNumber, documents } = req.body || {};
+      const name2 = String(fullName || "").trim();
+      const idTypeStr = String(idType || "").trim();
+      const idNumberStr = String(idNumber || "").trim();
+      const dobStr = dob ? String(dob).trim() : "";
+      const addressStr = address ? String(address).trim() : "";
+      if (name2.length < 2) {
+        res.status(400).json({ error: "Full name is required (at least 2 characters)." });
+        return;
+      }
+      if (!idTypeStr) {
+        res.status(400).json({ error: "ID type is required." });
+        return;
+      }
+      if (!idNumberStr) {
+        res.status(400).json({ error: "ID number is required." });
+        return;
+      }
+      if (!Array.isArray(documents) || documents.length < 1 || documents.length > 4) {
+        res.status(400).json({ error: "Please provide between 1 and 4 document uploads." });
+        return;
+      }
+      const pending = db.prepare(`
+        SELECT id FROM kyc_submissions
+        WHERE user_id = ? AND status = 'pending'
+        ORDER BY submitted_at DESC
+        LIMIT 1
+      `).get(user.id);
+      if (pending) {
+        res.status(409).json({ error: "A KYC verification is already pending review." });
+        return;
+      }
+      const profile = db.prepare("SELECT kyc_status FROM profiles WHERE user_id = ?").get(user.id);
+      if (profile?.kyc_status === "approved") {
+        res.status(409).json({ error: "Your identity is already verified." });
+        return;
+      }
+      const validatedDocs = [];
+      for (let i = 0; i < documents.length; i++) {
+        const doc = documents[i];
+        const label = doc && typeof doc.label === "string" ? doc.label.trim() : "";
+        if (!label) {
+          res.status(400).json({ error: `Document ${i + 1} is missing a label.` });
+          return;
+        }
+        const dataUrl = String(doc.dataUrl || "");
+        const decoded = decodeDocumentDataUrl(dataUrl);
+        if (!decoded.ok) {
+          res.status(400).json({ error: `Document ${i + 1}: ${decoded.error}` });
+          return;
+        }
+        validatedDocs.push({ label, dataUrl });
+      }
+      const savedFilenames = [];
+      try {
+        fs5.mkdirSync(KYC_DOCS_DIR, { recursive: true });
+        for (const doc of validatedDocs) {
+          const result = saveDocumentDataUrl(doc.dataUrl);
+          if (!result.ok) {
+            throw new Error(result.error || "Failed to store document");
+          }
+          savedFilenames.push(result.filename);
+        }
+      } catch (err) {
+        for (const f of savedFilenames) {
+          try {
+            fs5.unlinkSync(path4.join(KYC_DOCS_DIR, f));
+          } catch {
+          }
+        }
+        console.error("[KYC Submit] Failed to store documents:", err);
+        res.status(500).json({ error: "Failed to save KYC documents." });
+        return;
+      }
+      const submissionId = "kyc_" + crypto13.randomBytes(6).toString("hex");
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const documentsJson = JSON.stringify(
+        validatedDocs.map((doc, i) => ({ label: doc.label, filename: savedFilenames[i] }))
+      );
+      try {
+        db.prepare(`
+          INSERT INTO kyc_submissions (
+            id, user_id, full_name, dob, address, id_type, id_number, documents_json,
+            status, rejection_reason, admin_notes, submitted_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, ?)
+        `).run(
+          submissionId,
+          user.id,
+          name2,
+          dobStr || null,
+          addressStr || null,
+          idTypeStr,
+          idNumberStr,
+          documentsJson,
+          now,
+          now
+        );
+        upsertProfileKycStatus(user.id, "pending", now);
+        insertNotification(
+          user.id,
+          "KYC Submission Received",
+          "Your KYC documents are under review. We will notify you once verified.",
+          now
+        );
+        if (isEmailConfigured2()) {
+          const html = buildKycEmailHtml(
+            "KYC Submission Received",
+            "We have received your KYC documents and they are now under review. We will notify you once verification is complete."
+          );
+          void sendEmail2({ to: user.email, subject: "KYC Verification Received", html }).catch((e) => console.warn("[KYC Email] Submit confirmation failed:", e));
+        }
+        res.status(201).json({
+          success: true,
+          submission: { id: submissionId, status: "pending", submittedAt: now }
+        });
+      } catch (err) {
+        for (const f of savedFilenames) {
+          try {
+            fs5.unlinkSync(path4.join(KYC_DOCS_DIR, f));
+          } catch {
+          }
+        }
+        console.error("[KYC Submit] Database error:", err);
+        res.status(500).json({ error: "Failed to submit KYC verification." });
+      }
+    } catch (err) {
+      console.error("[KYC Submit] Unexpected error:", err);
+      res.status(500).json({ error: "Failed to submit KYC verification." });
+    }
+  });
+  app2.get("/api/user/kyc", authenticate2, (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      const profile = db.prepare("SELECT kyc_status FROM profiles WHERE user_id = ?").get(user.id);
+      const kycStatus = profile?.kyc_status || "unverified";
+      const submission = latestSubmissionForUser(user.id);
+      if (!submission) {
+        res.json({ submission: null, kycStatus });
+        return;
+      }
+      res.json({
+        submission: {
+          id: submission.id,
+          fullName: submission.full_name,
+          dob: submission.dob,
+          address: submission.address,
+          idType: submission.id_type,
+          idNumber: submission.id_number,
+          status: submission.status,
+          rejectionReason: submission.rejection_reason,
+          documents: parseDocumentsJson(submission.documents_json),
+          submittedAt: submission.submitted_at,
+          reviewedAt: submission.reviewed_at
+        },
+        kycStatus
+      });
+    } catch (err) {
+      console.error("[KYC User Status] Error:", err);
+      res.status(500).json({ error: "Failed to load KYC status." });
+    }
+  });
+  app2.get("/api/user/kyc/docs/:file", authenticate2, (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      const safeName = path4.basename(String(req.params.file || ""));
+      if (!safeName || safeName !== req.params.file) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      const submission = latestSubmissionForUser(user.id);
+      const documents = submission ? parseDocumentsJson(submission.documents_json) : [];
+      const allowed = documents.some((doc) => doc.filename === safeName);
+      if (!allowed) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      const filePath = path4.join(KYC_DOCS_DIR, safeName);
+      if (!fs5.existsSync(filePath)) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      res.sendFile(filePath);
+    } catch (err) {
+      console.error("[KYC User Doc] Error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to retrieve document." });
+      }
+    }
+  });
+  app2.get("/api/admin/kyc/list", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const statusFilter = typeof req.query.status === "string" ? req.query.status.trim() : "";
+      const validStatuses = ["pending", "approved", "rejected"];
+      let rows;
+      if (statusFilter) {
+        if (!validStatuses.includes(statusFilter)) {
+          res.status(400).json({ error: "Invalid status filter. Use pending, approved, or rejected." });
+          return;
+        }
+        rows = db.prepare(`
+          SELECT s.id, s.user_id, s.full_name, s.id_type, s.id_number, s.status,
+                 s.submitted_at, s.reviewed_at, s.rejection_reason, s.documents_json,
+                 u.email AS user_email, u.name AS user_name, u.phone AS user_phone
+          FROM kyc_submissions s
+          LEFT JOIN users u ON u.id = s.user_id
+          WHERE s.status = ?
+          ORDER BY s.submitted_at DESC
+        `).all(statusFilter);
+      } else {
+        rows = db.prepare(`
+          SELECT s.id, s.user_id, s.full_name, s.id_type, s.id_number, s.status,
+                 s.submitted_at, s.reviewed_at, s.rejection_reason, s.documents_json,
+                 u.email AS user_email, u.name AS user_name, u.phone AS user_phone
+          FROM kyc_submissions s
+          LEFT JOIN users u ON u.id = s.user_id
+          ORDER BY s.submitted_at DESC
+        `).all();
+      }
+      const submissions = rows.map((r) => ({
+        id: r.id,
+        user_id: r.user_id,
+        full_name: r.full_name,
+        id_type: r.id_type,
+        id_number: r.id_number,
+        status: r.status,
+        submitted_at: r.submitted_at,
+        reviewed_at: r.reviewed_at,
+        user_email: r.user_email,
+        user_name: r.user_name,
+        user_phone: r.user_phone,
+        documents_count: parseDocumentsJson(r.documents_json).length,
+        rejection_reason: r.rejection_reason
+      }));
+      res.json({ success: true, submissions });
+    } catch (err) {
+      console.error("[KYC Admin List] Error:", err);
+      res.status(500).json({ error: "Failed to list KYC submissions." });
+    }
+  });
+  app2.get("/api/admin/kyc/:id", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const row = db.prepare(`
+        SELECT s.*, u.email AS user_email, u.name AS user_name, u.phone AS user_phone
+        FROM kyc_submissions s
+        LEFT JOIN users u ON u.id = s.user_id
+        WHERE s.id = ?
+      `).get(String(req.params.id || ""));
+      if (!row) {
+        res.status(404).json({ error: "KYC submission not found." });
+        return;
+      }
+      res.json({
+        success: true,
+        submission: {
+          id: row.id,
+          user_id: row.user_id,
+          full_name: row.full_name,
+          dob: row.dob,
+          address: row.address,
+          id_type: row.id_type,
+          id_number: row.id_number,
+          status: row.status,
+          rejection_reason: row.rejection_reason,
+          admin_notes: row.admin_notes,
+          submitted_at: row.submitted_at,
+          reviewed_at: row.reviewed_at,
+          reviewed_by: row.reviewed_by,
+          documents: parseDocumentsJson(row.documents_json),
+          user_email: row.user_email,
+          user_name: row.user_name,
+          user_phone: row.user_phone
+        }
+      });
+    } catch (err) {
+      console.error("[KYC Admin Detail] Error:", err);
+      res.status(500).json({ error: "Failed to load KYC submission." });
+    }
+  });
+  app2.get("/api/admin/kyc/docs/:file", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const safeName = path4.basename(String(req.params.file || ""));
+      if (!safeName || safeName !== req.params.file) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      const filePath = path4.join(KYC_DOCS_DIR, safeName);
+      if (!fs5.existsSync(filePath)) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      res.sendFile(filePath);
+    } catch (err) {
+      console.error("[KYC Admin Doc] Error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to retrieve document." });
+      }
+    }
+  });
+  app2.put("/api/admin/kyc/:id/status", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const staff = req.user;
+      if (!staff || !staff.id) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      const { status, reason, adminNotes, admin_notes } = req.body || {};
+      const newStatus = String(status || "").trim();
+      const rejectionReason = newStatus === "rejected" ? String(reason || "").trim() : null;
+      if (newStatus !== "approved" && newStatus !== "rejected") {
+        res.status(400).json({ error: 'Status must be either "approved" or "rejected".' });
+        return;
+      }
+      if (newStatus === "rejected" && (!rejectionReason || rejectionReason.length < 5)) {
+        res.status(400).json({ error: "A rejection reason of at least 5 characters is required." });
+        return;
+      }
+      const submission = db.prepare("SELECT * FROM kyc_submissions WHERE id = ?").get(String(req.params.id || ""));
+      if (!submission) {
+        res.status(404).json({ error: "KYC submission not found." });
+        return;
+      }
+      if (submission.status === "approved" || submission.status === "rejected") {
+        res.status(409).json({ error: "This KYC submission has already been reviewed." });
+        return;
+      }
+      const notes = adminNotes !== void 0 ? String(adminNotes).trim() : admin_notes !== void 0 ? String(admin_notes).trim() : submission.admin_notes || "";
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(`
+        UPDATE kyc_submissions
+        SET status = ?, rejection_reason = ?, admin_notes = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
+        WHERE id = ?
+      `).run(newStatus, rejectionReason, notes, now, staff.id, now, submission.id);
+      upsertProfileKycStatus(submission.user_id, newStatus, now);
+      const userRow = db.prepare("SELECT email FROM users WHERE id = ?").get(submission.user_id);
+      if (newStatus === "approved") {
+        insertNotification(
+          submission.user_id,
+          "KYC Approved",
+          "Your KYC verification was approved.",
+          now
+        );
+        if (isEmailConfigured2() && userRow?.email) {
+          void sendEmail2({
+            to: userRow.email,
+            subject: "KYC Approved",
+            html: buildKycEmailHtml("KYC Approved", "Congratulations! Your KYC verification has been approved.")
+          }).catch((e) => console.warn("[KYC Email] Approval email failed:", e));
+        }
+      } else {
+        insertNotification(
+          submission.user_id,
+          "KYC Rejected",
+          `Your KYC verification was rejected. Reason: ${rejectionReason}`,
+          now
+        );
+        if (isEmailConfigured2() && userRow?.email) {
+          void sendEmail2({
+            to: userRow.email,
+            subject: "KYC Rejected",
+            html: buildKycEmailHtml("KYC Rejected", `Your KYC verification was rejected. Reason: ${rejectionReason}`)
+          }).catch((e) => console.warn("[KYC Email] Rejection email failed:", e));
+        }
+      }
+      logAudit2(staff.id, staff.name, "KYC_REVIEWED", "kyc_submission", submission.id, {
+        status: newStatus,
+        reason: rejectionReason
+      }, req);
+      const updated = db.prepare("SELECT * FROM kyc_submissions WHERE id = ?").get(submission.id);
+      res.json({
+        success: true,
+        submission: {
+          id: updated.id,
+          user_id: updated.user_id,
+          full_name: updated.full_name,
+          dob: updated.dob,
+          address: updated.address,
+          id_type: updated.id_type,
+          id_number: updated.id_number,
+          status: updated.status,
+          rejection_reason: updated.rejection_reason,
+          admin_notes: updated.admin_notes,
+          submitted_at: updated.submitted_at,
+          reviewed_at: updated.reviewed_at,
+          reviewed_by: updated.reviewed_by,
+          documents: parseDocumentsJson(updated.documents_json)
+        }
+      });
+    } catch (err) {
+      console.error("[KYC Admin Review] Error:", err);
+      res.status(500).json({ error: "Failed to update KYC submission status." });
+    }
+  });
+}
+
+// server/emiRoutes.ts
+import crypto14 from "node:crypto";
+import fs6 from "node:fs";
+import path5 from "node:path";
+var uploadsDir = path5.join(databaseDirectory, "uploads");
+if (!fs6.existsSync(uploadsDir)) {
+  fs6.mkdirSync(uploadsDir, { recursive: true });
+}
+var round2 = (n) => Math.round(n * 100) / 100;
+function addMonths(dateStr, months) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const originalDay = date.getUTCDate();
+  const copy = new Date(dateStr);
+  copy.setUTCMonth(copy.getUTCMonth() + months);
+  if (copy.getUTCDate() !== originalDay) {
+    copy.setUTCDate(0);
+  }
+  return copy.toISOString();
+}
+function saveEvidenceImage(dataUrl) {
+  if (typeof dataUrl !== "string") throw new Error("INVALID_IMAGE");
+  const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!matches) throw new Error("INVALID_IMAGE");
+  const ext = matches[1].toLowerCase() === "jpeg" ? "jpg" : matches[1].toLowerCase();
+  const buffer = Buffer.from(matches[2], "base64");
+  if (!validateImageMagicBytes(buffer, matches[1])) throw new Error("INVALID_IMAGE");
+  if (buffer.length > 5 * 1024 * 1024) throw new Error("IMAGE_TOO_LARGE");
+  if (!fs6.existsSync(uploadsDir)) {
+    fs6.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const filename = `emi_evidence_${Date.now()}_${crypto14.randomBytes(4).toString("hex")}.${ext}`;
+  fs6.writeFileSync(path5.join(uploadsDir, filename), buffer);
+  return { url: `/uploads/${filename}`, filename };
+}
+function insertNotification2(userId, title, message, now) {
+  db.prepare(`
+    INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+    VALUES (?, ?, ?, ?, 'emi', 0, ?)
+  `).run("notif_" + crypto14.randomBytes(8).toString("hex"), userId, title, message, now);
+}
+function outstandingBalance(appId) {
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM emi_payments
+    WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
+  `).get(appId);
+  return round2(Number(row?.total) || 0);
+}
+function nextUnpaidInstallment(appId) {
+  const row = db.prepare(`
+    SELECT * FROM emi_payments
+    WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
+    ORDER BY installment_no ASC
+    LIMIT 1
+  `).get(appId);
+  return row || null;
+}
+function markOverdue(application) {
+  if (!application || application.status !== "active") return;
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const nowMs = Date.now();
+  const unpaid = db.prepare(`
+    SELECT id, due_date, status
+    FROM emi_payments
+    WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
+  `).all(application.id);
+  for (const row of unpaid) {
+    if (row.status === "pending" && row.due_date && new Date(row.due_date).getTime() < nowMs) {
+      db.prepare("UPDATE emi_payments SET status = 'late' WHERE id = ?").run(row.id);
+    }
+  }
+  const earliest = db.prepare(`
+    SELECT due_date FROM emi_payments
+    WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
+      AND due_date IS NOT NULL AND due_date != ''
+    ORDER BY due_date ASC
+    LIMIT 1
+  `).get(application.id);
+  const nextDue = earliest && earliest.due_date ? earliest.due_date : null;
+  db.prepare(`
+    UPDATE emi_applications SET next_due_date = ?, updated_at = ? WHERE id = ?
+  `).run(nextDue, now, application.id);
+  application.next_due_date = nextDue;
+}
+function serializeApplication(app2) {
+  return {
+    id: app2.id,
+    productTitle: app2.product_title,
+    totalAmount: app2.total_amount,
+    initialPayment: app2.initial_payment,
+    amountFinanced: app2.amount_financed,
+    tenureMonths: app2.tenure_months,
+    interestRatePct: app2.interest_rate_pct,
+    emiAmount: app2.emi_amount,
+    status: app2.status,
+    rejectionReason: app2.rejection_reason || null,
+    nextDueDate: app2.next_due_date,
+    installmentsPaid: app2.installments_paid,
+    totalInstallments: app2.total_installments,
+    outstandingBalance: outstandingBalance(app2.id),
+    createdAt: app2.created_at,
+    startDate: app2.start_date || null
+  };
+}
+var formatInr = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+var formatDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "TBD";
+function escapeHtml2(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function registerEmiRoutes(app2, helpers) {
+  const { authenticate: authenticate2, staffOnly: staffOnly2, sendEmail: sendEmail2, isEmailConfigured: isEmailConfigured2, logAudit: logAudit2 } = helpers;
+  const sendEmiEmailIfConfigured = (userId, subject, html, text) => {
+    if (!isEmailConfigured2()) return;
+    const userRow = db.prepare("SELECT email FROM users WHERE id = ?").get(userId);
+    if (!userRow?.email) return;
+    sendEmail2({ to: userRow.email, subject, html, text: text || subject }).catch((err) => {
+      console.warn("[EMI Email Warning]:", err?.message || err);
+    });
+  };
+  app2.post("/api/emi/apply", authenticate2, (req, res) => {
+    try {
+      const body = req.body || {};
+      const productTitle = typeof body.productTitle === "string" ? body.productTitle.trim() : "";
+      const totalAmount = Number(body.totalAmount);
+      const initialPayment = body.initialPayment === void 0 || body.initialPayment === null ? 0 : Number(body.initialPayment);
+      const tenureMonths = Number(body.tenureMonths);
+      let ratePct = body.interestRatePct === void 0 || body.interestRatePct === null ? 0 : Number(body.interestRatePct);
+      if (!Number.isFinite(ratePct)) ratePct = 0;
+      ratePct = Math.min(36, Math.max(0, ratePct));
+      const orderId = typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : null;
+      if (!productTitle) {
+        return res.status(400).json({ error: "Product title is required." });
+      }
+      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+        return res.status(400).json({ error: "Total amount must be greater than 0." });
+      }
+      if (!Number.isFinite(initialPayment) || initialPayment < 0 || initialPayment >= totalAmount) {
+        return res.status(400).json({ error: "Initial payment must be at least 0 and less than the total amount." });
+      }
+      if (!Number.isInteger(tenureMonths) || tenureMonths < 1 || tenureMonths > 36) {
+        return res.status(400).json({ error: "Tenure months must be a whole number between 1 and 36." });
+      }
+      const amountFinanced = round2(totalAmount - initialPayment);
+      const totalPayable = amountFinanced * (1 + ratePct / 100 * (tenureMonths / 12));
+      const emiAmount = round2(totalPayable / tenureMonths);
+      const id = "emi_" + crypto14.randomBytes(6).toString("hex");
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const userId = req.user.id;
+      db.prepare(`
+        INSERT INTO emi_applications (
+          id, user_id, order_id, product_title, total_amount, initial_payment,
+          amount_financed, tenure_months, interest_rate_pct, emi_amount,
+          total_installments, installments_paid, status, rejection_reason,
+          start_date, next_due_date, created_at, updated_at, reviewed_at, reviewed_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending_approval', NULL, NULL, NULL, ?, ?, NULL, NULL)
+      `).run(
+        id,
+        userId,
+        orderId,
+        productTitle,
+        totalAmount,
+        initialPayment,
+        amountFinanced,
+        tenureMonths,
+        ratePct,
+        emiAmount,
+        tenureMonths,
+        now,
+        now
+      );
+      insertNotification2(
+        userId,
+        "EMI Application Received",
+        `Your EMI application for ${productTitle} has been received and is pending review.`,
+        now
+      );
+      return res.status(201).json({
+        success: true,
+        application: {
+          id,
+          status: "pending_approval",
+          amountFinanced,
+          emiAmount,
+          totalInstallments: tenureMonths
+        }
+      });
+    } catch (err) {
+      console.error("[EMI Apply Error]:", err);
+      return res.status(500).json({ error: "Failed to submit EMI application." });
+    }
+  });
+  app2.get("/api/user/emi", authenticate2, (req, res) => {
+    try {
+      const userId = req.user.id;
+      const rows = db.prepare(`
+        SELECT * FROM emi_applications WHERE user_id = ? ORDER BY created_at DESC
+      `).all(userId);
+      for (const row of rows) {
+        if (row.status === "active") markOverdue(row);
+      }
+      const applications = rows.map((row) => serializeApplication(row));
+      return res.json({ applications });
+    } catch (err) {
+      console.error("[EMI User List Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch EMI applications." });
+    }
+  });
+  app2.get("/api/user/emi/:id", authenticate2, (req, res) => {
+    try {
+      const appId = req.params.id;
+      const userId = req.user.id;
+      const application = db.prepare("SELECT * FROM emi_applications WHERE id = ?").get(appId);
+      if (!application) {
+        return res.status(404).json({ error: "EMI application not found." });
+      }
+      if (application.user_id !== userId) {
+        return res.status(403).json({ error: "Access denied." });
+      }
+      if (application.status === "active") markOverdue(application);
+      const payments = db.prepare(`
+        SELECT id, installment_no, amount, due_date, status, paid_at, utr, payment_method, evidence_image
+        FROM emi_payments
+        WHERE application_id = ?
+        ORDER BY installment_no ASC
+      `).all(appId).map((p) => ({
+        id: p.id,
+        installmentNo: p.installment_no,
+        amount: p.amount,
+        dueDate: p.due_date,
+        status: p.status,
+        paidAt: p.paid_at,
+        utr: p.utr,
+        paymentMethod: p.payment_method,
+        evidenceImage: p.evidence_image
+      }));
+      return res.json({ application: serializeApplication(application), payments });
+    } catch (err) {
+      console.error("[EMI User Detail Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch EMI application details." });
+    }
+  });
+  app2.post("/api/emi/:id/pay-installment", authenticate2, (req, res) => {
+    try {
+      const appId = req.params.id;
+      const { installmentId, utr, evidenceImage } = req.body || {};
+      const userId = req.user.id;
+      const application = db.prepare("SELECT * FROM emi_applications WHERE id = ?").get(appId);
+      if (!application) {
+        return res.status(404).json({ error: "EMI application not found." });
+      }
+      if (application.user_id !== userId) {
+        return res.status(403).json({ error: "Access denied." });
+      }
+      if (application.status !== "active") {
+        return res.status(409).json({ error: "EMI application is not active." });
+      }
+      if (typeof installmentId !== "string" || !installmentId.trim()) {
+        return res.status(400).json({ error: "installmentId is required." });
+      }
+      const utrValue = typeof utr === "string" ? utr.trim() : "";
+      if (!utrValue) {
+        return res.status(400).json({ error: "UTR reference is required." });
+      }
+      const payment = db.prepare("SELECT * FROM emi_payments WHERE id = ? AND application_id = ?").get(installmentId, appId);
+      if (!payment) {
+        return res.status(404).json({ error: "Installment not found for this application." });
+      }
+      const nextUnpaid = nextUnpaidInstallment(appId);
+      if (!nextUnpaid || nextUnpaid.installment_no !== payment.installment_no) {
+        return res.status(409).json({ error: "Please pay installments in order." });
+      }
+      if (payment.status === "pending_verification") {
+        return res.status(409).json({ error: "This installment already has a payment awaiting verification." });
+      }
+      if (payment.status === "paid") {
+        return res.status(409).json({ error: "This installment has already been paid." });
+      }
+      let evidenceUrl;
+      try {
+        evidenceUrl = saveEvidenceImage(evidenceImage).url;
+      } catch (imgErr) {
+        if (imgErr.message === "INVALID_IMAGE") {
+          return res.status(400).json({ error: "Invalid image format. Expected a base64 data URL." });
+        }
+        if (imgErr.message === "IMAGE_TOO_LARGE") {
+          return res.status(400).json({ error: "Image exceeds maximum 5MB file size limit." });
+        }
+        throw imgErr;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      if (payment.evidence_image) {
+        try {
+          const oldPath = path5.join(databaseDirectory, "uploads", path5.basename(payment.evidence_image));
+          if (fs6.existsSync(oldPath)) {
+            fs6.unlinkSync(oldPath);
+          }
+        } catch {
+        }
+      }
+      db.prepare(`
+        UPDATE emi_payments
+        SET status = 'pending_verification', utr = ?, evidence_image = ?, payment_method = 'UPI_QR'
+        WHERE id = ?
+      `).run(utrValue, evidenceUrl, payment.id);
+      insertNotification2(
+        userId,
+        "EMI Payment Submitted",
+        `Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} has been submitted for verification.`,
+        now
+      );
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[EMI Pay Installment Error]:", err);
+      return res.status(500).json({ error: "Failed to submit installment payment." });
+    }
+  });
+  app2.get("/api/admin/emi/list", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const statusFilter = typeof req.query.status === "string" && req.query.status.trim() ? req.query.status.trim() : null;
+      let sql = `
+        SELECT e.*, u.email AS user_email, u.name AS user_name, u.phone AS user_phone
+        FROM emi_applications e
+        JOIN users u ON e.user_id = u.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (statusFilter) {
+        sql += " AND e.status = ?";
+        params.push(statusFilter);
+      }
+      sql += " ORDER BY e.created_at DESC";
+      const rows = db.prepare(sql).all(...params);
+      const applications = rows.map((r) => ({
+        id: r.id,
+        user_id: r.user_id,
+        user_email: r.user_email,
+        user_name: r.user_name,
+        user_phone: r.user_phone,
+        product_title: r.product_title,
+        total_amount: r.total_amount,
+        initial_payment: r.initial_payment,
+        amount_financed: r.amount_financed,
+        tenure_months: r.tenure_months,
+        interest_rate_pct: r.interest_rate_pct,
+        emi_amount: r.emi_amount,
+        total_installments: r.total_installments,
+        installments_paid: r.installments_paid,
+        status: r.status,
+        rejection_reason: r.rejection_reason,
+        created_at: r.created_at,
+        start_date: r.start_date,
+        next_due_date: r.next_due_date,
+        outstanding: outstandingBalance(r.id)
+      }));
+      return res.json({ applications });
+    } catch (err) {
+      console.error("[Admin EMI List Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch EMI applications." });
+    }
+  });
+  app2.get("/api/admin/emi/:id", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const appId = req.params.id;
+      const application = db.prepare(`
+        SELECT e.*, u.email AS user_email, u.name AS user_name, u.phone AS user_phone
+        FROM emi_applications e
+        JOIN users u ON e.user_id = u.id
+        WHERE e.id = ?
+      `).get(appId);
+      if (!application) {
+        return res.status(404).json({ error: "EMI application not found." });
+      }
+      const payments = db.prepare(`
+        SELECT * FROM emi_payments
+        WHERE application_id = ?
+        ORDER BY installment_no ASC
+      `).all(appId);
+      return res.json({ success: true, application, payments });
+    } catch (err) {
+      console.error("[Admin EMI Detail Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch EMI application details." });
+    }
+  });
+  app2.put("/api/admin/emi/:id/status", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const appId = req.params.id;
+      const { status, reason } = req.body || {};
+      const staff = req.user;
+      if (status !== "active" && status !== "rejected" && status !== "cancelled") {
+        return res.status(400).json({ error: "Status must be one of: active, rejected, cancelled." });
+      }
+      const application = db.prepare("SELECT * FROM emi_applications WHERE id = ?").get(appId);
+      if (!application) {
+        return res.status(404).json({ error: "EMI application not found." });
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      if (status === "active") {
+        if (application.status !== "pending_approval") {
+          return res.status(409).json({ error: "Only pending EMI applications can be approved." });
+        }
+        const startDate = now;
+        const firstDue = addMonths(startDate, 1);
+        const totalInstallments = application.total_installments;
+        const emiAmount = application.emi_amount;
+        const totalPayable = round2(
+          application.amount_financed * (1 + application.interest_rate_pct / 100 * (application.tenure_months / 12))
+        );
+        const lastInstallmentAmount = round2(totalPayable - emiAmount * (totalInstallments - 1));
+        try {
+          db.exec("BEGIN IMMEDIATE");
+          db.prepare(`
+            UPDATE emi_applications
+            SET status = 'active', start_date = ?, next_due_date = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
+            WHERE id = ?
+          `).run(startDate, firstDue, now, staff.id, now, appId);
+          const insertPay = db.prepare(`
+            INSERT INTO emi_payments (id, application_id, installment_no, amount, due_date, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?)
+          `);
+          for (let i = 1; i <= totalInstallments; i++) {
+            const installmentAmount = i === totalInstallments ? lastInstallmentAmount : emiAmount;
+            insertPay.run(
+              "emi_pay_" + crypto14.randomBytes(6).toString("hex"),
+              appId,
+              i,
+              installmentAmount,
+              addMonths(startDate, i),
+              now
+            );
+          }
+          db.exec("COMMIT");
+        } catch (txErr) {
+          try {
+            db.exec("ROLLBACK");
+          } catch {
+          }
+          throw txErr;
+        }
+        insertNotification2(
+          application.user_id,
+          "EMI Approved",
+          `Your EMI plan for ${application.product_title} is approved. First installment due ${formatDate(firstDue)}.`,
+          now
+        );
+        sendEmiEmailIfConfigured(
+          application.user_id,
+          "EMI Application Approved",
+          `<p>Hello,</p><p>Your EMI plan for <strong>${escapeHtml2(application.product_title)}</strong> is approved.</p><p>First installment of \u20B9${formatInr(emiAmount)} is due on <strong>${formatDate(firstDue)}</strong>.</p>`,
+          `Your EMI plan for ${application.product_title} is approved. First installment of \u20B9${formatInr(emiAmount)} is due on ${formatDate(firstDue)}.`
+        );
+        logAudit2(staff.id, staff.name, "EMI_APPROVE", "emi_application", appId, {
+          productTitle: application.product_title,
+          tenureMonths: totalInstallments,
+          emiAmount,
+          firstDue
+        }, req);
+        return res.json({ success: true, message: "EMI application approved.", nextDueDate: firstDue });
+      }
+      if (status === "rejected") {
+        if (application.status === "active") {
+          return res.status(409).json({ error: "Active EMI applications cannot be rejected; cancel them instead." });
+        }
+        if (application.status !== "pending_approval") {
+          return res.status(409).json({ error: `Cannot reject an application in '${application.status}' status.` });
+        }
+        const rejectReason = typeof reason === "string" ? reason.trim() : "";
+        if (rejectReason.length < 5) {
+          return res.status(400).json({ error: "A rejection reason of at least 5 characters is required." });
+        }
+        db.prepare(`
+          UPDATE emi_applications
+          SET status = 'rejected', rejection_reason = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
+          WHERE id = ?
+        `).run(rejectReason, now, staff.id, now, appId);
+        insertNotification2(
+          application.user_id,
+          "EMI Rejected",
+          `Your EMI application for ${application.product_title} was rejected. Reason: ${rejectReason}`,
+          now
+        );
+        sendEmiEmailIfConfigured(
+          application.user_id,
+          "EMI Application Rejected",
+          `<p>Hello,</p><p>Your EMI application for <strong>${escapeHtml2(application.product_title)}</strong> was not approved.</p><p>Reason: ${escapeHtml2(rejectReason)}</p>`,
+          `Your EMI application for ${application.product_title} was rejected. Reason: ${rejectReason}`
+        );
+        logAudit2(staff.id, staff.name, "EMI_REJECT", "emi_application", appId, {
+          productTitle: application.product_title,
+          reason: rejectReason
+        }, req);
+        return res.json({ success: true, message: "EMI application rejected." });
+      }
+      if (application.status !== "active") {
+        return res.status(409).json({ error: "Only active EMI applications can be cancelled." });
+      }
+      db.prepare(`
+        UPDATE emi_applications
+        SET status = 'cancelled', reviewed_at = ?, reviewed_by = ?, updated_at = ?
+        WHERE id = ?
+      `).run(now, staff.id, now, appId);
+      insertNotification2(
+        application.user_id,
+        "EMI Cancelled",
+        `Your EMI plan for ${application.product_title} has been cancelled.`,
+        now
+      );
+      logAudit2(staff.id, staff.name, "EMI_CANCEL", "emi_application", appId, {
+        productTitle: application.product_title
+      }, req);
+      return res.json({ success: true, message: "EMI application cancelled." });
+    } catch (err) {
+      console.error("[Admin EMI Status Error]:", err);
+      return res.status(500).json({ error: "Failed to update EMI application status." });
+    }
+  });
+  app2.put("/api/admin/emi/payments/:paymentId/verify", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const paymentId = req.params.paymentId;
+      const { approved, reason } = req.body || {};
+      const staff = req.user;
+      if (typeof approved !== "boolean") {
+        return res.status(400).json({ error: "approved must be a boolean." });
+      }
+      const payment = db.prepare("SELECT * FROM emi_payments WHERE id = ?").get(paymentId);
+      if (!payment) {
+        return res.status(404).json({ error: "EMI installment payment not found." });
+      }
+      if (payment.status !== "pending_verification") {
+        return res.status(409).json({ error: "Only installments awaiting verification can be verified." });
+      }
+      const application = db.prepare("SELECT * FROM emi_applications WHERE id = ?").get(payment.application_id);
+      if (!application) {
+        return res.status(404).json({ error: "EMI application not found." });
+      }
+      if (application.status !== "active") {
+        return res.status(409).json({ error: "EMI application is not active." });
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      if (approved) {
+        db.prepare(`
+          UPDATE emi_payments
+          SET status = 'paid', paid_at = ?, verified_by = ?, verified_at = ?
+          WHERE id = ?
+        `).run(now, staff.id, now, paymentId);
+        const newPaidCount = (application.installments_paid || 0) + 1;
+        const nextUnpaid = nextUnpaidInstallment(application.id);
+        const isCompleted = !nextUnpaid;
+        const nextDue = nextUnpaid && nextUnpaid.due_date ? nextUnpaid.due_date : null;
+        db.prepare(`
+          UPDATE emi_applications
+          SET installments_paid = ?, status = ?, next_due_date = ?, updated_at = ?
+          WHERE id = ?
+        `).run(newPaidCount, isCompleted ? "completed" : "active", nextDue, now, application.id);
+        if (isCompleted) {
+          insertNotification2(
+            application.user_id,
+            "EMI Completed",
+            `You have completed all EMI installments for ${application.product_title}.`,
+            now
+          );
+          sendEmiEmailIfConfigured(
+            application.user_id,
+            "EMI Completed",
+            `<p>Hello,</p><p>Congratulations! You have completed all EMI installments for <strong>${escapeHtml2(application.product_title)}</strong>.</p>`,
+            `You have completed all EMI installments for ${application.product_title}.`
+          );
+        } else {
+          insertNotification2(
+            application.user_id,
+            "EMI Installment Verified",
+            `Installment #${payment.installment_no} of \u20B9${formatInr(payment.amount)} has been verified.`,
+            now
+          );
+          sendEmiEmailIfConfigured(
+            application.user_id,
+            "EMI Installment Verified",
+            `<p>Installment #${payment.installment_no} of \u20B9${formatInr(payment.amount)} has been verified.</p>`,
+            `Installment #${payment.installment_no} of \u20B9${formatInr(payment.amount)} has been verified.`
+          );
+        }
+        logAudit2(staff.id, staff.name, "EMI_PAYMENT_VERIFY", "emi_payment", paymentId, {
+          applicationId: application.id,
+          installmentNo: payment.installment_no,
+          amount: payment.amount,
+          completed: isCompleted
+        }, req);
+        return res.json({
+          success: true,
+          message: isCompleted ? "All EMI installments completed." : "Installment verified."
+        });
+      }
+      const rejectReason = typeof reason === "string" && reason.trim() ? reason.trim() : "Payment evidence could not be verified.";
+      db.prepare(`
+        UPDATE emi_payments
+        SET status = 'pending', verified_by = ?, verified_at = ?
+        WHERE id = ?
+      `).run(staff.id, now, paymentId);
+      insertNotification2(
+        application.user_id,
+        "EMI Installment Rejected",
+        `Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${reason.trim()}` : "."}`,
+        now
+      );
+      sendEmiEmailIfConfigured(
+        application.user_id,
+        "EMI Installment Rejected",
+        `<p>Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${escapeHtml2(reason.trim())}` : "."}</p>`,
+        `Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${reason.trim()}` : "."}`
+      );
+      logAudit2(staff.id, staff.name, "EMI_PAYMENT_REJECT", "emi_payment", paymentId, {
+        applicationId: application.id,
+        installmentNo: payment.installment_no,
+        reason: rejectReason
+      }, req);
+      return res.json({ success: true, message: "Installment payment returned to pending for resubmission." });
+    } catch (err) {
+      console.error("[Admin EMI Payment Verify Error]:", err);
+      return res.status(500).json({ error: "Failed to verify EMI installment payment." });
+    }
+  });
+}
+
 // server/index.ts
 seedDatabase();
 syncOfficialValorantSkins().catch((e) => console.warn("[Skins Sync] Initial sync deferred:", e.message));
@@ -41267,12 +42745,12 @@ app.use((req, res, next) => {
 });
 app.use(import_express.default.json({ limit: "15mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "15mb" }));
-var uploadsDir = path4.join(databaseDirectory, "uploads");
-if (!fs5.existsSync(uploadsDir)) {
-  fs5.mkdirSync(uploadsDir, { recursive: true });
+var uploadsDir2 = path6.join(databaseDirectory, "uploads");
+if (!fs7.existsSync(uploadsDir2)) {
+  fs7.mkdirSync(uploadsDir2, { recursive: true });
 }
-app.use("/uploads", import_express.default.static(uploadsDir));
-app.use("/api/uploads", import_express.default.static(uploadsDir));
+app.use("/uploads", import_express.default.static(uploadsDir2));
+app.use("/api/uploads", import_express.default.static(uploadsDir2));
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
 });
@@ -41290,13 +42768,17 @@ app.post("/api/upload", (req, res) => {
     }
     const ext = matches[1].toLowerCase() === "jpeg" ? "jpg" : matches[1].toLowerCase();
     const buffer = Buffer.from(matches[2], "base64");
+    if (!validateImageMagicBytes(buffer, matches[1])) {
+      res.status(400).json({ error: "File content does not match declared format." });
+      return;
+    }
     if (buffer.length > 10 * 1024 * 1024) {
       res.status(400).json({ error: "Image exceeds maximum 10MB file size limit." });
       return;
     }
-    const safeName = `receipt_${Date.now()}_${crypto13.randomBytes(4).toString("hex")}.${ext}`;
-    const filePath = path4.join(uploadsDir, safeName);
-    fs5.writeFileSync(filePath, buffer);
+    const safeName = `receipt_${Date.now()}_${crypto15.randomBytes(4).toString("hex")}.${ext}`;
+    const filePath = path6.join(uploadsDir2, safeName);
+    fs7.writeFileSync(filePath, buffer);
     res.json({
       success: true,
       url: `/uploads/${safeName}`,
@@ -41517,8 +42999,37 @@ function extractClientIp(req) {
   const isIpv6 = /^[0-9a-fA-F:]{2,39}$/.test(rawIp);
   return isIpv4 || isIpv6 ? rawIp : "unavailable";
 }
+var LOGIN_RATE_WINDOW_MS = 15 * 60 * 1e3;
+var LOGIN_RATE_MAX_FAILURES = 10;
+var loginFailuresByIp = /* @__PURE__ */ new Map();
+function pruneLoginFailures(ip, now) {
+  const list = loginFailuresByIp.get(ip);
+  if (!list) return;
+  const fresh = list.filter((t) => now - t < LOGIN_RATE_WINDOW_MS);
+  if (fresh.length === 0) {
+    loginFailuresByIp.delete(ip);
+  } else {
+    loginFailuresByIp.set(ip, fresh);
+  }
+}
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  pruneLoginFailures(ip, now);
+  const list = loginFailuresByIp.get(ip) || [];
+  list.push(now);
+  loginFailuresByIp.set(ip, list);
+}
+function isLoginRateLimited(ip) {
+  const now = Date.now();
+  pruneLoginFailures(ip, now);
+  const list = loginFailuresByIp.get(ip);
+  return !!list && list.length >= LOGIN_RATE_MAX_FAILURES;
+}
+function clearLoginFailures(ip) {
+  loginFailuresByIp.delete(ip);
+}
 function logAudit(actorId, actorName, action, targetType, targetId, details, ipOrReq) {
-  const auditId = "aud_" + crypto13.randomBytes(8).toString("hex");
+  const auditId = "aud_" + crypto15.randomBytes(8).toString("hex");
   let cleanIp = "unavailable";
   if (typeof ipOrReq === "object" && ipOrReq !== null && ("headers" in ipOrReq || "ip" in ipOrReq)) {
     cleanIp = extractClientIp(ipOrReq);
@@ -41647,7 +43158,7 @@ app.post("/api/auth/register", async (req, res) => {
       verifiedRiotId = riotCheck.riotId;
       isRiotVerified = 1;
     }
-    const userId = "usr_" + crypto13.randomBytes(8).toString("hex");
+    const userId = "usr_" + crypto15.randomBytes(8).toString("hex");
     const { hash, salt } = hashPassword(password);
     const verificationCode = Math.floor(1e5 + Math.random() * 9e5).toString();
     const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -41694,7 +43205,7 @@ app.post("/api/auth/register", async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'info', 0, ?)
     `).run(
-      "notif_" + crypto13.randomBytes(8).toString("hex"),
+      "notif_" + crypto15.randomBytes(8).toString("hex"),
       userId,
       "Welcome to VIB Digital Services Platform!",
       "Your account has been created. Enjoy verified Valorant VP top-ups, rank journeys, and protected marketplace transactions.",
@@ -41731,6 +43242,7 @@ app.post("/api/auth/register", async (req, res) => {
 });
 app.post("/api/auth/login", (req, res) => {
   try {
+    const ip = extractClientIp(req);
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: "Email and password are required." });
@@ -41746,6 +43258,11 @@ app.post("/api/auth/login", (req, res) => {
       WHERE u.email = ?
     `).get(emailTrimmed);
     if (!userRow) {
+      if (isLoginRateLimited(ip)) {
+        res.status(429).json({ error: "Too many login attempts. Please try again later." });
+        return;
+      }
+      recordLoginFailure(ip);
       res.status(401).json({ error: "Invalid email or password." });
       return;
     }
@@ -41754,6 +43271,11 @@ app.post("/api/auth/login", (req, res) => {
       passwordValid = true;
     }
     if (!passwordValid) {
+      if (isLoginRateLimited(ip)) {
+        res.status(429).json({ error: "Too many login attempts. Please try again later." });
+        return;
+      }
+      recordLoginFailure(ip);
       res.status(401).json({ error: "Invalid email or password." });
       return;
     }
@@ -41765,6 +43287,7 @@ app.post("/api/auth/login", (req, res) => {
       res.status(403).json({ error: "This account is currently suspended. Please contact customer support." });
       return;
     }
+    clearLoginFailures(ip);
     const token = createSignedToken({
       id: userRow.id,
       email: userRow.email,
@@ -41846,8 +43369,8 @@ app.post("/api/auth/firebase-login", (req, res) => {
         }
       }
     } else {
-      userId = "usr_" + crypto13.randomBytes(8).toString("hex");
-      const randomPassword = crypto13.randomBytes(32).toString("hex");
+      userId = "usr_" + crypto15.randomBytes(8).toString("hex");
+      const randomPassword = crypto15.randomBytes(32).toString("hex");
       const { hash, salt } = hashPassword(randomPassword);
       db.prepare(`
         INSERT INTO users (id, email, password_hash, salt, name, role, status, email_verified, firebase_uid, auth_provider, created_at, updated_at)
@@ -41950,7 +43473,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
   const resetCode = Math.floor(1e5 + Math.random() * 9e5).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1e3).toISOString();
-  const resetTokenHash = crypto13.createHash("sha256").update(resetCode).digest("hex");
+  const resetTokenHash = crypto15.createHash("sha256").update(resetCode).digest("hex");
   db.prepare("UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?").run(resetTokenHash, expiresAt, user.id);
   const delivery = await sendPasswordRecoveryOtpEmail(normalizedEmail, resetCode);
   if (!delivery.success) {
@@ -41972,9 +43495,9 @@ app.post("/api/auth/reset-password", (req, res) => {
     return;
   }
   const user = db.prepare("SELECT id, reset_token, reset_token_expires_at FROM users WHERE email = ?").get(String(email).trim().toLowerCase());
-  const submittedCodeHash = crypto13.createHash("sha256").update(cleanCode).digest("hex");
+  const submittedCodeHash = crypto15.createHash("sha256").update(cleanCode).digest("hex");
   const storedResetHash = typeof user?.reset_token === "string" && /^[a-f0-9]{64}$/i.test(user.reset_token) ? Buffer.from(user.reset_token, "hex") : null;
-  const codeMatches = storedResetHash && crypto13.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
+  const codeMatches = storedResetHash && crypto15.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
   if (!user || !codeMatches || !user.reset_token_expires_at || Date.parse(user.reset_token_expires_at) <= Date.now()) {
     res.status(400).json({ error: "Invalid or expired verification reset code." });
     return;
@@ -42253,8 +43776,8 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       res.status(400).json({ error: "Valid title and price are required for order creation." });
       return;
     }
-    const orderId = "ord_" + crypto13.randomBytes(6).toString("hex");
-    const txnId = "txn_" + crypto13.randomBytes(6).toString("hex");
+    const orderId = "ord_" + crypto15.randomBytes(6).toString("hex");
+    const txnId = "txn_" + crypto15.randomBytes(6).toString("hex");
     const refNo = "VIB-" + Date.now().toString(36).toUpperCase();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const initialTimeline = [
@@ -42361,7 +43884,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
       VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
     `).run(
-      "msg_" + crypto13.randomBytes(6).toString("hex"),
+      "msg_" + crypto15.randomBytes(6).toString("hex"),
       orderId,
       `Order room initialized for #${orderId} (${title}). All deliveries, game account credentials, and communications are secured under official VIB middleman escrow. Please keep all communication inside this order room.`,
       now
@@ -42370,7 +43893,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto13.randomBytes(8).toString("hex"),
+      "notif_" + crypto15.randomBytes(8).toString("hex"),
       req.user.id,
       `Order Received: ${title}`,
       `Your order #${orderId} for ${currency} ${amount} is currently awaiting payment verification. Invoice #${invoiceId} generated.`,
@@ -42458,7 +43981,14 @@ app.get("/api/orders/:id/room", authenticate, (req, res) => {
       payment_evidence_image: order.payment_evidence_image,
       fulfillment_notes: order.fulfillment_notes || order.issued_code,
       issued_code: order.issued_code,
-      delivery_data: order.delivery_data_json ? JSON.parse(order.delivery_data_json) : null,
+      delivery_data: (() => {
+        if (!order.delivery_data_json) return null;
+        try {
+          return JSON.parse(order.delivery_data_json);
+        } catch {
+          return null;
+        }
+      })(),
       paymentMethod: order.payment_method,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
@@ -42491,7 +44021,7 @@ app.post("/api/orders/:id/messages", authenticate, (req, res) => {
     return;
   }
   const scanResult = !isStaff ? scanMessageForAntiFraud(String(message)) : { flagged: false, reason: null };
-  const msgId = "msg_" + crypto13.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const senderRole = isStaff ? "admin" : req.user.role || "user";
   const senderName = isStaff ? req.user.name ? `${req.user.name} (VIB Support)` : "VIB Support Desk" : req.user.name;
@@ -42579,7 +44109,7 @@ app.post("/api/escrow/tickets", authenticate, (req, res) => {
     }
     const userId = req.user.id;
     const userName = req.user.name;
-    const ticketId = "escrow_" + crypto13.randomBytes(6).toString("hex");
+    const ticketId = "escrow_" + crypto15.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const subject = `[Escrow Trade] ${normalizedTradeType.toUpperCase()} - ${normalizedItem} (\u20B9${amountValue})`;
     const detailMessage = `Trade Type: ${String(tradeType).toUpperCase()}
@@ -42601,7 +44131,7 @@ Contact: ${normalizedEmail || req.user.email}`;
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto13.randomBytes(8).toString("hex"),
+      "notif_" + crypto15.randomBytes(8).toString("hex"),
       userId,
       `Escrow request received: #${ticketId}`,
       "Your escrow request is linked to your support dashboard and is waiting for staff review.",
@@ -42632,7 +44162,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     res.status(400).json({ error: "Enter a subject (3\u2013200 characters), a message (1\u20134000 characters), valid category, and valid priority." });
     return;
   }
-  const ticketId = "tkt_" + crypto13.randomBytes(6).toString("hex");
+  const ticketId = "tkt_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialMessages = JSON.stringify([
     { sender: "user", senderName: req.user.name, text: messageText, time: now }
@@ -42659,7 +44189,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto13.randomBytes(8).toString("hex"),
+        "notif_" + crypto15.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support ticket",
         `A customer opened ticket #${ticketId}.`,
@@ -42715,7 +44245,7 @@ app.post("/api/user/tickets/:id/reply", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto13.randomBytes(8).toString("hex"),
+        "notif_" + crypto15.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support reply",
         `A customer replied to ticket #${ticket.id}.`,
@@ -42805,8 +44335,8 @@ app.put("/api/user/notifications/:id/read", authenticate, (req, res) => {
   res.json({ success: true });
 });
 var staffOnly = requireRole(["admin", "superadmin", "moderator"]);
-var adminOnly = requireRole(["admin", "superadmin", "moderator"]);
-var superAdminOnly = requireRole(["superadmin", "admin"]);
+var adminOnly = requireRole(["admin", "superadmin"]);
+var superAdminOnly = requireRole(["superadmin"]);
 var getAdminStatsHandler = (req, res) => {
   const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
   const totalOrders = db.prepare("SELECT COUNT(*) as count FROM orders").get().count;
@@ -42892,8 +44422,26 @@ app.put("/api/admin/users/:id/status", authenticate, adminOnly, (req, res) => {
 app.put("/api/admin/users/:id/role", authenticate, superAdminOnly, (req, res) => {
   const { role } = req.body;
   const targetId = req.params.id;
+  const callerRole = req.user.role;
   if (!["user", "seller", "moderator", "admin", "superadmin"].includes(role)) {
     res.status(400).json({ error: "Invalid role." });
+    return;
+  }
+  if (role === "superadmin" && callerRole !== "superadmin") {
+    res.status(403).json({ error: "Only Superadmin can grant the superadmin role." });
+    return;
+  }
+  const targetUser = db.prepare("SELECT id, role FROM users WHERE id = ?").get(targetId);
+  if (!targetUser) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+  if (targetUser.role === "superadmin" && callerRole !== "superadmin") {
+    res.status(403).json({ error: "Only Superadmin can modify another Superadmin." });
+    return;
+  }
+  if (targetUser.id === req.user.id && callerRole === "superadmin" && role !== "superadmin") {
+    res.status(400).json({ error: "Cannot demote yourself." });
     return;
   }
   db.prepare("UPDATE users SET role = ?, updated_at = ? WHERE id = ?").run(role, (/* @__PURE__ */ new Date()).toISOString(), targetId);
@@ -42959,9 +44507,9 @@ app.post("/api/admin/staff", authenticate, superAdminOnly, async (req, res) => {
       res.status(409).json({ error: "An account with this email address already exists." });
       return;
     }
-    const salt = crypto13.randomBytes(16).toString("hex");
-    const hash = crypto13.scryptSync(password, salt, 64).toString("hex");
-    const userId = "usr_staff_" + crypto13.randomBytes(6).toString("hex");
+    const salt = crypto15.randomBytes(16).toString("hex");
+    const hash = crypto15.scryptSync(password, salt, 64).toString("hex");
+    const userId = "usr_staff_" + crypto15.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     db.prepare(`
       INSERT INTO users (id, name, email, password_hash, salt, role, status, created_at, updated_at)
@@ -43099,7 +44647,7 @@ var updateOrderStatusHandler = (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)
   `).run(
-    "notif_" + crypto13.randomBytes(8).toString("hex"),
+    "notif_" + crypto15.randomBytes(8).toString("hex"),
     order.user_id,
     `Order #${orderId} Updated`,
     `Status has been updated to ${status.toUpperCase()}. ${finalNote ? `Note: ${finalNote}` : ""}`,
@@ -43166,7 +44714,7 @@ app.put("/api/admin/tickets/:id", authenticate, staffOnly, (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'info', 0, ?)
   `).run(
-    "notif_" + crypto13.randomBytes(8).toString("hex"),
+    "notif_" + crypto15.randomBytes(8).toString("hex"),
     ticket.user_id,
     `Support Desk Update: ${ticket.subject}`,
     `Staff response received. Ticket status is now ${newStatus.toUpperCase()}.`,
@@ -43175,7 +44723,7 @@ app.put("/api/admin/tickets/:id", authenticate, staffOnly, (req, res) => {
   logAudit(req.user.id, req.user.name, "RESOLVE_TICKET", "ticket", ticketId, { status: newStatus }, req.ip || "127.0.0.1");
   res.json({ message: "Ticket updated successfully." });
 });
-app.post("/api/admin/announcements", authenticate, adminOnly, (req, res) => {
+app.post("/api/admin/announcements", authenticate, staffOnly, (req, res) => {
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
   const targetGroup = req.body?.targetGroup ?? req.body?.target ?? "all";
@@ -43202,7 +44750,7 @@ app.post("/api/admin/announcements", authenticate, adminOnly, (req, res) => {
   db.exec("BEGIN IMMEDIATE");
   try {
     targetUsers.forEach((u) => {
-      insertNotif.run("notif_" + crypto13.randomBytes(8).toString("hex"), u.id, title, message, now);
+      insertNotif.run("notif_" + crypto15.randomBytes(8).toString("hex"), u.id, title, message, now);
     });
     logAudit(req.user.id, req.user.name, "DISPATCH_ANNOUNCEMENT", "broadcast", targetGroup, { recipientCount: targetUsers.length }, req.ip || "127.0.0.1");
     db.exec("COMMIT");
@@ -43369,7 +44917,7 @@ app.post("/api/admin/finance/expenses", authenticate, adminOnly, (req, res) => {
     res.status(400).json({ error: "Category, description, and amount are required." });
     return;
   }
-  const expId = "exp_" + crypto13.randomBytes(6).toString("hex");
+  const expId = "exp_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO expenses (id, category, description, amount, currency, payment_method, reference_no, recorded_by, expense_date, created_at)
@@ -43424,7 +44972,7 @@ app.post("/api/admin/tasks", authenticate, staffOnly, (req, res) => {
     res.status(400).json({ error: "Title and department are required." });
     return;
   }
-  const taskId = "task_" + crypto13.randomBytes(6).toString("hex");
+  const taskId = "task_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO staff_tasks (id, title, description, department, priority, status, assigned_to, created_by, due_date, notes, created_at, updated_at)
@@ -43509,7 +45057,7 @@ app.post("/api/admin/users/:id/crm/notes", authenticate, adminOnly, (req, res) =
     res.status(400).json({ error: "Note text cannot be empty." });
     return;
   }
-  const noteId = "crm_note_" + crypto13.randomBytes(6).toString("hex");
+  const noteId = "crm_note_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO user_crm_notes (id, user_id, staff_id, staff_name, note, risk_level, created_at)
@@ -43683,9 +45231,13 @@ app.post("/api/orders/:id/payment-evidence", authenticate, (req, res) => {
       if (matches) {
         const ext = matches[1].toLowerCase() === "jpeg" ? "jpg" : matches[1].toLowerCase();
         const buffer = Buffer.from(matches[2], "base64");
+        if (!validateImageMagicBytes(buffer, matches[1])) {
+          res.status(400).json({ error: "File content does not match declared format." });
+          return;
+        }
         const safeName = `receipt_${orderId}_${Date.now()}.${ext}`;
-        const filePath = path4.join(uploadsDir, safeName);
-        fs5.writeFileSync(filePath, buffer);
+        const filePath = path6.join(uploadsDir2, safeName);
+        fs7.writeFileSync(filePath, buffer);
         storedScreenshot = `/uploads/${safeName}`;
       }
     } catch (e) {
@@ -43860,7 +45412,7 @@ app.put("/api/orders/:id/delivery-contact", authenticate, (req, res) => {
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
     VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
   `).run(
-    "msg_" + crypto13.randomBytes(6).toString("hex"),
+    "msg_" + crypto15.randomBytes(6).toString("hex"),
     orderId,
     "Delivery contact details were updated by the customer. Staff can view the current details in the order record for dispatch coordination.",
     now
@@ -43957,7 +45509,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto13.randomBytes(8).toString("hex"),
+        "notif_" + crypto15.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Verification Unresolved: #${order.id}`,
         `Your payment verification for order #${order.id} was rejected: ${reason || "Invalid reference"}. Please review your order tracking page.`,
@@ -44077,7 +45629,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto13.randomBytes(8).toString("hex"),
+        "notif_" + crypto15.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Approved: #${order.id}`,
         codeAssigned ? `Payment verified! Your VP code for order #${order.id} has been issued and sent to your email.` : `Payment verified! Your order #${order.id} is now being fulfilled by our operations team.`,
@@ -44150,7 +45702,7 @@ app.post("/api/admin/orders/:id/issue-code", authenticate, staffOnly, async (req
   `).run(cleanCode, now, JSON.stringify(timeline), now, orderId);
   db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
   db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
-  const msgId = "msg_" + crypto13.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto15.randomBytes(6).toString("hex");
   db.prepare(`
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, attachment_url, flagged, flag_reason, created_at)
     VALUES (?, ?, ?, ?, 'system', ?, NULL, 0, NULL, ?)
@@ -44300,7 +45852,7 @@ app.post("/api/admin/vp-codes", authenticate, staffOnly, (req, res) => {
         VALUES (?, ?, ?, 'available', ?, ?)
       `);
       for (const code of newCodes) {
-        const id = "vpc_" + crypto13.randomBytes(8).toString("hex");
+        const id = "vpc_" + crypto15.randomBytes(8).toString("hex");
         insertStmt.run(id, normalizedPackId, code, batch, now);
       }
       db.exec("COMMIT");
@@ -44337,7 +45889,7 @@ app.post("/api/admin/vp-codes", authenticate, staffOnly, (req, res) => {
     totalSubmitted: uniqueSubmitted.length
   });
 });
-app.delete("/api/admin/vp-codes/:id", authenticate, adminOnly, (req, res) => {
+app.delete("/api/admin/vp-codes/:id", authenticate, staffOnly, (req, res) => {
   const codeId = req.params.id;
   const code = db.prepare("SELECT * FROM vp_codes WHERE id = ?").get(codeId);
   if (!code) {
@@ -44452,7 +46004,7 @@ app.put("/api/admin/regional-orders/:id/status", authenticate, staffOnly, (req, 
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto13.randomBytes(8).toString("hex"),
+      "notif_" + crypto15.randomBytes(8).toString("hex"),
       order.user_id,
       `Regional order update: #${orderId}`,
       message,
@@ -44577,7 +46129,7 @@ app.post("/api/user/listings", authenticate, (req, res) => {
     res.status(400).json({ error: "Listing title, price, and competitive rank are mandatory." });
     return;
   }
-  const listingId = "lst_" + crypto13.randomBytes(6).toString("hex");
+  const listingId = "lst_" + crypto15.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialStatus = submitForReview || status === "submitted" || status === "pending_review" ? "submitted" : "draft";
   db.prepare(`
@@ -44726,7 +46278,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, (req, res) => {
       res.status(400).json({ error: "Title, price in INR, and competitive rank are mandatory fields." });
       return;
     }
-    const listingId = "lst_" + crypto13.randomBytes(6).toString("hex");
+    const listingId = "lst_" + crypto15.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const resolvedSellerName = seller_name && String(seller_name).trim() || req.user?.name || "VIB Official Vault";
     const parsedPrice = Number(price_inr);
@@ -44765,20 +46317,11 @@ app.post("/api/admin/listings", authenticate, staffOnly, (req, res) => {
       now,
       now
     );
-    try {
-      db.prepare(`
-        INSERT INTO audit_logs (id, user_id, action, target_type, target_id, details, ip_address, created_at)
-        VALUES (?, ?, 'CREATE_MARKETPLACE_LISTING', 'listing', ?, ?, ?, ?)
-      `).run(
-        "aud_" + crypto13.randomBytes(6).toString("hex"),
-        req.user.id,
-        listingId,
-        `Directly created ${status} marketplace listing "${title}" (\u20B9${parsedPrice.toLocaleString()})`,
-        req.ip || "127.0.0.1",
-        now
-      );
-    } catch {
-    }
+    logAudit(req.user.id, req.user.name, "CREATE_MARKETPLACE_LISTING", "listing", listingId, {
+      title,
+      status,
+      price: parsedPrice
+    }, req.ip || "127.0.0.1");
     const created = db.prepare("SELECT * FROM listings WHERE id = ?").get(listingId);
     res.status(201).json({
       message: `Marketplace listing "${title}" successfully created and set to ${status}.`,
@@ -45024,16 +46567,19 @@ app.post("/api/admin/email/compose", authenticate, staffOnly, async (req, res) =
       recipients = [specific_email.trim()];
     } else if (recipient_type === "segment") {
       if (segment === "buyers") {
-        const rows = db.prepare("SELECT DISTINCT user_email FROM orders WHERE status = 'completed' AND user_email IS NOT NULL").all();
-        recipients = rows.map((r) => r.user_email).filter(Boolean);
+        const rows = db.prepare("SELECT DISTINCT u.email FROM orders o JOIN users u ON u.id = o.user_id WHERE o.user_id IS NOT NULL").all();
+        recipients = rows.map((r) => r.email).filter(Boolean);
       } else if (segment === "renters") {
         const rows = db.prepare("SELECT DISTINCT u.email FROM rental_bookings rb JOIN users u ON rb.user_id = u.id").all();
         recipients = rows.map((r) => r.email).filter(Boolean);
       } else if (segment === "bidders") {
-        const rows = db.prepare("SELECT DISTINCT u.email FROM auction_bids ab JOIN users u ON ab.bidder_id = u.id").all();
+        const rows = db.prepare("SELECT DISTINCT u.email FROM auction_bids ab JOIN users u ON u.id = ab.user_id").all();
+        recipients = rows.map((r) => r.email).filter(Boolean);
+      } else if (segment === "users") {
+        const rows = db.prepare("SELECT email FROM users WHERE role IN ('user','seller') AND email IS NOT NULL").all();
         recipients = rows.map((r) => r.email).filter(Boolean);
       } else {
-        const rows = db.prepare("SELECT email FROM users WHERE role = 'customer' AND email IS NOT NULL").all();
+        const rows = db.prepare("SELECT email FROM users WHERE role IN ('user','seller') AND email IS NOT NULL").all();
         recipients = rows.map((r) => r.email).filter(Boolean);
       }
     } else {
@@ -45078,8 +46624,26 @@ app.post("/api/admin/email/compose", authenticate, staffOnly, async (req, res) =
     res.status(500).json({ error: "Failed to dispatch email campaign." });
   }
 });
-registerOverhaulRoutes(app, db, authenticate, adminOnly);
+registerOverhaulRoutes(app, db, authenticate, staffOnly, adminOnly);
 registerAdvertisementRoutes(app, db, authenticate, adminOnly);
+registerKycRoutes(app, {
+  authenticate,
+  staffOnly,
+  adminOnly,
+  superAdminOnly,
+  sendEmail,
+  isEmailConfigured,
+  logAudit
+});
+registerEmiRoutes(app, {
+  authenticate,
+  staffOnly,
+  adminOnly,
+  superAdminOnly,
+  sendEmail,
+  isEmailConfigured,
+  logAudit
+});
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[VIB Server] Production Backend running at http://localhost:${PORT}`);

@@ -1008,7 +1008,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <span>Have a skin collection you want to trade or cash out? Get an instant appraisal.</span>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1017,6 +1017,14 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-200 hover:text-white transition-colors cursor-pointer"
               >
                 Browse Available Skins
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('advertise', 'trade-exchange-plans')}
+                className="px-5 py-2.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold font-rajdhani uppercase tracking-wider text-emerald-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Repeat className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Trade / Exchange Plans</span>
               </button>
               <button
                 type="button"

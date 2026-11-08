@@ -26,6 +26,7 @@ import {
   AlertCircle,
   HelpCircle,
   Lock,
+  Repeat,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -387,7 +388,7 @@ const DEFAULT_PLANS: AdvertisementPlan[] = [
 
 interface ClientAdvertisePageProps {
   currency: Currency;
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, id?: string) => void;
   initialOrderId?: string;
   initialToken?: string;
   initialStep?: 'plans' | 'submit';
@@ -416,6 +417,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   const [utrRef, setUtrRef] = useState('');
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState<string | null>(null);
+  const [screenshotUploadProgress, setScreenshotUploadProgress] = useState<number | null>(null);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderResult, setOrderResult] = useState<any | null>(null);
@@ -444,6 +446,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   const [formOtherItems, setFormOtherItems] = useState('');
   const [formInventoryScreenshot, setFormInventoryScreenshot] = useState<string | null>(null);
   const [formInventoryFilename, setFormInventoryFilename] = useState<string | null>(null);
+  const [inventoryUploadProgress, setInventoryUploadProgress] = useState<number | null>(null);
   const [isSubmittingDetails, setIsSubmittingDetails] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -451,6 +454,46 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inventoryInputRef = useRef<HTMLInputElement>(null);
   const comparisonRef = useRef<HTMLDivElement>(null);
+  const tradeExchangeRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTradeExchange = () => {
+    setActiveView('plans');
+    setTimeout(() => {
+      const el = document.getElementById('trade-exchange-plans') || tradeExchangeRef.current;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
+  // Handle direct anchor link or parameter to Trade / Exchange section
+  useEffect(() => {
+    const checkHashAndScroll = () => {
+      try {
+        const hash = window.location.hash;
+        const params = new URLSearchParams(window.location.search);
+        const section = params.get('section');
+        if (hash === '#trade-exchange-plans' || section === 'trade-exchange-plans') {
+          setActiveView('plans');
+          let retries = 0;
+          const attempt = () => {
+            const el = document.getElementById('trade-exchange-plans') || tradeExchangeRef.current;
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else if (retries < 10) {
+              retries++;
+              setTimeout(attempt, 80);
+            }
+          };
+          setTimeout(attempt, 100);
+        }
+      } catch {}
+    };
+
+    checkHashAndScroll();
+    window.addEventListener('hashchange', checkHashAndScroll);
+    return () => window.removeEventListener('hashchange', checkHashAndScroll);
+  }, []);
 
   // Load plans from API
   useEffect(() => {
@@ -548,16 +591,27 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
       setOrderError('Please upload an image file (PNG, JPG, or WebP).');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setOrderError('Screenshot exceeds maximum allowed size (10MB).');
+    if (file.size > 5 * 1024 * 1024) {
+      setOrderError('Screenshot exceeds maximum allowed size (5MB).');
       return;
     }
 
     setScreenshotName(file.name);
+    setScreenshotUploadProgress(0);
     const reader = new FileReader();
+    reader.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        setScreenshotUploadProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
     reader.onload = () => {
       setScreenshotData(reader.result as string);
       setOrderError(null);
+      setScreenshotUploadProgress(null);
+    };
+    reader.onerror = () => {
+      setOrderError('Failed to read payment screenshot file.');
+      setScreenshotUploadProgress(null);
     };
     reader.readAsDataURL(file);
   };
@@ -571,16 +625,27 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
       setSubmitError('Please upload an image file (PNG, JPG, or WebP).');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setSubmitError('Inventory screenshot exceeds maximum allowed size (10MB).');
+    if (file.size > 5 * 1024 * 1024) {
+      setSubmitError('Inventory screenshot exceeds maximum allowed size (5MB).');
       return;
     }
 
     setFormInventoryFilename(file.name);
+    setInventoryUploadProgress(0);
     const reader = new FileReader();
+    reader.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        setInventoryUploadProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
     reader.onload = () => {
       setFormInventoryScreenshot(reader.result as string);
       setSubmitError(null);
+      setInventoryUploadProgress(null);
+    };
+    reader.onerror = () => {
+      setSubmitError('Failed to read inventory screenshot file.');
+      setInventoryUploadProgress(null);
     };
     reader.readAsDataURL(file);
   };
@@ -773,6 +838,14 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
               <span>Compare All Plans</span>
             </button>
 
+            <button
+              onClick={scrollToTradeExchange}
+              className="px-5 py-2.5 rounded-xl font-bold font-rajdhani uppercase tracking-wider text-xs bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer min-h-[44px] flex items-center gap-2"
+            >
+              <Repeat className="w-4 h-4 text-emerald-400" />
+              <span>Trade / Exchange Plans</span>
+            </button>
+
             {/* Check Existing Order Submission Button */}
             <button
               onClick={() => setActiveView('submit')}
@@ -934,6 +1007,181 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
               );
             })}
           </div>
+
+          {/* ========================================================================= */}
+          {/* 2B. DEDICATED TRADE / EXCHANGE PROMOTION PLANS SECTION                    */}
+          {/* ========================================================================= */}
+          <section
+            id="trade-exchange-plans"
+            ref={tradeExchangeRef}
+            className="scroll-mt-24 sm:scroll-mt-28 pt-8 space-y-6"
+          >
+            {/* Header banner */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-emerald-500/20 pb-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[10px] font-mono tracking-widest text-emerald-400 uppercase font-bold">
+                  <Repeat className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>COMMUNITY WEAPON TRADE &amp; SWAP PACKAGES</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase text-white font-rajdhani tracking-wide flex items-center gap-3">
+                  <span>TRADE / EXCHANGE PROMOTION PLANS</span>
+                </h2>
+              </div>
+              <p className="text-xs text-gray-300 max-w-md">
+                Dedicated Instagram story &amp; highlight shoutout campaigns engineered specifically for weapon skin traders and profile swaps across India. Direct buyer tag &amp; optional escrow.
+              </p>
+            </div>
+
+            {/* 2 Dedicated Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Plan 1: Story Promotion (24 hours) - ₹55 */}
+              {(() => {
+                const plan55 =
+                  plans.find((p) => p.id === 'ad-trade-story-55') ||
+                  DEFAULT_PLANS.find((p) => p.id === 'ad-trade-story-55')!;
+                const price55 = formatCurrencyPrice(plan55.price, currency);
+
+                return (
+                  <div className="p-6 rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-[#0a1c14] via-[#081510] to-[#050e0a] hover:border-emerald-400 hover:shadow-[0_0_25px_rgba(16,185,129,0.2)] transition-all duration-300 flex flex-col justify-between relative overflow-hidden group shadow-xl">
+                    <div className="space-y-4">
+                      {/* Badge & Duration */}
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase tracking-wider">
+                          {plan55.badge || 'FAST TRADE'}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400/80">
+                          {plan55.promotion_duration}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide leading-tight group-hover:text-emerald-300 transition-colors">
+                          ₹55 — Trade / Exchange Story 24HR
+                        </h3>
+                        <div className="text-[11px] font-mono text-emerald-400/70 pt-0.5">
+                          {plan55.name}
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed pt-2 min-h-[36px]">
+                          {plan55.description}
+                        </p>
+                      </div>
+
+                      {/* Price Section */}
+                      <div className="pt-2 border-t border-emerald-500/20">
+                        <div className="text-[10px] font-mono text-gray-400 uppercase">PACKAGE PRICE</div>
+                        <div className="text-3xl font-black text-white font-rajdhani">
+                          {price55}
+                        </div>
+                      </div>
+
+                      {/* Benefits Checklist */}
+                      <ul className="space-y-2 pt-2 text-xs text-gray-200">
+                        {plan55.benefits.map((b, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                            <span className="leading-tight">{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Buy Now Button */}
+                    <div className="pt-6 mt-4 border-t border-emerald-500/20">
+                      <button
+                        onClick={() => handleStartPurchase(plan55)}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                      >
+                        <span>Buy Now — {price55}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Plan 2: Story + Highlight Placement - ₹105 */}
+              {(() => {
+                const plan105 =
+                  plans.find((p) => p.id === 'ad-trade-highlight-105') ||
+                  DEFAULT_PLANS.find((p) => p.id === 'ad-trade-highlight-105')!;
+                const price105 = formatCurrencyPrice(plan105.price, currency);
+
+                return (
+                  <div className="p-6 rounded-2xl border border-cyan-500/40 bg-gradient-to-b from-[#081a24] via-[#06141c] to-[#040e14] hover:border-cyan-400 hover:shadow-[0_0_25px_rgba(6,182,212,0.2)] transition-all duration-300 flex flex-col justify-between relative overflow-hidden group shadow-xl">
+                    <div className="space-y-4">
+                      {/* Badge & Duration */}
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 uppercase tracking-wider">
+                          {plan105.badge || 'TRADE HIGHLIGHT'}
+                        </span>
+                        <span className="text-[10px] font-mono text-cyan-400/80">
+                          {plan105.promotion_duration}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide leading-tight group-hover:text-cyan-300 transition-colors">
+                          ₹105 — Trade / Exchange Story + Highlight
+                        </h3>
+                        <div className="text-[11px] font-mono text-cyan-400/70 pt-0.5">
+                          {plan105.name}
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed pt-2 min-h-[36px]">
+                          {plan105.description}
+                        </p>
+                      </div>
+
+                      {/* Price Section */}
+                      <div className="pt-2 border-t border-cyan-500/20">
+                        <div className="text-[10px] font-mono text-gray-400 uppercase">PACKAGE PRICE</div>
+                        <div className="text-3xl font-black text-white font-rajdhani">
+                          {price105}
+                        </div>
+                      </div>
+
+                      {/* Benefits Checklist */}
+                      <ul className="space-y-2 pt-2 text-xs text-gray-200">
+                        {plan105.benefits.map((b, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                            <span className="leading-tight">{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Buy Now Button */}
+                    <div className="pt-6 mt-4 border-t border-cyan-500/20">
+                      <button
+                        onClick={() => handleStartPurchase(plan105)}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                      >
+                        <span>Buy Now — {price105}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Escrow Guarantee Strip */}
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 text-emerald-300">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <span className="text-gray-200 leading-relaxed">
+                  <strong className="text-emerald-300 font-rajdhani uppercase tracking-wide">100% Escrow Mediation:</strong> When potential traders contact you on Instagram, execute the item swap through our verified WhatsApp middleman service for total scam immunity.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('profiles')}
+                className="px-4 py-2 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-500/40 text-emerald-200 text-xs font-bold font-rajdhani uppercase tracking-wider flex-shrink-0 transition-all cursor-pointer min-h-[36px]"
+              >
+                Browse Available Skins
+              </button>
+            </div>
+          </section>
 
           {/* ========================================================================= */}
           {/* 3. PROFESSIONAL PLAN COMPARISON TABLE                                     */}
@@ -1355,7 +1603,18 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                       className="hidden"
                     />
 
-                    {formInventoryScreenshot ? (
+                    {inventoryUploadProgress !== null ? (
+                      <div className="flex flex-col items-center justify-center gap-2 text-xs text-gray-300">
+                        <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                        <span>Reading inventory screenshot… {inventoryUploadProgress}%</span>
+                        <div className="w-44 h-1 rounded bg-white/10 overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500 transition-all duration-150"
+                            style={{ width: `${inventoryUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : formInventoryScreenshot ? (
                       <div className="space-y-3">
                         <img
                           src={formInventoryScreenshot}
@@ -1385,7 +1644,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                           Upload Main Inventory Screenshot
                         </div>
                         <div className="text-[11px] text-gray-400">
-                          PNG, JPG, or WebP up to 10MB. Must show the collection grid clearly.
+                          PNG, JPG, or WebP up to 5MB. Must show the collection grid clearly.
                         </div>
                       </div>
                     )}
@@ -1662,7 +1921,18 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                           className="hidden"
                         />
 
-                        {screenshotData ? (
+                        {screenshotUploadProgress !== null ? (
+                          <div className="flex flex-col items-center justify-center gap-2 text-xs text-gray-300">
+                            <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                            <span>Reading payment screenshot… {screenshotUploadProgress}%</span>
+                            <div className="w-40 h-1 rounded bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full bg-purple-500 transition-all duration-150"
+                                style={{ width: `${screenshotUploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : screenshotData ? (
                           <div className="flex items-center justify-between gap-3 text-xs">
                             <div className="flex items-center gap-2 text-emerald-300 font-mono">
                               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -1683,7 +1953,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                         ) : (
                           <div className="flex items-center justify-center gap-2 text-xs text-gray-300">
                             <UploadCloud className="w-4 h-4 text-purple-400" />
-                            <span>Click to upload payment screenshot (max 10MB)</span>
+                            <span>Click to upload payment screenshot (max 5MB)</span>
                           </div>
                         )}
                       </div>
