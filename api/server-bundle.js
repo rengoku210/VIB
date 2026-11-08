@@ -34,8 +34,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
-    var fs8 = __require("fs");
-    var path7 = __require("path");
+    var fs10 = __require("fs");
+    var path9 = __require("path");
     var os3 = __require("os");
     var crypto16 = __require("crypto");
     var TIPS = [
@@ -166,7 +166,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs8.existsSync(filepath)) {
+            if (fs10.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -174,15 +174,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path9.resolve(process.cwd(), ".env.vault");
       }
-      if (fs8.existsSync(possibleVaultPath)) {
+      if (fs10.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path7.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path9.join(os3.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -199,7 +199,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path7.resolve(process.cwd(), ".env");
+      const dotenvPath = path9.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -227,13 +227,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path8 of optionPaths) {
+      for (const path10 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs8.readFileSync(path8, { encoding }));
+          const parsed = DotenvModule.parse(fs10.readFileSync(path10, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path8} ${e.message}`);
+            _debug(`failed to load ${path10} ${e.message}`);
           }
           lastError = e;
         }
@@ -246,7 +246,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path7.relative(process.cwd(), filePath);
+            const relative = path9.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -1656,8 +1656,8 @@ var require_node = __commonJS({
           }
           break;
         case "FILE":
-          var fs8 = __require("fs");
-          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
+          var fs10 = __require("fs");
+          stream2 = new fs10.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -14444,11 +14444,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path7) {
-      if (!path7 || typeof path7 !== "string") {
+    function lookup(path9) {
+      if (!path9 || typeof path9 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path7).toLowerCase().substr(1);
+      var extension2 = extname("x." + path9).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -18101,8 +18101,8 @@ var require_node2 = __commonJS({
           }
           break;
         case "FILE":
-          var fs8 = __require("fs");
-          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
+          var fs10 = __require("fs");
+          stream2 = new fs10.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -18820,8 +18820,8 @@ var require_node3 = __commonJS({
           }
           break;
         case "FILE":
-          var fs8 = __require("fs");
-          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
+          var fs10 = __require("fs");
+          stream2 = new fs10.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -18909,7 +18909,7 @@ var require_path_to_regexp = __commonJS({
   "node_modules/path-to-regexp/index.js"(exports, module) {
     module.exports = pathToRegexp;
     var MATCHING_GROUP_REGEXP = /\\.|\((?:\?<(.*?)>)?(?!\?)/g;
-    function pathToRegexp(path7, keys, options) {
+    function pathToRegexp(path9, keys, options) {
       options = options || {};
       keys = keys || [];
       var strict = options.strict;
@@ -18923,8 +18923,8 @@ var require_path_to_regexp = __commonJS({
       var pos = 0;
       var backtrack = "";
       var m;
-      if (path7 instanceof RegExp) {
-        while (m = MATCHING_GROUP_REGEXP.exec(path7.source)) {
+      if (path9 instanceof RegExp) {
+        while (m = MATCHING_GROUP_REGEXP.exec(path9.source)) {
           if (m[0][0] === "\\") continue;
           keys.push({
             name: m[1] || name2++,
@@ -18932,18 +18932,18 @@ var require_path_to_regexp = __commonJS({
             offset: m.index
           });
         }
-        return path7;
+        return path9;
       }
-      if (Array.isArray(path7)) {
-        path7 = path7.map(function(value) {
+      if (Array.isArray(path9)) {
+        path9 = path9.map(function(value) {
           return pathToRegexp(value, keys, options).source;
         });
-        return new RegExp(path7.join("|"), flags);
+        return new RegExp(path9.join("|"), flags);
       }
-      if (typeof path7 !== "string") {
+      if (typeof path9 !== "string") {
         throw new TypeError("path must be a string, array of strings, or regular expression");
       }
-      path7 = path7.replace(
+      path9 = path9.replace(
         /\\.|(\/)?(\.)?:(\w+)(\(.*?\))?(\*)?(\?)?|[.*]|\/\(/g,
         function(match, slash, format, key, capture, star, optional, offset) {
           if (match[0] === "\\") {
@@ -18960,7 +18960,7 @@ var require_path_to_regexp = __commonJS({
           if (slash || format) {
             backtrack = "";
           } else {
-            backtrack += path7.slice(pos, offset);
+            backtrack += path9.slice(pos, offset);
           }
           pos = offset + match.length;
           if (match === "*") {
@@ -18990,7 +18990,7 @@ var require_path_to_regexp = __commonJS({
           return result;
         }
       );
-      while (m = MATCHING_GROUP_REGEXP.exec(path7)) {
+      while (m = MATCHING_GROUP_REGEXP.exec(path9)) {
         if (m[0][0] === "\\") continue;
         if (keysOffset + i === keys.length || keys[keysOffset + i].offset > m.index) {
           keys.splice(keysOffset + i, 0, {
@@ -19002,13 +19002,13 @@ var require_path_to_regexp = __commonJS({
         }
         i++;
       }
-      path7 += strict ? "" : path7[path7.length - 1] === "/" ? "?" : "/?";
+      path9 += strict ? "" : path9[path9.length - 1] === "/" ? "?" : "/?";
       if (end) {
-        path7 += "$";
-      } else if (path7[path7.length - 1] !== "/") {
-        path7 += lookahead ? "(?=/|$)" : "(?:/|$)";
+        path9 += "$";
+      } else if (path9[path9.length - 1] !== "/") {
+        path9 += lookahead ? "(?=/|$)" : "(?:/|$)";
       }
-      return new RegExp("^" + path7, flags);
+      return new RegExp("^" + path9, flags);
     }
   }
 });
@@ -19021,19 +19021,19 @@ var require_layer = __commonJS({
     var debug = require_src3()("express:router:layer");
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     module.exports = Layer;
-    function Layer(path7, options, fn) {
+    function Layer(path9, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path7, options, fn);
+        return new Layer(path9, options, fn);
       }
-      debug("new %o", path7);
+      debug("new %o", path9);
       var opts = options || {};
       this.handle = fn;
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.regexp = pathRegexp(path7, this.keys = [], opts);
-      this.regexp.fast_star = path7 === "*";
-      this.regexp.fast_slash = path7 === "/" && opts.end === false;
+      this.regexp = pathRegexp(path9, this.keys = [], opts);
+      this.regexp.fast_star = path9 === "*";
+      this.regexp.fast_slash = path9 === "/" && opts.end === false;
     }
     Layer.prototype.handle_error = function handle_error(error2, req, res, next) {
       var fn = this.handle;
@@ -19057,20 +19057,20 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match(path7) {
+    Layer.prototype.match = function match(path9) {
       var match2;
-      if (path7 != null) {
+      if (path9 != null) {
         if (this.regexp.fast_slash) {
           this.params = {};
           this.path = "";
           return true;
         }
         if (this.regexp.fast_star) {
-          this.params = { "0": decode_param(path7) };
-          this.path = path7;
+          this.params = { "0": decode_param(path9) };
+          this.path = path9;
           return true;
         }
-        match2 = this.regexp.exec(path7);
+        match2 = this.regexp.exec(path9);
       }
       if (!match2) {
         this.params = void 0;
@@ -19163,10 +19163,10 @@ var require_route = __commonJS({
     var slice = Array.prototype.slice;
     var toString = Object.prototype.toString;
     module.exports = Route;
-    function Route(path7) {
-      this.path = path7;
+    function Route(path9) {
+      this.path = path9;
       this.stack = [];
-      debug("new %o", path7);
+      debug("new %o", path9);
       this.methods = {};
     }
     Route.prototype._handles_method = function _handles_method(method) {
@@ -19378,8 +19378,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        var path7 = getPathname(req);
-        if (path7 == null) {
+        var path9 = getPathname(req);
+        if (path9 == null) {
           return done(layerError);
         }
         var layer;
@@ -19387,7 +19387,7 @@ var require_router = __commonJS({
         var route;
         while (match !== true && idx < stack.length) {
           layer = stack[idx++];
-          match = matchLayer(layer, path7);
+          match = matchLayer(layer, path9);
           route = layer.route;
           if (typeof match !== "boolean") {
             layerError = layerError || match;
@@ -19425,18 +19425,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handle_request(req, res, next);
           } else {
-            trim_prefix(layer, layerError, layerPath, path7);
+            trim_prefix(layer, layerError, layerPath, path9);
           }
           sync = 0;
         });
       }
-      function trim_prefix(layer, layerError, layerPath, path7) {
+      function trim_prefix(layer, layerError, layerPath, path9) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path7.slice(0, layerPath.length)) {
+          if (layerPath !== path9.slice(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          var c = path7[layerPath.length];
+          var c = path9[layerPath.length];
           if (c && c !== "/" && c !== ".") return next(layerError);
           debug("trim prefix (%s) from url %s", layerPath, req.url);
           removed = layerPath;
@@ -19514,7 +19514,7 @@ var require_router = __commonJS({
     };
     proto.use = function use(fn) {
       var offset = 0;
-      var path7 = "/";
+      var path9 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -19522,7 +19522,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path7 = fn;
+          path9 = fn;
         }
       }
       var callbacks = flatten(slice.call(arguments, offset));
@@ -19534,8 +19534,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("Router.use() requires a middleware function but got a " + gettype(fn));
         }
-        debug("use %o %s", path7, fn.name || "<anonymous>");
-        var layer = new Layer(path7, {
+        debug("use %o %s", path9, fn.name || "<anonymous>");
+        var layer = new Layer(path9, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -19545,9 +19545,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    proto.route = function route(path7) {
-      var route2 = new Route(path7);
-      var layer = new Layer(path7, {
+    proto.route = function route(path9) {
+      var route2 = new Route(path9);
+      var layer = new Layer(path9, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -19557,8 +19557,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      proto[method] = function(path7) {
-        var route = this.route(path7);
+      proto[method] = function(path9) {
+        var route = this.route(path9);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -19594,9 +19594,9 @@ var require_router = __commonJS({
       }
       return toString.call(obj).replace(objectRegExp, "$1");
     }
-    function matchLayer(layer, path7) {
+    function matchLayer(layer, path9) {
       try {
-        return layer.match(path7);
+        return layer.match(path9);
       } catch (err) {
         return err;
       }
@@ -19714,13 +19714,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports, module) {
     "use strict";
     var debug = require_src3()("express:view");
-    var path7 = __require("path");
-    var fs8 = __require("fs");
-    var dirname = path7.dirname;
-    var basename = path7.basename;
-    var extname = path7.extname;
-    var join = path7.join;
-    var resolve3 = path7.resolve;
+    var path9 = __require("path");
+    var fs10 = __require("fs");
+    var dirname = path9.dirname;
+    var basename = path9.basename;
+    var extname = path9.extname;
+    var join = path9.join;
+    var resolve3 = path9.resolve;
     module.exports = View;
     function View(name2, options) {
       var opts = options || {};
@@ -19749,17 +19749,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name2) {
-      var path8;
+      var path10;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name2);
-      for (var i = 0; i < roots.length && !path8; i++) {
+      for (var i = 0; i < roots.length && !path10; i++) {
         var root = roots[i];
         var loc = resolve3(root, name2);
         var dir = dirname(loc);
         var file = basename(loc);
-        path8 = this.resolve(dir, file);
+        path10 = this.resolve(dir, file);
       }
-      return path8;
+      return path10;
     };
     View.prototype.render = function render(options, callback) {
       debug('render "%s"', this.path);
@@ -19767,21 +19767,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve4(dir, file) {
       var ext = this.ext;
-      var path8 = join(dir, file);
-      var stat = tryStat(path8);
+      var path10 = join(dir, file);
+      var stat = tryStat(path10);
       if (stat && stat.isFile()) {
-        return path8;
+        return path10;
       }
-      path8 = join(dir, basename(file, ext), "index" + ext);
-      stat = tryStat(path8);
+      path10 = join(dir, basename(file, ext), "index" + ext);
+      stat = tryStat(path10);
       if (stat && stat.isFile()) {
-        return path8;
+        return path10;
       }
     };
-    function tryStat(path8) {
-      debug('stat "%s"', path8);
+    function tryStat(path10) {
+      debug('stat "%s"', path10);
       try {
-        return fs8.statSync(path8);
+        return fs10.statSync(path10);
       } catch (e) {
         return void 0;
       }
@@ -20386,8 +20386,8 @@ var require_node4 = __commonJS({
           }
           break;
         case "FILE":
-          var fs8 = __require("fs");
-          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
+          var fs10 = __require("fs");
+          stream2 = new fs10.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -20559,8 +20559,8 @@ var require_types = __commonJS({
 // node_modules/mime/mime.js
 var require_mime = __commonJS({
   "node_modules/mime/mime.js"(exports, module) {
-    var path7 = __require("path");
-    var fs8 = __require("fs");
+    var path9 = __require("path");
+    var fs10 = __require("fs");
     function Mime() {
       this.types = /* @__PURE__ */ Object.create(null);
       this.extensions = /* @__PURE__ */ Object.create(null);
@@ -20581,7 +20581,7 @@ var require_mime = __commonJS({
     };
     Mime.prototype.load = function(file) {
       this._loading = file;
-      var map2 = {}, content = fs8.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
+      var map2 = {}, content = fs10.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
       lines.forEach(function(line) {
         var fields = line.replace(/\s*#.*|^\s*|\s*$/g, "").split(/\s+/);
         map2[fields.shift()] = fields;
@@ -20589,8 +20589,8 @@ var require_mime = __commonJS({
       this.define(map2);
       this._loading = null;
     };
-    Mime.prototype.lookup = function(path8, fallback) {
-      var ext = path8.replace(/^.*[\.\/\\]/, "").toLowerCase();
+    Mime.prototype.lookup = function(path10, fallback) {
+      var ext = path10.replace(/^.*[\.\/\\]/, "").toLowerCase();
       return this.types[ext] || fallback || this.default_type;
     };
     Mime.prototype.extension = function(mimeType) {
@@ -20819,33 +20819,33 @@ var require_send = __commonJS({
     var escapeHtml3 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs8 = __require("fs");
+    var fs10 = __require("fs");
     var mime = require_mime();
     var ms = require_ms5();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path7 = __require("path");
+    var path9 = __require("path");
     var statuses = require_statuses();
     var Stream2 = __require("stream");
     var util3 = __require("util");
-    var extname = path7.extname;
-    var join = path7.join;
-    var normalize = path7.normalize;
-    var resolve3 = path7.resolve;
-    var sep = path7.sep;
+    var extname = path9.extname;
+    var join = path9.join;
+    var normalize = path9.normalize;
+    var resolve3 = path9.resolve;
+    var sep = path9.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module.exports = send;
     module.exports.mime = mime;
-    function send(req, path8, options) {
-      return new SendStream(req, path8, options);
+    function send(req, path10, options) {
+      return new SendStream(req, path10, options);
     }
-    function SendStream(req, path8, options) {
+    function SendStream(req, path10, options) {
       Stream2.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path8;
+      this.path = path10;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -20891,8 +20891,8 @@ var require_send = __commonJS({
       this._index = index2;
       return this;
     }, "send.index: pass index as option");
-    SendStream.prototype.root = function root(path8) {
-      this._root = resolve3(String(path8));
+    SendStream.prototype.root = function root(path10) {
+      this._root = resolve3(String(path10));
       debug("root %s", this._root);
       return this;
     };
@@ -21005,10 +21005,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path8) {
+    SendStream.prototype.redirect = function redirect(path10) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path8);
+        this.emit("directory", res, path10);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -21028,42 +21028,42 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe(res) {
       var root = this._root;
       this.res = res;
-      var path8 = decode2(this.path);
-      if (path8 === -1) {
+      var path10 = decode2(this.path);
+      if (path10 === -1) {
         this.error(400);
         return res;
       }
-      if (~path8.indexOf("\0")) {
+      if (~path10.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path8) {
-          path8 = normalize("." + sep + path8);
+        if (path10) {
+          path10 = normalize("." + sep + path10);
         }
-        if (UP_PATH_REGEXP.test(path8)) {
-          debug('malicious path "%s"', path8);
+        if (UP_PATH_REGEXP.test(path10)) {
+          debug('malicious path "%s"', path10);
           this.error(403);
           return res;
         }
-        parts = path8.split(sep);
-        path8 = normalize(join(root, path8));
+        parts = path10.split(sep);
+        path10 = normalize(join(root, path10));
       } else {
-        if (UP_PATH_REGEXP.test(path8)) {
-          debug('malicious path "%s"', path8);
+        if (UP_PATH_REGEXP.test(path10)) {
+          debug('malicious path "%s"', path10);
           this.error(403);
           return res;
         }
-        parts = normalize(path8).split(sep);
-        path8 = resolve3(path8);
+        parts = normalize(path10).split(sep);
+        path10 = resolve3(path10);
       }
       if (containsDotFile(parts)) {
         var access = this._dotfiles;
         if (access === void 0) {
           access = parts[parts.length - 1][0] === "." ? this._hidden ? "allow" : "ignore" : "allow";
         }
-        debug('%s dotfile "%s"', access, path8);
+        debug('%s dotfile "%s"', access, path10);
         switch (access) {
           case "allow":
             break;
@@ -21077,13 +21077,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path8);
+        this.sendIndex(path10);
         return res;
       }
-      this.sendFile(path8);
+      this.sendFile(path10);
       return res;
     };
-    SendStream.prototype.send = function send2(path8, stat) {
+    SendStream.prototype.send = function send2(path10, stat) {
       var len = stat.size;
       var options = this.options;
       var opts = {};
@@ -21095,9 +21095,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path8);
-      this.setHeader(path8, stat);
-      this.type(path8);
+      debug('pipe "%s"', path10);
+      this.setHeader(path10, stat);
+      this.type(path10);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -21146,28 +21146,28 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path8, opts);
+      this.stream(path10, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path8) {
+    SendStream.prototype.sendFile = function sendFile(path10) {
       var i = 0;
       var self = this;
-      debug('stat "%s"', path8);
-      fs8.stat(path8, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path8) && path8[path8.length - 1] !== sep) {
+      debug('stat "%s"', path10);
+      fs10.stat(path10, function onstat(err, stat) {
+        if (err && err.code === "ENOENT" && !extname(path10) && path10[path10.length - 1] !== sep) {
           return next(err);
         }
         if (err) return self.onStatError(err);
-        if (stat.isDirectory()) return self.redirect(path8);
-        self.emit("file", path8, stat);
-        self.send(path8, stat);
+        if (stat.isDirectory()) return self.redirect(path10);
+        self.emit("file", path10, stat);
+        self.send(path10, stat);
       });
       function next(err) {
         if (self._extensions.length <= i) {
           return err ? self.onStatError(err) : self.error(404);
         }
-        var p = path8 + "." + self._extensions[i++];
+        var p = path10 + "." + self._extensions[i++];
         debug('stat "%s"', p);
-        fs8.stat(p, function(err2, stat) {
+        fs10.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p, stat);
@@ -21175,7 +21175,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path8) {
+    SendStream.prototype.sendIndex = function sendIndex(path10) {
       var i = -1;
       var self = this;
       function next(err) {
@@ -21183,9 +21183,9 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join(path8, self._index[i]);
+        var p = join(path10, self._index[i]);
         debug('stat "%s"', p);
-        fs8.stat(p, function(err2, stat) {
+        fs10.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p, stat);
@@ -21194,10 +21194,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path8, options) {
+    SendStream.prototype.stream = function stream(path10, options) {
       var self = this;
       var res = this.res;
-      var stream2 = fs8.createReadStream(path8, options);
+      var stream2 = fs10.createReadStream(path10, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -21212,10 +21212,10 @@ var require_send = __commonJS({
         self.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path8) {
+    SendStream.prototype.type = function type(path10) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var type2 = mime.lookup(path8);
+      var type2 = mime.lookup(path10);
       if (!type2) {
         debug("no content-type");
         return;
@@ -21224,9 +21224,9 @@ var require_send = __commonJS({
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2 + (charset ? "; charset=" + charset : ""));
     };
-    SendStream.prototype.setHeader = function setHeader(path8, stat) {
+    SendStream.prototype.setHeader = function setHeader(path10, stat) {
       var res = this.res;
-      this.emit("headers", res, path8, stat);
+      this.emit("headers", res, path10, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -21285,9 +21285,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode2(path8) {
+    function decode2(path10) {
       try {
-        return decodeURIComponent(path8);
+        return decodeURIComponent(path10);
       } catch (err) {
         return -1;
       }
@@ -22212,10 +22212,10 @@ var require_utils2 = __commonJS({
     var querystring = __require("querystring");
     exports.etag = createETagGenerator({ weak: false });
     exports.wetag = createETagGenerator({ weak: true });
-    exports.isAbsolute = function(path7) {
-      if ("/" === path7[0]) return true;
-      if (":" === path7[1] && ("\\" === path7[2] || "/" === path7[2])) return true;
-      if ("\\\\" === path7.substring(0, 2)) return true;
+    exports.isAbsolute = function(path9) {
+      if ("/" === path9[0]) return true;
+      if (":" === path9[1] && ("\\" === path9[2] || "/" === path9[2])) return true;
+      if ("\\\\" === path9.substring(0, 2)) return true;
     };
     exports.flatten = deprecate.function(
       flatten,
@@ -22427,7 +22427,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path7 = "/";
+      var path9 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -22435,7 +22435,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path7 = fn;
+          path9 = fn;
         }
       }
       var fns = flatten(slice.call(arguments, offset));
@@ -22446,12 +22446,12 @@ var require_application = __commonJS({
       var router = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path7, fn2);
+          return router.use(path9, fn2);
         }
-        debug(".use app under %s", path7);
-        fn2.mountpath = path7;
+        debug(".use app under %s", path9);
+        fn2.mountpath = path9;
         fn2.parent = this;
-        router.use(path7, function mounted_app(req, res, next) {
+        router.use(path9, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -22463,9 +22463,9 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path7) {
+    app2.route = function route(path9) {
       this.lazyrouter();
-      return this._router.route(path7);
+      return this._router.route(path9);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -22516,7 +22516,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path7() {
+    app2.path = function path9() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -22532,19 +22532,19 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path7) {
+      app2[method] = function(path9) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path7);
+          return this.set(path9);
         }
         this.lazyrouter();
-        var route = this._router.route(path7);
+        var route = this._router.route(path9);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path7) {
+    app2.all = function all(path9) {
       this.lazyrouter();
-      var route = this._router.route(path7);
+      var route = this._router.route(path9);
       var args = slice.call(arguments, 1);
       for (var i = 0; i < methods.length; i++) {
         route[methods[i]].apply(route, args);
@@ -23303,7 +23303,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path7() {
+    defineGetter(req, "path", function path9() {
       return parse2(this).pathname;
     });
     defineGetter(req, "hostname", function hostname() {
@@ -23625,7 +23625,7 @@ var require_response = __commonJS({
     var http2 = __require("http");
     var isAbsolute = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
-    var path7 = __require("path");
+    var path9 = __require("path");
     var statuses = require_statuses();
     var merge = require_utils_merge();
     var sign2 = require_cookie_signature().sign;
@@ -23634,9 +23634,9 @@ var require_response = __commonJS({
     var setCharset = require_utils2().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path7.extname;
+    var extname = path9.extname;
     var mime = send.mime;
-    var resolve3 = path7.resolve;
+    var resolve3 = path9.resolve;
     var vary = require_vary();
     var res = Object.create(http2.ServerResponse.prototype);
     module.exports = res;
@@ -23813,26 +23813,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path8, options, callback) {
+    res.sendFile = function sendFile(path10, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path8) {
+      if (!path10) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path8 !== "string") {
+      if (typeof path10 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute(path8)) {
+      if (!opts.root && !isAbsolute(path10)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path8);
+      var pathname = encodeURI(path10);
       var file = send(req, pathname, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
@@ -23842,7 +23842,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.sendfile = function(path8, options, callback) {
+    res.sendfile = function(path10, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
@@ -23852,7 +23852,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      var file = send(req, path8, opts);
+      var file = send(req, path10, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
         if (err && err.code === "EISDIR") return next();
@@ -23865,7 +23865,7 @@ var require_response = __commonJS({
       res.sendfile,
       "res.sendfile: Use res.sendFile instead"
     );
-    res.download = function download(path8, filename, options, callback) {
+    res.download = function download(path10, filename, options, callback) {
       var done = callback;
       var name2 = filename;
       var opts = options || null;
@@ -23882,7 +23882,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name2 || path8)
+        "Content-Disposition": contentDisposition(name2 || path10)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -23895,7 +23895,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve3(path8) : path8;
+      var fullPath = !opts.root ? resolve3(path10) : path10;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -24196,11 +24196,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path7 = parseUrl(req).pathname;
-        if (path7 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path7 = "";
+        var path9 = parseUrl(req).pathname;
+        if (path9 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path9 = "";
         }
-        var stream = send(req, path7, opts);
+        var stream = send(req, path9, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -24350,8 +24350,8 @@ var require_express2 = __commonJS({
 // server/index.ts
 var import_express = __toESM(require_express2(), 1);
 import crypto15 from "node:crypto";
-import fs7 from "node:fs";
-import path6 from "node:path";
+import fs9 from "node:fs";
+import path8 from "node:path";
 
 // server/db.ts
 import { DatabaseSync } from "node:sqlite";
@@ -25036,6 +25036,14 @@ try {
 }
 try {
   db.exec("ALTER TABLE advertisement_orders ADD COLUMN user_id TEXT");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN whatsapp_contact_enabled INTEGER DEFAULT 1");
+} catch {
+}
+try {
+  db.exec("ALTER TABLE advertisement_orders ADD COLUMN inventory_screenshots_json TEXT");
 } catch {
 }
 try {
@@ -28054,6 +28062,8 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
 
 // server/advertisementRoutes.ts
 import crypto12 from "node:crypto";
+import fs6 from "node:fs";
+import path5 from "node:path";
 
 // node_modules/nodemailer/dist/esm/mailer/index.js
 import { EventEmitter } from "node:events";
@@ -28608,11 +28618,11 @@ var Cookies = class {
   getPath(pathname) {
     const pathParts = (pathname || "/").split("/");
     pathParts.pop();
-    const path7 = pathParts.join("/").trim();
-    if (path7.charAt(0) !== "/") {
+    const path9 = pathParts.join("/").trim();
+    if (path9.charAt(0) !== "/") {
       return "/";
     }
-    return path7;
+    return path9;
   }
 };
 var cookies_default = Cookies;
@@ -40539,6 +40549,8 @@ var nodemailer_default = nodemailer;
 
 // server/email.ts
 import crypto11 from "node:crypto";
+import fs5 from "node:fs";
+import path4 from "node:path";
 var ADMIN_EMAIL = process.env.VIB_ADMIN_EMAIL || "thevibofficial@gmail.com";
 var SUPPORT_WHATSAPP = "+91 9181801766";
 var PLATFORM_NAME = "VIB Digital Services";
@@ -40584,19 +40596,26 @@ async function sendEmail(options) {
       if (!fromAddr.includes("<")) {
         fromAddr = `VIB <${fromAddr}>`;
       }
+      const resendPayload = {
+        from: fromAddr,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text || options.subject
+      };
+      if (options.attachments && options.attachments.length > 0) {
+        resendPayload.attachments = options.attachments.map((att) => ({
+          filename: att.filename,
+          content: att.content
+        }));
+      }
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          from: fromAddr,
-          to: [options.to],
-          subject: options.subject,
-          html: options.html,
-          text: options.text || options.subject
-        })
+        body: JSON.stringify(resendPayload)
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -40619,7 +40638,8 @@ async function sendEmail(options) {
         to: options.to,
         subject: options.subject,
         html: options.html,
-        text: options.text || options.subject
+        text: options.text || options.subject,
+        attachments: options.attachments
       });
       status = "delivered";
       console.log(`[Email Service - SMTP] Email sent successfully to ${options.to} (${options.subject})`);
@@ -41176,62 +41196,195 @@ async function sendCustomerAdPaymentRejected(order, reason) {
   });
 }
 async function sendAdminAdDetailsSubmitted(order, details, appBaseUrl) {
-  const baseUrl = appBaseUrl || process.env.APP_URL || "https://vib-rho.vercel.app";
-  const screenshotLink = details.inventory_screenshot?.startsWith("http") ? details.inventory_screenshot : `${baseUrl}${details.inventory_screenshot || ""}`;
+  const baseUrl = (appBaseUrl || process.env.APP_URL || "https://vib-rho.vercel.app").replace(/\/+$/, "");
+  const screenshots = Array.isArray(details.inventory_screenshots) && details.inventory_screenshots.length > 0 ? details.inventory_screenshots.slice(0, 3) : details.inventory_screenshot ? [details.inventory_screenshot] : [];
+  const attachments = [];
+  screenshots.forEach((shot, idx) => {
+    if (shot.startsWith("data:image/")) {
+      const match = shot.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        attachments.push({
+          filename: `inventory_screenshot_${idx + 1}.${match[1] === "jpeg" ? "jpg" : match[1]}`,
+          content: match[2]
+        });
+      }
+    } else if (shot.startsWith("/uploads/")) {
+      const localPath = path4.join(process.cwd(), "data", shot);
+      if (fs5.existsSync(localPath)) {
+        try {
+          const buf = fs5.readFileSync(localPath);
+          const ext = path4.extname(localPath).replace(".", "") || "jpg";
+          attachments.push({
+            filename: `inventory_screenshot_${idx + 1}.${ext}`,
+            content: buf.toString("base64")
+          });
+        } catch {
+        }
+      }
+    }
+  });
+  const whatsappContactStatus = details.whatsapp_contact_enabled === 1 || details.whatsapp_contact_enabled === true ? '<span style="color: #10b981; font-weight: bold;">ENABLED</span> (Buyers can contact directly on WhatsApp)' : '<span style="color: #f59e0b; font-weight: bold;">DISABLED</span> (Private - Contact via Instagram tag only)';
+  const screenshotsHtml = screenshots.length > 0 ? `
+      <div style="margin-top: 20px;">
+        <h3 style="color: #c084fc; font-size: 15px; margin: 0 0 12px 0; text-transform: uppercase;">
+          Main Profile / Inventory Screenshots (${screenshots.length} of 3 uploaded):
+        </h3>
+        ${screenshots.map((s, i) => {
+    const fullLink = s.startsWith("http") || s.startsWith("data:") ? s : `${baseUrl}${s.startsWith("/") ? "" : "/"}${s}`;
+    return `
+            <div style="background-color: #0d0b17; border: 1px solid #4c1d95; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+              <div style="font-size: 12px; color: #a78bfa; margin-bottom: 8px; font-weight: bold;">
+                Screenshot #${i + 1}
+                ${!s.startsWith("data:") ? `<a href="${fullLink}" target="_blank" style="color: #38bdf8; margin-left: 10px; text-decoration: underline;">Open High-Res Link</a>` : ""}
+              </div>
+              <img src="${fullLink}" alt="Inventory Screenshot ${i + 1}" style="max-width: 100%; max-height: 480px; display: block; border-radius: 6px; border: 1px solid #7c3aed;" />
+            </div>
+          `;
+  }).join("")}
+      </div>
+    ` : '<p style="color: #ef4444;">No inventory screenshot provided.</p>';
   const html = `
-    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
-      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW CUSTOMER ADVERTISEMENT SUBMISSION</h2>
-      <p>Customer has completed their advertisement details submission form. Here are the details for publication:</p>
-      
-      <div style="background-color: #1a162b; border: 1px solid #a855f7; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.8;">
-        <p style="margin: 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
-        <p style="margin: 0;"><strong>PACKAGE PRICE:</strong> \u20B9${Number(order.plan_price).toLocaleString("en-IN")}</p>
-        <p style="margin: 0;"><strong>CUSTOMER NAME:</strong> ${details.customer_name || order.customer_name}</p>
-        <p style="margin: 0;"><strong>CUSTOMER EMAIL:</strong> ${details.customer_email || order.customer_email}</p>
-        <p style="margin: 0;"><strong>WHATSAPP NUMBER:</strong> ${details.customer_phone || order.customer_phone}</p>
-        <p style="margin: 0;"><strong>INSTAGRAM USERNAME:</strong> ${details.instagram_username || "N/A"}</p>
-        <p style="margin: 0;"><strong>SELLING PRICE:</strong> \u20B9${details.selling_price || "N/A"}</p>
-        <p style="margin: 0;"><strong>CURRENT RANK:</strong> ${details.current_rank || "N/A"}</p>
-        <p style="margin: 0;"><strong>PREMIUM SKINS LIST:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.premium_skins || "None provided"}</pre></p>
-        <p style="margin: 0;"><strong>OTHER VALUABLE ITEMS:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.other_valuable_items || "None provided"}</pre></p>
-        <p style="margin: 0;"><strong>LINK TO INVENTORY SCREENSHOT:</strong> <a href="${screenshotLink}" target="_blank" style="color: #38bdf8;">View Inventory Screenshot</a></p>
+    <div style="font-family: Arial, sans-serif; background-color: #07050f; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 700px; margin: 0 auto; border: 1px solid #3b2a59;">
+      <div style="border-bottom: 2px solid #9333ea; padding-bottom: 14px; margin-bottom: 18px;">
+        <span style="background-color: #2e1065; color: #c084fc; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;">
+          PROMOTION SUBMISSION RECEIVED
+        </span>
+        <h2 style="color: #ffffff; margin: 10px 0 4px 0; font-size: 22px;">
+          ${order.plan_name}
+        </h2>
+        <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+          Order Reference: <strong style="color: #f1f5f9;">#${order.id}</strong> | Amount Paid: <strong style="color: #34d399;">\u20B9${Number(order.plan_price).toLocaleString("en-IN")}</strong>
+        </p>
       </div>
 
-      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
-      <p style="color: #94a3b8; font-size: 12px;">
-        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
-      </p>
+      <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+        <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #2e1065; padding-bottom: 6px;">
+          Seller & Profile Details
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #e2e8f0;">
+          <tr>
+            <td style="padding: 6px 0; width: 40%; color: #94a3b8;"><strong>Selling Price You Want:</strong></td>
+            <td style="padding: 6px 0; font-size: 15px; font-weight: bold; color: #34d399;">\u20B9${Number(details.selling_price).toLocaleString("en-IN")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Instagram Username:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #f472b6;">
+              <a href="https://instagram.com/${details.instagram_username}" target="_blank" style="color: #f472b6; text-decoration: underline;">
+                @${details.instagram_username}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>WhatsApp Number:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #ffffff;">
+              <a href="https://wa.me/${String(details.customer_phone).replace(/[^0-9]/g, "")}" target="_blank" style="color: #22c55e; text-decoration: underline;">
+                ${details.customer_phone}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>WhatsApp Direct Contact:</strong></td>
+            <td style="padding: 6px 0;">${whatsappContactStatus}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Email Address:</strong></td>
+            <td style="padding: 6px 0; color: #ffffff;">${details.customer_email || order.customer_email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Customer Name:</strong></td>
+            <td style="padding: 6px 0; color: #ffffff;">${details.customer_name || order.customer_name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Current Rank:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #fbbf24;">${details.current_rank || "N/A"}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+        <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 8px;">
+          Premium Skins & Collections
+        </h3>
+        <pre style="background-color: #080612; border: 1px solid #3b2a59; border-radius: 6px; padding: 12px; color: #f1f5f9; font-family: monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; margin: 0;">${details.premium_skins || "None provided"}</pre>
+      </div>
+
+      ${details.other_valuable_items ? `
+        <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+          <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 8px;">
+            Other Valuable Items
+          </h3>
+          <pre style="background-color: #080612; border: 1px solid #3b2a59; border-radius: 6px; padding: 12px; color: #cbd5e1; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;">${details.other_valuable_items}</pre>
+        </div>
+      ` : ""}
+
+      ${screenshotsHtml}
+
+      <div style="border-top: 1px solid #2e1065; padding-top: 16px; margin-top: 24px; text-align: center; color: #64748b; font-size: 12px;">
+        VIB 2.0 Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </div>
     </div>
   `;
   const text = `
-ADVERTISEMENT PACKAGE: ${order.plan_name}
-PACKAGE PRICE: \u20B9${order.plan_price}
-CUSTOMER NAME: ${details.customer_name || order.customer_name}
-CUSTOMER EMAIL: ${details.customer_email || order.customer_email}
-WHATSAPP NUMBER: ${details.customer_phone || order.customer_phone}
-INSTAGRAM USERNAME: ${details.instagram_username}
-SELLING PRICE: \u20B9${details.selling_price}
-CURRENT RANK: ${details.current_rank}
+NEW CUSTOMER ADVERTISEMENT SUBMISSION
+====================================
+ORDER ID: #${order.id}
+PACKAGE: ${order.plan_name} (\u20B9${order.plan_price})
 
-PREMIUM SKINS LIST:
+CUSTOMER DETAILS:
+- Name: ${details.customer_name || order.customer_name}
+- Email: ${details.customer_email || order.customer_email}
+- WhatsApp Number: ${details.customer_phone} (Direct Contact: ${details.whatsapp_contact_enabled ? "ENABLED" : "DISABLED"})
+- Instagram: @${details.instagram_username}
+- Selling Price: \u20B9${details.selling_price}
+- Current Rank: ${details.current_rank}
+
+PREMIUM SKINS / COLLECTIONS:
 ${details.premium_skins}
 
 OTHER VALUABLE ITEMS:
-${details.other_valuable_items}
+${details.other_valuable_items || "None provided"}
 
-LINK TO INVENTORY SCREENSHOT: ${screenshotLink}
+SCREENSHOTS (${screenshots.length} uploaded):
+${screenshots.map((s, i) => `#${i + 1}: ${s.startsWith("http") ? s : `${baseUrl}${s}`}`).join("\n")}
   `.trim();
   await sendEmail({
     to: AD_ADMIN_EMAIL,
-    subject: `[AD SUBMITTED] ${order.plan_name} - @${details.instagram_username || order.customer_name}`,
+    subject: `[PROMOTION DETAILS] @${details.instagram_username} - \u20B9${details.selling_price} - ${order.plan_name} [#${order.id}]`,
     html,
     text,
     templateName: "admin_ad_details_submitted",
-    context: { orderId: order.id, customerName: order.customer_name, instagram: details.instagram_username }
+    context: {
+      orderId: order.id,
+      customerName: details.customer_name,
+      instagram: details.instagram_username,
+      price: details.selling_price
+    },
+    attachments: attachments.length > 0 ? attachments : void 0
   });
 }
 
 // server/advertisementRoutes.ts
+var UPLOADS_DIR = path5.join(process.cwd(), "data", "uploads");
+if (!fs6.existsSync(UPLOADS_DIR)) {
+  try {
+    fs6.mkdirSync(UPLOADS_DIR, { recursive: true });
+  } catch {
+  }
+}
+function saveBase64Image(dataUri, prefix) {
+  if (!dataUri || !dataUri.startsWith("data:image/")) {
+    return dataUri;
+  }
+  const match = dataUri.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!match) return dataUri;
+  const rawExt = match[1].toLowerCase();
+  const ext = rawExt === "jpeg" ? "jpg" : rawExt;
+  const buffer = Buffer.from(match[2], "base64");
+  const filename = `${prefix}_${Date.now()}_${crypto12.randomBytes(4).toString("hex")}.${ext}`;
+  const filePath = path5.join(UPLOADS_DIR, filename);
+  fs6.writeFileSync(filePath, buffer);
+  return `/uploads/${filename}`;
+}
 function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
   app2.get("/api/advertisement/plans", (req, res) => {
     try {
@@ -41571,6 +41724,54 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to create draft order." });
     }
   });
+  app2.get("/api/advertisement/orders/verify", (req, res) => {
+    try {
+      const { orderId, token } = req.query;
+      if (!orderId || !token) {
+        res.status(400).json({ eligible: false, message: "Order ID and security token are required." });
+        return;
+      }
+      const order = db2.prepare(`
+        SELECT id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
+               status, submission_token, rejection_reason, instagram_username, selling_price,
+               current_rank, premium_skins, other_valuable_items, inventory_screenshot,
+               whatsapp_contact_enabled, inventory_screenshots_json
+        FROM advertisement_orders
+        WHERE id = ? AND submission_token = ?
+      `).get(orderId, token);
+      if (!order) {
+        res.status(404).json({ eligible: false, message: "Invalid or expired advertisement order link." });
+        return;
+      }
+      if (order.status === "pending_payment") {
+        res.json({
+          eligible: false,
+          status: "pending_payment",
+          message: "Payment verification is still pending review by the VIB team. You will receive an email once approved.",
+          order
+        });
+        return;
+      }
+      if (order.status === "rejected") {
+        res.json({
+          eligible: false,
+          status: "rejected",
+          message: "Payment verification was rejected.",
+          rejectionReason: order.rejection_reason,
+          order
+        });
+        return;
+      }
+      res.json({
+        eligible: true,
+        status: order.status,
+        order
+      });
+    } catch (err) {
+      console.error("[Verify Ad Token Error]:", err);
+      res.status(500).json({ eligible: false, error: "Failed to verify advertisement order token." });
+    }
+  });
   app2.get("/api/advertisement/orders/:id", (req, res) => {
     try {
       const { id } = req.params;
@@ -41730,64 +41931,22 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
       res.status(500).json({ error: "Failed to process advertisement order." });
     }
   });
-  app2.get("/api/advertisement/orders/verify", (req, res) => {
-    try {
-      const { orderId, token } = req.query;
-      if (!orderId || !token) {
-        res.status(400).json({ eligible: false, message: "Order ID and security token are required." });
-        return;
-      }
-      const order = db2.prepare(`
-        SELECT id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
-               status, submission_token, rejection_reason, instagram_username, selling_price,
-               current_rank, premium_skins, other_valuable_items, inventory_screenshot
-        FROM advertisement_orders
-        WHERE id = ? AND submission_token = ?
-      `).get(orderId, token);
-      if (!order) {
-        res.status(404).json({ eligible: false, message: "Invalid or expired advertisement order link." });
-        return;
-      }
-      if (order.status === "pending_payment") {
-        res.json({
-          eligible: false,
-          status: "pending_payment",
-          message: "Payment verification is still pending review by the VIB team. You will receive an email once approved.",
-          order
-        });
-        return;
-      }
-      if (order.status === "rejected") {
-        res.json({
-          eligible: false,
-          status: "rejected",
-          message: "Payment verification was rejected.",
-          rejectionReason: order.rejection_reason,
-          order
-        });
-        return;
-      }
-      res.json({
-        eligible: true,
-        status: order.status,
-        order
-      });
-    } catch (err) {
-      console.error("[Verify Ad Token Error]:", err);
-      res.status(500).json({ eligible: false, error: "Failed to verify advertisement order token." });
-    }
-  });
   app2.post("/api/advertisement/orders/:id/submit-details", async (req, res) => {
     try {
       const { id } = req.params;
       const {
         token,
+        customerName,
+        customerEmail,
+        customerPhone,
+        whatsappContactEnabled,
         instagramUsername,
         sellingPrice,
         currentRank,
         premiumSkins,
         otherValuableItems,
-        inventoryScreenshot
+        inventoryScreenshot,
+        inventoryScreenshots
       } = req.body || {};
       if (!token) {
         res.status(401).json({ error: "Security token is required." });
@@ -41802,36 +41961,76 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
         res.status(403).json({ error: "Invalid security token for this order." });
         return;
       }
-      if (order.status !== "approved" && order.status !== "details_submitted") {
+      if (order.status !== "approved" && order.status !== "details_submitted" && order.status !== "live") {
         res.status(400).json({ error: `Cannot submit details for order in '${order.status}' status.` });
         return;
       }
-      if (!instagramUsername || !sellingPrice || !currentRank || !premiumSkins || !inventoryScreenshot) {
-        res.status(400).json({
-          error: "Please complete all required fields: Instagram handle, selling price, rank, premium skins, and inventory screenshot."
-        });
+      const cleanInstagram = (instagramUsername || "").trim().replace(/^@/, "");
+      const cleanPrice = (sellingPrice || "").toString().trim();
+      const cleanRank = (currentRank || "").trim();
+      const cleanSkins = (premiumSkins || "").trim();
+      let rawScreenshots = [];
+      if (Array.isArray(inventoryScreenshots) && inventoryScreenshots.length > 0) {
+        rawScreenshots = inventoryScreenshots.filter(Boolean).slice(0, 3);
+      } else if (inventoryScreenshot) {
+        rawScreenshots = [inventoryScreenshot];
+      }
+      if (!cleanInstagram) {
+        res.status(400).json({ error: "Instagram username is mandatory. Please provide your Instagram handle." });
         return;
       }
+      if (!cleanPrice) {
+        res.status(400).json({ error: "Selling price is mandatory." });
+        return;
+      }
+      if (!cleanRank) {
+        res.status(400).json({ error: "Current rank is mandatory." });
+        return;
+      }
+      if (!cleanSkins) {
+        res.status(400).json({ error: "Please list your premium skins and collections." });
+        return;
+      }
+      if (rawScreenshots.length === 0) {
+        res.status(400).json({ error: "Please upload at least 1 inventory screenshot (max 3 allowed)." });
+        return;
+      }
+      const savedScreenshotUrls = rawScreenshots.map(
+        (shot, idx) => saveBase64Image(shot, `ad_${id}_inv_${idx + 1}`)
+      );
+      const primaryScreenshot = savedScreenshotUrls[0];
+      const screenshotsJson = JSON.stringify(savedScreenshotUrls);
+      const isWhatsappEnabled = whatsappContactEnabled === false ? 0 : 1;
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db2.prepare(`
         UPDATE advertisement_orders
         SET status = 'details_submitted',
+            customer_name = COALESCE(?, customer_name),
+            customer_email = COALESCE(?, customer_email),
+            customer_phone = COALESCE(?, customer_phone),
+            whatsapp_contact_enabled = ?,
             instagram_username = ?,
             selling_price = ?,
             current_rank = ?,
             premium_skins = ?,
             other_valuable_items = ?,
             inventory_screenshot = ?,
+            inventory_screenshots_json = ?,
             submitted_at = ?,
             updated_at = ?
         WHERE id = ?
       `).run(
-        instagramUsername.trim().replace(/^@/, ""),
-        sellingPrice.toString().trim(),
-        currentRank.trim(),
-        premiumSkins.trim(),
+        customerName?.trim() || null,
+        customerEmail?.trim() || null,
+        customerPhone?.trim() || null,
+        isWhatsappEnabled,
+        cleanInstagram,
+        cleanPrice,
+        cleanRank,
+        cleanSkins,
         otherValuableItems?.trim() || "",
-        inventoryScreenshot,
+        primaryScreenshot,
+        screenshotsJson,
         now,
         now,
         id
@@ -41844,17 +42043,20 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
           customer_name: updatedOrder.customer_name,
           customer_email: updatedOrder.customer_email,
           customer_phone: updatedOrder.customer_phone,
-          instagram_username: instagramUsername.trim().replace(/^@/, ""),
-          selling_price: sellingPrice,
-          current_rank: currentRank,
-          premium_skins: premiumSkins,
-          other_valuable_items: otherValuableItems || "",
-          inventory_screenshot: inventoryScreenshot
+          whatsapp_contact_enabled: isWhatsappEnabled,
+          instagram_username: cleanInstagram,
+          selling_price: cleanPrice,
+          current_rank: cleanRank,
+          premium_skins: cleanSkins,
+          other_valuable_items: otherValuableItems?.trim() || "",
+          inventory_screenshots: savedScreenshotUrls,
+          inventory_screenshot: primaryScreenshot
         },
         origin
       ).catch((e) => console.warn("[Ad Details Admin Email Error]:", e.message));
       res.json({
         success: true,
+        orderId: id,
         message: "Advertisement details successfully submitted! Our team is preparing your campaign."
       });
     } catch (err) {
@@ -42090,9 +42292,9 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
 
 // server/kycRoutes.ts
 import crypto13 from "node:crypto";
-import fs5 from "node:fs";
-import path4 from "node:path";
-var KYC_DOCS_DIR = path4.join(databaseDirectory, "kyc_docs");
+import fs7 from "node:fs";
+import path6 from "node:path";
+var KYC_DOCS_DIR = path6.join(databaseDirectory, "kyc_docs");
 var MAX_DOC_BYTES = 5 * 1024 * 1024;
 var DATA_URL_RE = /^data:(image\/(?:jpeg|jpg|png|webp|gif)|application\/pdf);base64,(.+)$/i;
 var MIME_TO_EXT = {
@@ -42134,7 +42336,7 @@ function saveDocumentDataUrl(dataUrl) {
     return { ok: false, error: decoded.error };
   }
   const filename = `kycdoc_${Date.now()}_${crypto13.randomBytes(4).toString("hex")}.${decoded.ext}`;
-  fs5.writeFileSync(path4.join(KYC_DOCS_DIR, filename), decoded.buffer);
+  fs7.writeFileSync(path6.join(KYC_DOCS_DIR, filename), decoded.buffer);
   return { ok: true, filename };
 }
 function parseDocumentsJson(json) {
@@ -42245,7 +42447,7 @@ function registerKycRoutes(app2, helpers) {
       }
       const savedFilenames = [];
       try {
-        fs5.mkdirSync(KYC_DOCS_DIR, { recursive: true });
+        fs7.mkdirSync(KYC_DOCS_DIR, { recursive: true });
         for (const doc of validatedDocs) {
           const result = saveDocumentDataUrl(doc.dataUrl);
           if (!result.ok) {
@@ -42256,7 +42458,7 @@ function registerKycRoutes(app2, helpers) {
       } catch (err) {
         for (const f of savedFilenames) {
           try {
-            fs5.unlinkSync(path4.join(KYC_DOCS_DIR, f));
+            fs7.unlinkSync(path6.join(KYC_DOCS_DIR, f));
           } catch {
           }
         }
@@ -42308,7 +42510,7 @@ function registerKycRoutes(app2, helpers) {
       } catch (err) {
         for (const f of savedFilenames) {
           try {
-            fs5.unlinkSync(path4.join(KYC_DOCS_DIR, f));
+            fs7.unlinkSync(path6.join(KYC_DOCS_DIR, f));
           } catch {
           }
         }
@@ -42362,7 +42564,7 @@ function registerKycRoutes(app2, helpers) {
         res.status(401).json({ error: "Authentication required." });
         return;
       }
-      const safeName = path4.basename(String(req.params.file || ""));
+      const safeName = path6.basename(String(req.params.file || ""));
       if (!safeName || safeName !== req.params.file) {
         res.status(404).json({ error: "Document not found." });
         return;
@@ -42374,8 +42576,8 @@ function registerKycRoutes(app2, helpers) {
         res.status(404).json({ error: "Document not found." });
         return;
       }
-      const filePath = path4.join(KYC_DOCS_DIR, safeName);
-      if (!fs5.existsSync(filePath)) {
+      const filePath = path6.join(KYC_DOCS_DIR, safeName);
+      if (!fs7.existsSync(filePath)) {
         res.status(404).json({ error: "Document not found." });
         return;
       }
@@ -42478,13 +42680,13 @@ function registerKycRoutes(app2, helpers) {
   });
   app2.get("/api/admin/kyc/docs/:file", authenticate2, staffOnly2, (req, res) => {
     try {
-      const safeName = path4.basename(String(req.params.file || ""));
+      const safeName = path6.basename(String(req.params.file || ""));
       if (!safeName || safeName !== req.params.file) {
         res.status(404).json({ error: "Document not found." });
         return;
       }
-      const filePath = path4.join(KYC_DOCS_DIR, safeName);
-      if (!fs5.existsSync(filePath)) {
+      const filePath = path6.join(KYC_DOCS_DIR, safeName);
+      if (!fs7.existsSync(filePath)) {
         res.status(404).json({ error: "Document not found." });
         return;
       }
@@ -42594,11 +42796,11 @@ function registerKycRoutes(app2, helpers) {
 
 // server/emiRoutes.ts
 import crypto14 from "node:crypto";
-import fs6 from "node:fs";
-import path5 from "node:path";
-var uploadsDir = path5.join(databaseDirectory, "uploads");
-if (!fs6.existsSync(uploadsDir)) {
-  fs6.mkdirSync(uploadsDir, { recursive: true });
+import fs8 from "node:fs";
+import path7 from "node:path";
+var uploadsDir = path7.join(databaseDirectory, "uploads");
+if (!fs8.existsSync(uploadsDir)) {
+  fs8.mkdirSync(uploadsDir, { recursive: true });
 }
 var round2 = (n) => Math.round(n * 100) / 100;
 function addMonths(dateStr, months) {
@@ -42620,11 +42822,11 @@ function saveEvidenceImage(dataUrl) {
   const buffer = Buffer.from(matches[2], "base64");
   if (!validateImageMagicBytes(buffer, matches[1])) throw new Error("INVALID_IMAGE");
   if (buffer.length > 5 * 1024 * 1024) throw new Error("IMAGE_TOO_LARGE");
-  if (!fs6.existsSync(uploadsDir)) {
-    fs6.mkdirSync(uploadsDir, { recursive: true });
+  if (!fs8.existsSync(uploadsDir)) {
+    fs8.mkdirSync(uploadsDir, { recursive: true });
   }
   const filename = `emi_evidence_${Date.now()}_${crypto14.randomBytes(4).toString("hex")}.${ext}`;
-  fs6.writeFileSync(path5.join(uploadsDir, filename), buffer);
+  fs8.writeFileSync(path7.join(uploadsDir, filename), buffer);
   return { url: `/uploads/${filename}`, filename };
 }
 function insertNotification2(userId, title, message, now) {
@@ -42885,9 +43087,9 @@ function registerEmiRoutes(app2, helpers) {
       const now = (/* @__PURE__ */ new Date()).toISOString();
       if (payment.evidence_image) {
         try {
-          const oldPath = path5.join(databaseDirectory, "uploads", path5.basename(payment.evidence_image));
-          if (fs6.existsSync(oldPath)) {
-            fs6.unlinkSync(oldPath);
+          const oldPath = path7.join(databaseDirectory, "uploads", path7.basename(payment.evidence_image));
+          if (fs8.existsSync(oldPath)) {
+            fs8.unlinkSync(oldPath);
           }
         } catch {
         }
@@ -43232,9 +43434,9 @@ app.use((req, res, next) => {
 });
 app.use(import_express.default.json({ limit: "15mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "15mb" }));
-var uploadsDir2 = path6.join(databaseDirectory, "uploads");
-if (!fs7.existsSync(uploadsDir2)) {
-  fs7.mkdirSync(uploadsDir2, { recursive: true });
+var uploadsDir2 = path8.join(databaseDirectory, "uploads");
+if (!fs9.existsSync(uploadsDir2)) {
+  fs9.mkdirSync(uploadsDir2, { recursive: true });
 }
 app.use("/uploads", import_express.default.static(uploadsDir2));
 app.use("/api/uploads", import_express.default.static(uploadsDir2));
@@ -43264,8 +43466,8 @@ app.post("/api/upload", (req, res) => {
       return;
     }
     const safeName = `receipt_${Date.now()}_${crypto15.randomBytes(4).toString("hex")}.${ext}`;
-    const filePath = path6.join(uploadsDir2, safeName);
-    fs7.writeFileSync(filePath, buffer);
+    const filePath = path8.join(uploadsDir2, safeName);
+    fs9.writeFileSync(filePath, buffer);
     res.json({
       success: true,
       url: `/uploads/${safeName}`,
@@ -46046,8 +46248,8 @@ app.post("/api/orders/:id/payment-evidence", authenticate, (req, res) => {
           return;
         }
         const safeName = `receipt_${orderId}_${Date.now()}.${ext}`;
-        const filePath = path6.join(uploadsDir2, safeName);
-        fs7.writeFileSync(filePath, buffer);
+        const filePath = path8.join(uploadsDir2, safeName);
+        fs9.writeFileSync(filePath, buffer);
         storedScreenshot = `/uploads/${safeName}`;
       }
     } catch (e) {

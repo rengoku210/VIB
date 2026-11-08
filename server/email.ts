@@ -2,6 +2,8 @@ import 'dotenv/config';
 import nodemailer, { Transporter } from 'nodemailer';
 import { db } from './db.js';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface EmailLogEntry {
   id: string;
@@ -57,6 +59,11 @@ export interface SendEmailOptions {
   text?: string;
   templateName?: string;
   context?: Record<string, any>;
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64 string
+    contentType?: string;
+  }>;
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; logId: string; error?: string }> {
@@ -77,19 +84,26 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       if (!fromAddr.includes('<')) {
         fromAddr = `VIB <${fromAddr}>`;
       }
+      const resendPayload: any = {
+        from: fromAddr,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text || options.subject,
+      };
+      if (options.attachments && options.attachments.length > 0) {
+        resendPayload.attachments = options.attachments.map((att) => ({
+          filename: att.filename,
+          content: att.content,
+        }));
+      }
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          from: fromAddr,
-          to: [options.to],
-          subject: options.subject,
-          html: options.html,
-          text: options.text || options.subject,
-        }),
+        body: JSON.stringify(resendPayload),
       });
       const data: any = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -113,6 +127,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
         subject: options.subject,
         html: options.html,
         text: options.text || options.subject,
+        attachments: options.attachments,
       });
       status = 'delivered';
       console.log(`[Email Service - SMTP] Email sent successfully to ${options.to} (${options.subject})`);
@@ -722,63 +737,184 @@ export async function sendCustomerAdPaymentRejected(order: any, reason?: string)
 }
 
 export async function sendAdminAdDetailsSubmitted(order: any, details: any, appBaseUrl?: string): Promise<void> {
-  const baseUrl = appBaseUrl || process.env.APP_URL || 'https://vib-rho.vercel.app';
-  const screenshotLink = details.inventory_screenshot?.startsWith('http')
-    ? details.inventory_screenshot
-    : `${baseUrl}${details.inventory_screenshot || ''}`;
+  const baseUrl = (appBaseUrl || process.env.APP_URL || 'https://vib-rho.vercel.app').replace(/\/+$/, '');
+  
+  // Extract screenshots list (up to 3)
+  const screenshots: string[] = Array.isArray(details.inventory_screenshots) && details.inventory_screenshots.length > 0
+    ? details.inventory_screenshots.slice(0, 3)
+    : (details.inventory_screenshot ? [details.inventory_screenshot] : []);
+
+  // Build file attachments for raw downloads
+  const attachments: Array<{ filename: string; content: string }> = [];
+  screenshots.forEach((shot, idx) => {
+    if (shot.startsWith('data:image/')) {
+      const match = shot.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        attachments.push({
+          filename: `inventory_screenshot_${idx + 1}.${match[1] === 'jpeg' ? 'jpg' : match[1]}`,
+          content: match[2],
+        });
+      }
+    } else if (shot.startsWith('/uploads/')) {
+      const localPath = path.join(process.cwd(), 'data', shot);
+      if (fs.existsSync(localPath)) {
+        try {
+          const buf = fs.readFileSync(localPath);
+          const ext = path.extname(localPath).replace('.', '') || 'jpg';
+          attachments.push({
+            filename: `inventory_screenshot_${idx + 1}.${ext}`,
+            content: buf.toString('base64'),
+          });
+        } catch {}
+      }
+    }
+  });
+
+  const whatsappContactStatus = details.whatsapp_contact_enabled === 1 || details.whatsapp_contact_enabled === true
+    ? '<span style="color: #10b981; font-weight: bold;">ENABLED</span> (Buyers can contact directly on WhatsApp)'
+    : '<span style="color: #f59e0b; font-weight: bold;">DISABLED</span> (Private - Contact via Instagram tag only)';
+
+  const screenshotsHtml = screenshots.length > 0
+    ? `
+      <div style="margin-top: 20px;">
+        <h3 style="color: #c084fc; font-size: 15px; margin: 0 0 12px 0; text-transform: uppercase;">
+          Main Profile / Inventory Screenshots (${screenshots.length} of 3 uploaded):
+        </h3>
+        ${screenshots.map((s, i) => {
+          const fullLink = s.startsWith('http') || s.startsWith('data:') ? s : `${baseUrl}${s.startsWith('/') ? '' : '/'}${s}`;
+          return `
+            <div style="background-color: #0d0b17; border: 1px solid #4c1d95; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+              <div style="font-size: 12px; color: #a78bfa; margin-bottom: 8px; font-weight: bold;">
+                Screenshot #${i + 1}
+                ${!s.startsWith('data:') ? `<a href="${fullLink}" target="_blank" style="color: #38bdf8; margin-left: 10px; text-decoration: underline;">Open High-Res Link</a>` : ''}
+              </div>
+              <img src="${fullLink}" alt="Inventory Screenshot ${i + 1}" style="max-width: 100%; max-height: 480px; display: block; border-radius: 6px; border: 1px solid #7c3aed;" />
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : '<p style="color: #ef4444;">No inventory screenshot provided.</p>';
 
   const html = `
-    <div style="font-family: Arial, sans-serif; background-color: #0b0a13; color: #ffffff; padding: 24px; border-radius: 8px;">
-      <h2 style="color: #a855f7; border-bottom: 2px solid #6b21a8; padding-bottom: 8px;">NEW CUSTOMER ADVERTISEMENT SUBMISSION</h2>
-      <p>Customer has completed their advertisement details submission form. Here are the details for publication:</p>
-      
-      <div style="background-color: #1a162b; border: 1px solid #a855f7; padding: 18px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.8;">
-        <p style="margin: 0;"><strong>ADVERTISEMENT PACKAGE:</strong> ${order.plan_name}</p>
-        <p style="margin: 0;"><strong>PACKAGE PRICE:</strong> ₹${Number(order.plan_price).toLocaleString('en-IN')}</p>
-        <p style="margin: 0;"><strong>CUSTOMER NAME:</strong> ${details.customer_name || order.customer_name}</p>
-        <p style="margin: 0;"><strong>CUSTOMER EMAIL:</strong> ${details.customer_email || order.customer_email}</p>
-        <p style="margin: 0;"><strong>WHATSAPP NUMBER:</strong> ${details.customer_phone || order.customer_phone}</p>
-        <p style="margin: 0;"><strong>INSTAGRAM USERNAME:</strong> ${details.instagram_username || 'N/A'}</p>
-        <p style="margin: 0;"><strong>SELLING PRICE:</strong> ₹${details.selling_price || 'N/A'}</p>
-        <p style="margin: 0;"><strong>CURRENT RANK:</strong> ${details.current_rank || 'N/A'}</p>
-        <p style="margin: 0;"><strong>PREMIUM SKINS LIST:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.premium_skins || 'None provided'}</pre></p>
-        <p style="margin: 0;"><strong>OTHER VALUABLE ITEMS:</strong><br/><pre style="background: #0d0b17; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; color: #e2e8f0;">${details.other_valuable_items || 'None provided'}</pre></p>
-        <p style="margin: 0;"><strong>LINK TO INVENTORY SCREENSHOT:</strong> <a href="${screenshotLink}" target="_blank" style="color: #38bdf8;">View Inventory Screenshot</a></p>
+    <div style="font-family: Arial, sans-serif; background-color: #07050f; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 700px; margin: 0 auto; border: 1px solid #3b2a59;">
+      <div style="border-bottom: 2px solid #9333ea; padding-bottom: 14px; margin-bottom: 18px;">
+        <span style="background-color: #2e1065; color: #c084fc; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;">
+          PROMOTION SUBMISSION RECEIVED
+        </span>
+        <h2 style="color: #ffffff; margin: 10px 0 4px 0; font-size: 22px;">
+          ${order.plan_name}
+        </h2>
+        <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+          Order Reference: <strong style="color: #f1f5f9;">#${order.id}</strong> | Amount Paid: <strong style="color: #34d399;">₹${Number(order.plan_price).toLocaleString('en-IN')}</strong>
+        </p>
       </div>
 
-      <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
-      <p style="color: #94a3b8; font-size: 12px;">
-        VIB 2.0 Master Operations Engine | Sent to ${AD_ADMIN_EMAIL}
-      </p>
+      <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+        <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #2e1065; padding-bottom: 6px;">
+          Seller & Profile Details
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #e2e8f0;">
+          <tr>
+            <td style="padding: 6px 0; width: 40%; color: #94a3b8;"><strong>Selling Price You Want:</strong></td>
+            <td style="padding: 6px 0; font-size: 15px; font-weight: bold; color: #34d399;">₹${Number(details.selling_price).toLocaleString('en-IN')}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Instagram Username:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #f472b6;">
+              <a href="https://instagram.com/${details.instagram_username}" target="_blank" style="color: #f472b6; text-decoration: underline;">
+                @${details.instagram_username}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>WhatsApp Number:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #ffffff;">
+              <a href="https://wa.me/${String(details.customer_phone).replace(/[^0-9]/g, '')}" target="_blank" style="color: #22c55e; text-decoration: underline;">
+                ${details.customer_phone}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>WhatsApp Direct Contact:</strong></td>
+            <td style="padding: 6px 0;">${whatsappContactStatus}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Email Address:</strong></td>
+            <td style="padding: 6px 0; color: #ffffff;">${details.customer_email || order.customer_email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Customer Name:</strong></td>
+            <td style="padding: 6px 0; color: #ffffff;">${details.customer_name || order.customer_name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Current Rank:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #fbbf24;">${details.current_rank || 'N/A'}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+        <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 8px;">
+          Premium Skins & Collections
+        </h3>
+        <pre style="background-color: #080612; border: 1px solid #3b2a59; border-radius: 6px; padding: 12px; color: #f1f5f9; font-family: monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; margin: 0;">${details.premium_skins || 'None provided'}</pre>
+      </div>
+
+      ${details.other_valuable_items ? `
+        <div style="background-color: #120e24; border: 1px solid #581c87; border-radius: 8px; padding: 18px; margin-bottom: 18px;">
+          <h3 style="color: #c084fc; font-size: 14px; text-transform: uppercase; margin-top: 0; margin-bottom: 8px;">
+            Other Valuable Items
+          </h3>
+          <pre style="background-color: #080612; border: 1px solid #3b2a59; border-radius: 6px; padding: 12px; color: #cbd5e1; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 0;">${details.other_valuable_items}</pre>
+        </div>
+      ` : ''}
+
+      ${screenshotsHtml}
+
+      <div style="border-top: 1px solid #2e1065; padding-top: 16px; margin-top: 24px; text-align: center; color: #64748b; font-size: 12px;">
+        VIB 2.0 Operations Engine | Sent to ${AD_ADMIN_EMAIL}
+      </div>
     </div>
   `;
 
   const text = `
-ADVERTISEMENT PACKAGE: ${order.plan_name}
-PACKAGE PRICE: ₹${order.plan_price}
-CUSTOMER NAME: ${details.customer_name || order.customer_name}
-CUSTOMER EMAIL: ${details.customer_email || order.customer_email}
-WHATSAPP NUMBER: ${details.customer_phone || order.customer_phone}
-INSTAGRAM USERNAME: ${details.instagram_username}
-SELLING PRICE: ₹${details.selling_price}
-CURRENT RANK: ${details.current_rank}
+NEW CUSTOMER ADVERTISEMENT SUBMISSION
+====================================
+ORDER ID: #${order.id}
+PACKAGE: ${order.plan_name} (₹${order.plan_price})
 
-PREMIUM SKINS LIST:
+CUSTOMER DETAILS:
+- Name: ${details.customer_name || order.customer_name}
+- Email: ${details.customer_email || order.customer_email}
+- WhatsApp Number: ${details.customer_phone} (Direct Contact: ${details.whatsapp_contact_enabled ? 'ENABLED' : 'DISABLED'})
+- Instagram: @${details.instagram_username}
+- Selling Price: ₹${details.selling_price}
+- Current Rank: ${details.current_rank}
+
+PREMIUM SKINS / COLLECTIONS:
 ${details.premium_skins}
 
 OTHER VALUABLE ITEMS:
-${details.other_valuable_items}
+${details.other_valuable_items || 'None provided'}
 
-LINK TO INVENTORY SCREENSHOT: ${screenshotLink}
+SCREENSHOTS (${screenshots.length} uploaded):
+${screenshots.map((s, i) => `#${i + 1}: ${s.startsWith('http') ? s : `${baseUrl}${s}`}`).join('\n')}
   `.trim();
 
   await sendEmail({
     to: AD_ADMIN_EMAIL,
-    subject: `[AD SUBMITTED] ${order.plan_name} - @${details.instagram_username || order.customer_name}`,
+    subject: `[PROMOTION DETAILS] @${details.instagram_username} - ₹${details.selling_price} - ${order.plan_name} [#${order.id}]`,
     html,
     text,
     templateName: 'admin_ad_details_submitted',
-    context: { orderId: order.id, customerName: order.customer_name, instagram: details.instagram_username },
+    context: {
+      orderId: order.id,
+      customerName: details.customer_name,
+      instagram: details.instagram_username,
+      price: details.selling_price,
+    },
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
 }
 

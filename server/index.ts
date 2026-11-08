@@ -174,7 +174,12 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
+  first_name?: string;
+  last_name?: string;
   phone: string | null;
+  city?: string;
+  state?: string;
+  pincode?: string;
   riot_id: string | null;
   riot_verified?: number;
   role: 'user' | 'seller' | 'moderator' | 'admin' | 'superadmin';

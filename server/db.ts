@@ -599,6 +599,8 @@ try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_city TEXT');
 try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_state TEXT'); } catch {}
 try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_pincode TEXT'); } catch {}
 try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN user_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN whatsapp_contact_enabled INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN inventory_screenshots_json TEXT'); } catch {}
 
 // Order Workflow & Manual Payment Safe Column Migrations
 try { db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'AWAITING_PAYMENT'"); } catch {}

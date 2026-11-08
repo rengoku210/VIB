@@ -37,6 +37,7 @@ import {
   PackageDetailData,
 } from '../../data/advertisementProductDetails';
 import { AdvertisementProductPage } from '../advertise/AdvertisementProductPage';
+import { AdvertisementSubmissionPage } from '../advertise/AdvertisementSubmissionPage';
 import { AdCustomerAuthModal } from '../auth/AdCustomerAuthModal';
 import { ManualPaymentGateway } from '../payment/ManualPaymentGateway';
 
@@ -541,10 +542,11 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
         const params = new URLSearchParams(window.location.search);
 
         // 1. Direct submission link check
+        const isSubmitPath = path.startsWith('/advertise/submit');
         const stepParam = params.get('step');
         const orderParam = params.get('orderId');
         const tokenParam = params.get('token');
-        if (stepParam === 'submit' || (orderParam && tokenParam)) {
+        if (stepParam === 'submit' || (orderParam && tokenParam) || isSubmitPath) {
           setActiveView('submit');
           if (orderParam) setSubmitOrderId(orderParam);
           if (tokenParam) setSubmitToken(tokenParam);
@@ -999,6 +1001,19 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           selectedPackageName={selectedProductPackage?.name || 'Advertisement Package'}
           selectedPackagePrice={selectedProductPackage?.price || 0}
           onAuthenticated={() => setIsAdAuthOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  if (activeView === 'submit') {
+    return (
+      <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white font-sans min-h-screen">
+        <AdvertisementSubmissionPage
+          orderId={submitOrderId}
+          token={submitToken}
+          onNavigateHome={() => onNavigate('home')}
+          onNavigatePlans={() => setActiveView('plans')}
         />
       </div>
     );
@@ -1604,9 +1619,8 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* VIEW B: POST-APPROVAL CUSTOMER ADVERTISEMENT SUBMISSION FORM              */}
-      {/* ========================================================================= */}
-      {activeView === 'submit' && (
+      {/* VIEW B: POST-APPROVAL CUSTOMER ADVERTISEMENT SUBMISSION FORM (MOVED TO DEDICATED COMPONENT) */}
+      {false && (
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pt-8">
           <div className="p-6 rounded-2xl bg-[#0c0919] border border-purple-500/30 space-y-6 shadow-2xl">
             <div className="space-y-2 border-b border-white/10 pb-4">

@@ -1,11 +1,35 @@
 import { Request, Response, Express } from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   sendAdminAdOrderNotification,
   sendCustomerAdPaymentApproved,
   sendCustomerAdPaymentRejected,
   sendAdminAdDetailsSubmitted
 } from './email.js';
+
+const UPLOADS_DIR = path.join(process.cwd(), 'data', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  try {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  } catch {}
+}
+
+function saveBase64Image(dataUri: string, prefix: string): string {
+  if (!dataUri || !dataUri.startsWith('data:image/')) {
+    return dataUri;
+  }
+  const match = dataUri.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!match) return dataUri;
+  const rawExt = match[1].toLowerCase();
+  const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+  const buffer = Buffer.from(match[2], 'base64');
+  const filename = `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/${filename}`;
+}
 
 export function registerAdvertisementRoutes(
   app: Express,
@@ -395,6 +419,62 @@ export function registerAdvertisementRoutes(
     }
   });
 
+  // Public: Verify Order Submission Token (Defined before /:id wildcard)
+  app.get('/api/advertisement/orders/verify', (req: Request, res: Response): void => {
+    try {
+      const { orderId, token } = req.query;
+
+      if (!orderId || !token) {
+        res.status(400).json({ eligible: false, message: 'Order ID and security token are required.' });
+        return;
+      }
+
+      const order = db.prepare(`
+        SELECT id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
+               status, submission_token, rejection_reason, instagram_username, selling_price,
+               current_rank, premium_skins, other_valuable_items, inventory_screenshot,
+               whatsapp_contact_enabled, inventory_screenshots_json
+        FROM advertisement_orders
+        WHERE id = ? AND submission_token = ?
+      `).get(orderId, token);
+
+      if (!order) {
+        res.status(404).json({ eligible: false, message: 'Invalid or expired advertisement order link.' });
+        return;
+      }
+
+      if (order.status === 'pending_payment') {
+        res.json({
+          eligible: false,
+          status: 'pending_payment',
+          message: 'Payment verification is still pending review by the VIB team. You will receive an email once approved.',
+          order,
+        });
+        return;
+      }
+
+      if (order.status === 'rejected') {
+        res.json({
+          eligible: false,
+          status: 'rejected',
+          message: 'Payment verification was rejected.',
+          rejectionReason: order.rejection_reason,
+          order,
+        });
+        return;
+      }
+
+      res.json({
+        eligible: true,
+        status: order.status,
+        order,
+      });
+    } catch (err: any) {
+      console.error('[Verify Ad Token Error]:', err);
+      res.status(500).json({ eligible: false, error: 'Failed to verify advertisement order token.' });
+    }
+  });
+
   // Public: Get Advertisement Order Details (for Checkout & Payment page)
   app.get('/api/advertisement/orders/:id', (req: Request, res: Response): void => {
     try {
@@ -589,73 +669,23 @@ export function registerAdvertisementRoutes(
     }
   });
 
-  // Public: Verify Order Submission Token
-  app.get('/api/advertisement/orders/verify', (req: Request, res: Response): void => {
-    try {
-      const { orderId, token } = req.query;
-
-      if (!orderId || !token) {
-        res.status(400).json({ eligible: false, message: 'Order ID and security token are required.' });
-        return;
-      }
-
-      const order = db.prepare(`
-        SELECT id, plan_id, plan_name, plan_price, customer_name, customer_email, customer_phone,
-               status, submission_token, rejection_reason, instagram_username, selling_price,
-               current_rank, premium_skins, other_valuable_items, inventory_screenshot
-        FROM advertisement_orders
-        WHERE id = ? AND submission_token = ?
-      `).get(orderId, token);
-
-      if (!order) {
-        res.status(404).json({ eligible: false, message: 'Invalid or expired advertisement order link.' });
-        return;
-      }
-
-      if (order.status === 'pending_payment') {
-        res.json({
-          eligible: false,
-          status: 'pending_payment',
-          message: 'Payment verification is still pending review by the VIB team. You will receive an email once approved.',
-          order,
-        });
-        return;
-      }
-
-      if (order.status === 'rejected') {
-        res.json({
-          eligible: false,
-          status: 'rejected',
-          message: 'Payment verification was rejected.',
-          rejectionReason: order.rejection_reason,
-          order,
-        });
-        return;
-      }
-
-      res.json({
-        eligible: true,
-        status: order.status,
-        order,
-      });
-    } catch (err: any) {
-      console.error('[Verify Ad Token Error]:', err);
-      res.status(500).json({ eligible: false, error: 'Failed to verify advertisement order token.' });
-    }
-  });
-
   // Public: Submit Advertisement Details (Form submission)
   app.post('/api/advertisement/orders/:id/submit-details', async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
       const {
         token,
+        customerName,
+        customerEmail,
+        customerPhone,
+        whatsappContactEnabled,
         instagramUsername,
         sellingPrice,
         currentRank,
         premiumSkins,
         otherValuableItems,
         inventoryScreenshot,
+        inventoryScreenshots,
       } = req.body || {};
 
       if (!token) {
@@ -663,7 +693,7 @@ export function registerAdvertisementRoutes(
         return;
       }
 
-      const order = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id);
+      const order = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id) as any;
       if (!order) {
         res.status(404).json({ error: 'Advertisement order not found.' });
         return;
@@ -674,47 +704,92 @@ export function registerAdvertisementRoutes(
         return;
       }
 
-      if (order.status !== 'approved' && order.status !== 'details_submitted') {
+      if (order.status !== 'approved' && order.status !== 'details_submitted' && order.status !== 'live') {
         res.status(400).json({ error: `Cannot submit details for order in '${order.status}' status.` });
         return;
       }
 
-      if (!instagramUsername || !sellingPrice || !currentRank || !premiumSkins || !inventoryScreenshot) {
-        res.status(400).json({
-          error: 'Please complete all required fields: Instagram handle, selling price, rank, premium skins, and inventory screenshot.'
-        });
+      // Instagram username is strictly mandatory per user instructions
+      const cleanInstagram = (instagramUsername || '').trim().replace(/^@/, '');
+      const cleanPrice = (sellingPrice || '').toString().trim();
+      const cleanRank = (currentRank || '').trim();
+      const cleanSkins = (premiumSkins || '').trim();
+
+      // Normalize screenshots: accept array or single screenshot, capped at 3
+      let rawScreenshots: string[] = [];
+      if (Array.isArray(inventoryScreenshots) && inventoryScreenshots.length > 0) {
+        rawScreenshots = inventoryScreenshots.filter(Boolean).slice(0, 3);
+      } else if (inventoryScreenshot) {
+        rawScreenshots = [inventoryScreenshot];
+      }
+
+      if (!cleanInstagram) {
+        res.status(400).json({ error: 'Instagram username is mandatory. Please provide your Instagram handle.' });
+        return;
+      }
+      if (!cleanPrice) {
+        res.status(400).json({ error: 'Selling price is mandatory.' });
+        return;
+      }
+      if (!cleanRank) {
+        res.status(400).json({ error: 'Current rank is mandatory.' });
+        return;
+      }
+      if (!cleanSkins) {
+        res.status(400).json({ error: 'Please list your premium skins and collections.' });
+        return;
+      }
+      if (rawScreenshots.length === 0) {
+        res.status(400).json({ error: 'Please upload at least 1 inventory screenshot (max 3 allowed).' });
         return;
       }
 
+      // Persist screenshots to uploads directory and get static URLs
+      const savedScreenshotUrls: string[] = rawScreenshots.map((shot, idx) =>
+        saveBase64Image(shot, `ad_${id}_inv_${idx + 1}`)
+      );
+      const primaryScreenshot = savedScreenshotUrls[0];
+      const screenshotsJson = JSON.stringify(savedScreenshotUrls);
+      const isWhatsappEnabled = whatsappContactEnabled === false ? 0 : 1;
       const now = new Date().toISOString();
 
       db.prepare(`
         UPDATE advertisement_orders
         SET status = 'details_submitted',
+            customer_name = COALESCE(?, customer_name),
+            customer_email = COALESCE(?, customer_email),
+            customer_phone = COALESCE(?, customer_phone),
+            whatsapp_contact_enabled = ?,
             instagram_username = ?,
             selling_price = ?,
             current_rank = ?,
             premium_skins = ?,
             other_valuable_items = ?,
             inventory_screenshot = ?,
+            inventory_screenshots_json = ?,
             submitted_at = ?,
             updated_at = ?
         WHERE id = ?
       `).run(
-        instagramUsername.trim().replace(/^@/, ''),
-        sellingPrice.toString().trim(),
-        currentRank.trim(),
-        premiumSkins.trim(),
+        customerName?.trim() || null,
+        customerEmail?.trim() || null,
+        customerPhone?.trim() || null,
+        isWhatsappEnabled,
+        cleanInstagram,
+        cleanPrice,
+        cleanRank,
+        cleanSkins,
         otherValuableItems?.trim() || '',
-        inventoryScreenshot,
+        primaryScreenshot,
+        screenshotsJson,
         now,
         now,
         id
       );
 
-      const updatedOrder = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id);
+      const updatedOrder = db.prepare('SELECT * FROM advertisement_orders WHERE id = ?').get(id) as any;
 
-      // Trigger automatic email to teamvibofficial@gmail.com with all required fields
+      // Trigger automatic email to teamvibofficial@gmail.com with customer-submitted details
       const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : undefined);
       sendAdminAdDetailsSubmitted(
         updatedOrder,
@@ -722,18 +797,21 @@ export function registerAdvertisementRoutes(
           customer_name: updatedOrder.customer_name,
           customer_email: updatedOrder.customer_email,
           customer_phone: updatedOrder.customer_phone,
-          instagram_username: instagramUsername.trim().replace(/^@/, ''),
-          selling_price: sellingPrice,
-          current_rank: currentRank,
-          premium_skins: premiumSkins,
-          other_valuable_items: otherValuableItems || '',
-          inventory_screenshot: inventoryScreenshot,
+          whatsapp_contact_enabled: isWhatsappEnabled,
+          instagram_username: cleanInstagram,
+          selling_price: cleanPrice,
+          current_rank: cleanRank,
+          premium_skins: cleanSkins,
+          other_valuable_items: otherValuableItems?.trim() || '',
+          inventory_screenshots: savedScreenshotUrls,
+          inventory_screenshot: primaryScreenshot,
         },
         origin
       ).catch((e) => console.warn('[Ad Details Admin Email Error]:', e.message));
 
       res.json({
         success: true,
+        orderId: id,
         message: 'Advertisement details successfully submitted! Our team is preparing your campaign.',
       });
     } catch (err: any) {
