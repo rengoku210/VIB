@@ -1429,7 +1429,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             <div className="text-[11px] text-gray-400">Community Members</div>
           </div>
           <div>
-            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">1M+</div>
+            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">1L+</div>
             <div className="text-[11px] text-gray-400">Successful Transactions</div>
           </div>
           <div>

@@ -954,7 +954,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <div className="w-[1px] h-8 bg-white/10" />
               <div className="text-center md:text-right">
                 <div className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-400 font-rajdhani">
-                  1M+
+                  1L+
                 </div>
                 <div className="text-[10px] font-mono text-gray-400 uppercase">Transactions</div>
               </div>
