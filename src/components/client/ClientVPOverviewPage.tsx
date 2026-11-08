@@ -441,83 +441,6 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. SKIN RENTALS SECTION (Matching Reference media_1790095371529.jpg)      */}
-      {/* ========================================================================= */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl bg-gradient-to-r from-[#17092c] via-[#0f061e] to-[#07030e] border border-fuchsia-500/30 overflow-hidden shadow-2xl relative p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 min-h-[340px]">
-          {/* Full-bleed Reference Part 10 (Weapon Cases Showcase) */}
-          <img
-            src="/assets/reference_parts/part_10.png"
-            alt="Skin Rentals Showcase Part 10"
-            className="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none z-0 opacity-85"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#17092c] via-[#17092c]/80 to-transparent z-[1]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#17092c] via-transparent to-transparent z-[1]" />
-          {/* Ambient neon purple/magenta glow */}
-          <div className="absolute right-10 top-0 w-80 h-full bg-fuchsia-600/20 blur-3xl pointer-events-none" />
-
-          {/* Left Content */}
-          <div className="space-y-4 max-w-xl relative z-10">
-            <div className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest text-[#e879f9] uppercase font-bold">
-              <Sparkles className="w-3.5 h-3.5 text-[#e879f9]" />
-              <span>VIB EXPERIENCE PROGRAM</span>
-            </div>
-
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase text-white font-rajdhani tracking-tight leading-none">
-              SKIN RENTALS <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 via-pink-400 to-purple-400">
-                PREMIUM SKINS. YOUR WAY.
-              </span>
-            </h2>
-
-            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-lg">
-              Experience high-end skins at affordable rates. Play with the looks you love, without the long-term commitment.
-            </p>
-
-            {/* 4 Feature Badges */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-gray-200">
-              <div className="px-3 py-1.5 rounded-full bg-[#200d33]/80 border border-fuchsia-500/30 flex items-center gap-1.5 shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
-                <span className="text-[11px]">Wide Skin Collection</span>
-              </div>
-              <div className="px-3 py-1.5 rounded-full bg-[#200d33]/80 border border-fuchsia-500/30 flex items-center gap-1.5 shadow-sm">
-                <CreditCard className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-[11px]">Affordable Plans</span>
-              </div>
-              <div className="px-3 py-1.5 rounded-full bg-[#200d33]/80 border border-fuchsia-500/30 flex items-center gap-1.5 shadow-sm">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[11px]">Instant Access</span>
-              </div>
-              <div className="px-3 py-1.5 rounded-full bg-[#200d33]/80 border border-fuchsia-500/30 flex items-center gap-1.5 shadow-sm">
-                <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-[11px]">Flexible Durations</span>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => onNavigate('rentals')}
-                className="min-h-[44px] px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-700 via-fuchsia-600 to-purple-600 hover:from-rose-600 hover:to-purple-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(217,70,239,0.35)] cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
-              >
-                Explore Rentals →
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('rentals')}
-                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-gray-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-              >
-                How It Works →
-              </button>
-            </div>
-          </div>
-
-          {/* Full-bleed Part 10 background applied above; right side free for artwork visibility */}
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
       {/* 2. REGION SELECTOR BAR (Matching Reference 3)                             */}
       {/* ========================================================================= */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -1083,7 +1006,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="flex items-center gap-2 pt-2">
               <a
-                href={`https://wa.me/919181801766?text=${encodeURIComponent('Hello VIB Support, I need assistance with my Valorant account or VP order. Please assist me.')}`}
+                href={`https://wa.me/919181801766?text=${encodeURIComponent('Hello VIB Support, I need assistance with my VP order. Please assist me.')}`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1.5"
