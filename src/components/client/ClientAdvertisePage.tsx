@@ -562,6 +562,8 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   }, [activeView, submitOrderId, submitToken]);
 
   const filteredPlans = plans.filter((p) => {
+    // Keep Trade / Exchange plans strictly in their dedicated section below; do not mix them into the sales grid
+    if (p.category === 'trade') return false;
     if (selectedCategory === 'all') return true;
     return p.category === selectedCategory;
   });
@@ -870,24 +872,48 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           {/* Category Filter Tabs */}
           <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-4">
             {[
-              { id: 'all', label: 'All Packages (12)' },
-              { id: 'standard', label: 'Standard Sales Plans (7)' },
-              { id: 'trade', label: 'Trade / Exchange (2)' },
+              { id: 'all', label: 'All Sales Plans (10)' },
+              { id: 'standard', label: 'Standard Sales (7)' },
               { id: 'premium', label: 'Premium & VIP (2)' },
               { id: 'bonus', label: 'Free Bonus Plan (1)' },
+              { id: 'trade', label: 'Trade / Exchange Plans (2)' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setSelectedCategory(tab.id as any)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer min-h-[40px] ${
-                  selectedCategory === tab.id
+                onClick={() => {
+                  if (tab.id === 'trade') {
+                    scrollToTradeExchange();
+                  } else {
+                    setSelectedCategory(tab.id as any);
+                  }
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer min-h-[40px] flex items-center gap-1.5 ${
+                  tab.id === 'trade'
+                    ? 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30'
+                    : selectedCategory === tab.id
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                     : 'bg-[#0d0a1a] hover:bg-[#16122a] text-gray-400 hover:text-white border border-white/5'
                 }`}
               >
-                {tab.label}
+                {tab.id === 'trade' && <Repeat className="w-3.5 h-3.5 text-emerald-400" />}
+                <span>{tab.label}</span>
               </button>
             ))}
+          </div>
+
+          {/* Section Heading for Profile Sales Plans */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pt-2">
+            <div>
+              <div className="text-[10px] font-mono tracking-widest text-purple-400 uppercase font-bold">
+                ACCOUNT SALES &amp; INVENTORY PROMOTION
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black uppercase text-white font-rajdhani tracking-wide">
+                PROFILE SALES PACKAGES
+              </h2>
+            </div>
+            <div className="text-xs text-gray-400">
+              Looking for weapon swaps? Jump to <button type="button" onClick={scrollToTradeExchange} className="text-emerald-400 underline font-semibold cursor-pointer hover:text-emerald-300">Trade / Exchange Plans below</button>.
+            </div>
           </div>
 
           {/* Bonus Plan Callout Banner */}
