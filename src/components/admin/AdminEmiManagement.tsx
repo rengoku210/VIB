@@ -13,6 +13,7 @@ import {
   X,
   ExternalLink,
   ShieldCheck,
+  Settings,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -46,6 +47,13 @@ interface AdminEmiRow {
   created_at: string;
   next_due_date: string | null;
   outstanding: number | null;
+  service_type?: 'vp' | 'account';
+  region?: string;
+  payment_frequency?: 'weekly' | 'monthly';
+  total_payable?: number;
+  agreement_ref?: string;
+  customer_details_json?: string;
+  admin_remarks?: string;
 }
 
 /**
@@ -74,6 +82,16 @@ interface AdminEmiApplication {
   start_date?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
+  service_type?: 'vp' | 'account';
+  region?: string;
+  payment_frequency?: 'weekly' | 'monthly';
+  total_payable?: number;
+  agreement_ref?: string;
+  agreement_version?: string;
+  agreement_html?: string;
+  customer_signature?: string;
+  customer_details_json?: string;
+  admin_remarks?: string;
   [key: string]: unknown;
 }
 
@@ -178,6 +196,59 @@ const AdminEmiManagement: React.FC = () => {
   // Evidence zoom lightbox
   const [zoomEvidence, setZoomEvidence] = useState<string | null>(null);
 
+  // Settings tab state
+  const [activeConsoleTab, setActiveConsoleTab] = useState<'applications' | 'settings'>('applications');
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [vpSettings, setVpSettings] = useState<any>(null);
+  const [accountSettings, setAccountSettings] = useState<any>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    setSettingsError(null);
+    try {
+      const res = await fetch('/api/admin/emi/settings', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Failed to load settings');
+      const data = await res.json();
+      if (data.vp) setVpSettings(data.vp);
+      if (data.account) setAccountSettings(data.account);
+    } catch {
+      setSettingsError('Failed to load Flexible Payment settings.');
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [token]);
+
+  const handleSaveSettings = async (category: 'vp' | 'account') => {
+    setSettingsSaving(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+    try {
+      const res = await fetch('/api/admin/emi/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          category,
+          settings: category === 'vp' ? vpSettings : accountSettings,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save settings.');
+      setSettingsSuccess(`${category.toUpperCase()} settings saved successfully!`);
+    } catch (e: any) {
+      setSettingsError(e.message || 'Failed to save settings.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   /* ------------------------- data fetching ------------------------- */
 
   const fetchApplications = useCallback(async () => {
@@ -204,7 +275,8 @@ const AdminEmiManagement: React.FC = () => {
 
   useEffect(() => {
     fetchApplications();
-  }, [fetchApplications]);
+    fetchSettings();
+  }, [fetchApplications, fetchSettings]);
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -518,6 +590,337 @@ const AdminEmiManagement: React.FC = () => {
         </button>
       </div>
 
+      {/* Console Tab Switcher: Applications vs Settings */}
+      <div className="flex items-center gap-3 border-b border-white/10 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveConsoleTab('applications')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+            activeConsoleTab === 'applications'
+              ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+              : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Applications Desk</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveConsoleTab('settings');
+            fetchSettings();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+            activeConsoleTab === 'settings'
+              ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+              : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span>Flexible Plan Rules &amp; Settings</span>
+        </button>
+      </div>
+
+      {activeConsoleTab === 'settings' ? (
+        <div className="space-y-6">
+          {settingsSuccess && (
+            <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{settingsSuccess}</span>
+            </div>
+          )}
+          {settingsError && (
+            <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{settingsError}</span>
+            </div>
+          )}
+
+          {settingsLoading ? (
+            <div className="p-12 rounded-2xl bg-[#0c0d1c] border border-white/10 flex flex-col items-center justify-center gap-3 text-gray-400">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <p className="text-xs font-mono uppercase tracking-wider">Loading Flexible Payment Settings...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* VP Settings Console */}
+              <div className="p-6 rounded-2xl bg-[#0c0d1c] border border-purple-500/30 space-y-5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-purple-400" />
+                    <h3 className="font-bold text-white font-rajdhani text-lg uppercase tracking-wider">
+                      VP Flexible Payment Rules
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/40">
+                    Indian &amp; PHP Packs
+                  </span>
+                </div>
+
+                <div className="space-y-4 text-xs font-mono">
+                  {/* India Rules */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                    <div className="font-bold text-purple-300 uppercase">India VP Configuration</div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Down Payment %</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.india?.downPaymentPercent ?? 30}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              india: { ...prev.india, downPaymentPercent: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Weekly (wks)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.india?.weeklyInstallments ?? 4}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              india: { ...prev.india, weeklyInstallments: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Monthly (mos)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.india?.monthlyInstallments ?? 2}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              india: { ...prev.india, monthlyInstallments: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PHP Rules */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                    <div className="font-bold text-blue-300 uppercase">Philippines VP Configuration</div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Down Payment %</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.philippines?.downPaymentPercent ?? 30}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              philippines: { ...prev.philippines, downPaymentPercent: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Weekly (wks)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.philippines?.weeklyInstallments ?? 4}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              philippines: { ...prev.philippines, weeklyInstallments: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Monthly (mos)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.philippines?.monthlyInstallments ?? 2}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              philippines: { ...prev.philippines, monthlyInstallments: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Late fee policy */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                    <div className="font-bold text-amber-300 uppercase">Statutory Late Fee Policies</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Weekly Late Fee (₹)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.lateFees?.weeklyFee ?? 300}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              lateFees: { ...prev.lateFees, weeklyFee: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Monthly Late Fee (₹)</label>
+                        <input
+                          type="number"
+                          value={vpSettings?.lateFees?.monthlyFee ?? 1500}
+                          onChange={(e) =>
+                            setVpSettings((prev: any) => ({
+                              ...prev,
+                              lateFees: { ...prev.lateFees, monthlyFee: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={settingsSaving}
+                    onClick={() => handleSaveSettings('vp')}
+                    className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer shadow-lg shadow-purple-900/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {settingsSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Save VP Plan Rules</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Account Settings Console */}
+              <div className="p-6 rounded-2xl bg-[#0c0d1c] border border-amber-500/30 space-y-5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-amber-400" />
+                    <h3 className="font-bold text-white font-rajdhani text-lg uppercase tracking-wider">
+                      Lifetime Guaranteed Account Rules
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/40">
+                    Slab Engine
+                  </span>
+                </div>
+
+                <div className="space-y-4 text-xs font-mono">
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-300 uppercase">Minimum Account Threshold</span>
+                      <span className="text-gray-400 text-[10px]">Eligibility starts at:</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
+                      <input
+                        type="number"
+                        value={accountSettings?.minAmount ?? 1500}
+                        onChange={(e) =>
+                          setAccountSettings((prev: any) => ({
+                            ...prev,
+                            minAmount: Number(e.target.value),
+                          }))
+                        }
+                        className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Slabs breakdown */}
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                      Price Slabs &amp; Fixed Profit Margins
+                    </div>
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {Array.isArray(accountSettings?.slabs) &&
+                        accountSettings.slabs.map((slab: any, idx: number) => (
+                          <div
+                            key={slab.id || idx}
+                            className="p-3 rounded-lg bg-white/[0.02] border border-white/10 flex items-center justify-between gap-3 text-[11px]"
+                          >
+                            <div>
+                              <span className="text-white font-bold">{slab.name}</span>
+                              <div className="text-gray-500 text-[10px]">
+                                ₹{slab.minPrice.toLocaleString()} - {slab.maxPrice === Infinity ? 'Above' : `₹${slab.maxPrice.toLocaleString()}`}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-emerald-400 font-bold">
+                                {slab.downPaymentPercent}% Down
+                              </span>
+                              <div className="text-amber-300 text-[10px]">
+                                +₹{slab.fixedProfit} Profit
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Late fee policy */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                    <div className="font-bold text-amber-300 uppercase">Late Fee Policies</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Weekly Fee (₹)</label>
+                        <input
+                          type="number"
+                          value={accountSettings?.lateFees?.weeklyFee ?? 300}
+                          onChange={(e) =>
+                            setAccountSettings((prev: any) => ({
+                              ...prev,
+                              lateFees: { ...prev.lateFees, weeklyFee: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-400 block text-[10px] mb-1">Monthly Fee (₹)</label>
+                        <input
+                          type="number"
+                          value={accountSettings?.lateFees?.monthlyFee ?? 1500}
+                          onChange={(e) =>
+                            setAccountSettings((prev: any) => ({
+                              ...prev,
+                              lateFees: { ...prev.lateFees, monthlyFee: Number(e.target.value) },
+                            }))
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={settingsSaving}
+                    onClick={() => handleSaveSettings('account')}
+                    className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {settingsSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Save Account Plan Rules</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       {/* Filter tabs with counts */}
       <div className="flex items-center gap-2 flex-wrap">
         {tabs.map((tab) => (
@@ -632,6 +1035,8 @@ const AdminEmiManagement: React.FC = () => {
           })}
         </div>
       )}
+        </>
+      )}
 
       {/* Detail modal */}
       {selectedId && (
@@ -723,16 +1128,75 @@ const AdminEmiManagement: React.FC = () => {
                     <div className="text-white font-bold mt-1">{formatINR(detail.amount_financed)}</div>
                   </div>
                   <div className="p-3 rounded-xl bg-black/30 border border-white/10">
-                    <div className="text-gray-500 uppercase text-[9px] tracking-wider">Rate</div>
-                    <div className="text-white font-bold mt-1">{Number(detail.interest_rate_pct || 0).toFixed(1)}% p.a.</div>
+                    <div className="text-gray-500 uppercase text-[9px] tracking-wider">Rate / Freq</div>
+                    <div className="text-white font-bold mt-1">{String(detail.payment_frequency || 'monthly').toUpperCase()}</div>
                   </div>
                   <div className="p-3 rounded-xl bg-black/30 border border-white/10">
-                    <div className="text-gray-500 uppercase text-[9px] tracking-wider">EMI / Tenure</div>
+                    <div className="text-gray-500 uppercase text-[9px] tracking-wider">Installment / Count</div>
                     <div className="text-amber-300 font-bold mt-1">
-                      {formatINR(detail.emi_amount)} <span className="text-gray-400 font-normal">× {detail.total_installments} mo</span>
+                      {formatINR(detail.emi_amount)} <span className="text-gray-400 font-normal">× {detail.total_installments}</span>
                     </div>
                   </div>
                 </div>
+
+                {/* Agreement & Customer Identity Section */}
+                {detail.agreement_html && (
+                  <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-white text-xs font-mono">
+                          Agreement Ref: {String(detail.agreement_ref || 'VIB-FPP-2026')}
+                        </div>
+                        <div className="text-[11px] text-gray-400 font-mono">
+                          {detail.service_type === 'vp' ? 'VP Services Agreement' : 'Digital Profile Agreement'} • Formally Generated &amp; Signed
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const win = window.open('', '_blank');
+                        if (win) {
+                          win.document.write(String(detail.agreement_html));
+                          win.document.close();
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md self-start sm:self-auto"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Legal Contract</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Customer KYC Particulars if present */}
+                {(() => {
+                  let cd: any = null;
+                  if (detail.customer_details_json) {
+                    try { cd = JSON.parse(String(detail.customer_details_json)); } catch {}
+                  }
+                  if (!cd) return null;
+                  return (
+                    <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2 text-xs font-mono">
+                      <div className="font-bold text-purple-300 uppercase tracking-wider text-[11px]">
+                        Customer Identity &amp; Contract Address Particulars
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-gray-300">
+                        <div><span className="text-gray-500 block text-[10px]">Legal Name:</span> {cd.fullName}</div>
+                        <div><span className="text-gray-500 block text-[10px]">DOB:</span> {cd.dob || '—'}</div>
+                        <div><span className="text-gray-500 block text-[10px]">Phone:</span> {cd.phone || '—'}</div>
+                        <div><span className="text-gray-500 block text-[10px]">City / State:</span> {cd.city}, {cd.state}</div>
+                      </div>
+                      {cd.address && <div className="text-gray-400 text-[11px]"><span className="text-gray-500">Address:</span> {cd.address}</div>}
+                      {cd.guardianName && (
+                        <div className="text-amber-400 text-[11px]">
+                          <span className="text-gray-500">Guardian:</span> {cd.guardianName} ({cd.guardianRelation})
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Installment schedule */}
                 <div>

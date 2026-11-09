@@ -19,6 +19,7 @@ import {
   Play,
   Flame,
   User,
+  CreditCard,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -31,6 +32,7 @@ interface ListingDetailPageProps {
   onNavigate: (page: ClientPage, id?: string) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
+  onOpenFlexiblePlans?: (context: { serviceType: 'account'; listing: any }) => void;
 }
 
 export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
@@ -39,6 +41,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   onNavigate,
   onAddToCart,
   onOpenCheckout,
+  onOpenFlexiblePlans,
 }) => {
   const [listing, setListing] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +163,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     : ['/assets/hires/profiles/card1_exact.jpg', '/assets/hires/profiles/card2_exact.jpg'];
   const activeImage = images[activeImageIndex] || images[0];
   const skins: any[] = Array.isArray(listing.skins) ? listing.skins : [];
-  const isGuaranteed = listing.guarantee_type === 'lifetime_guaranteed';
+  const isGuaranteed = listing.guarantee_type === 'lifetime_guaranteed' || listing.guarantee_type === 'guaranteed';
   const originalPrice = listing.price_inr ? Math.round(listing.price_inr * 1.35) : 0;
 
   return (
@@ -495,6 +498,17 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   <Zap className="w-4 h-4 fill-white" />
                   <span>Buy Account (Escrow Protected)</span>
                 </button>
+
+                {isGuaranteed && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'account', listing })}
+                    className="w-full min-h-[44px] px-6 py-2.5 rounded-xl bg-purple-950/70 hover:bg-purple-900 border border-purple-500/50 text-purple-200 hover:text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-purple-950/40"
+                  >
+                    <CreditCard className="w-4 h-4 text-purple-400" />
+                    <span>Flexible Payment Plans</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

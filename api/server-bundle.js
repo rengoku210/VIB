@@ -37,7 +37,7 @@ var require_main = __commonJS({
     var fs10 = __require("fs");
     var path9 = __require("path");
     var os3 = __require("os");
-    var crypto16 = __require("crypto");
+    var crypto17 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -281,7 +281,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto16.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto17.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error2) {
@@ -18168,8 +18168,8 @@ var require_escape_html = __commonJS({
   "node_modules/escape-html/index.js"(exports, module) {
     "use strict";
     var matchHtmlRegExp = /["'&<>]/;
-    module.exports = escapeHtml3;
-    function escapeHtml3(string) {
+    module.exports = escapeHtml4;
+    function escapeHtml4(string) {
       var str = "" + string;
       var match = matchHtmlRegExp.exec(str);
       if (!match) {
@@ -18300,7 +18300,7 @@ var require_finalhandler = __commonJS({
     "use strict";
     var debug = require_src2()("finalhandler");
     var encodeUrl = require_encodeurl();
-    var escapeHtml3 = require_escape_html();
+    var escapeHtml4 = require_escape_html();
     var onFinished = require_on_finished();
     var parseUrl = require_parseurl();
     var statuses = require_statuses();
@@ -18312,7 +18312,7 @@ var require_finalhandler = __commonJS({
     };
     var isFinished = onFinished.isFinished;
     function createHtmlDocument(message) {
-      var body = escapeHtml3(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
+      var body = escapeHtml4(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
       return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body + "</pre>\n</body>\n</html>\n";
     }
     module.exports = finalhandler;
@@ -20439,14 +20439,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto16 = __require("crypto");
+    var crypto17 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto16.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto17.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -20816,7 +20816,7 @@ var require_send = __commonJS({
     var deprecate = require_depd()("send");
     var destroy = require_destroy();
     var encodeUrl = require_encodeurl();
-    var escapeHtml3 = require_escape_html();
+    var escapeHtml4 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
     var fs10 = __require("fs");
@@ -20916,7 +20916,7 @@ var require_send = __commonJS({
       }
       var res = this.res;
       var msg = statuses.message[status] || String(status);
-      var doc = createHtmlDocument("Error", escapeHtml3(msg));
+      var doc = createHtmlDocument("Error", escapeHtml4(msg));
       clearHeaders(res);
       if (err && err.headers) {
         setHeaders(res, err.headers);
@@ -21016,7 +21016,7 @@ var require_send = __commonJS({
         return;
       }
       var loc = encodeUrl(collapseLeadingSlashes(this.path + "/"));
-      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml3(loc));
+      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml4(loc));
       res.statusCode = 301;
       res.setHeader("Content-Type", "text/html; charset=UTF-8");
       res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -23355,11 +23355,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto16 = __require("crypto");
+    var crypto17 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto16.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto17.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -23368,7 +23368,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto16.createHash("sha1").update(str).digest("hex");
+      return crypto17.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -23621,7 +23621,7 @@ var require_response = __commonJS({
     var createError = require_http_errors();
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
-    var escapeHtml3 = require_escape_html();
+    var escapeHtml4 = require_escape_html();
     var http2 = __require("http");
     var isAbsolute = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
@@ -24027,7 +24027,7 @@ var require_response = __commonJS({
           body = statuses.message[status] + ". Redirecting to " + address;
         },
         html: function() {
-          var u = escapeHtml3(address);
+          var u = escapeHtml4(address);
           body = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
         },
         default: function() {
@@ -24159,7 +24159,7 @@ var require_serve_static = __commonJS({
   "node_modules/serve-static/index.js"(exports, module) {
     "use strict";
     var encodeUrl = require_encodeurl();
-    var escapeHtml3 = require_escape_html();
+    var escapeHtml4 = require_escape_html();
     var parseUrl = require_parseurl();
     var resolve3 = __require("path").resolve;
     var send = require_send();
@@ -24246,7 +24246,7 @@ var require_serve_static = __commonJS({
         originalUrl.path = null;
         originalUrl.pathname = collapseLeadingSlashes(originalUrl.pathname + "/");
         var loc = encodeUrl(url.format(originalUrl));
-        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml3(loc));
+        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml4(loc));
         res.statusCode = 301;
         res.setHeader("Content-Type", "text/html; charset=UTF-8");
         res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -24349,7 +24349,7 @@ var require_express2 = __commonJS({
 
 // server/index.ts
 var import_express = __toESM(require_express2(), 1);
-import crypto15 from "node:crypto";
+import crypto16 from "node:crypto";
 import fs9 from "node:fs";
 import path8 from "node:path";
 
@@ -25437,7 +25437,45 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_emi_pay_app ON emi_payments(application_id);
   CREATE INDEX IF NOT EXISTS idx_emi_pay_status ON emi_payments(status);
+
+  CREATE TABLE IF NOT EXISTS emi_settings (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL UNIQUE,
+    settings_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT
+  );
 `);
+try {
+  const existingCols = new Set(
+    db.prepare("PRAGMA table_info(emi_applications)").all().map((c) => c.name)
+  );
+  const colsToAdd = [
+    ["service_type", 'TEXT DEFAULT "account"'],
+    ["region", "TEXT"],
+    ["listing_id", "TEXT"],
+    ["plan_type", "TEXT"],
+    ["payment_frequency", 'TEXT DEFAULT "monthly"'],
+    ["fixed_profit", "REAL DEFAULT 0"],
+    ["total_payable", "REAL DEFAULT 0"],
+    ["agreement_ref", "TEXT"],
+    ["agreement_version", "TEXT"],
+    ["agreement_html", "TEXT"],
+    ["customer_signature", "TEXT"],
+    ["signed_at", "TEXT"],
+    ["ip_address", "TEXT"],
+    ["customer_details_json", "TEXT"],
+    ["kyc_submission_id", "TEXT"],
+    ["admin_remarks", "TEXT"]
+  ];
+  for (const [col, typeDef] of colsToAdd) {
+    if (!existingCols.has(col)) {
+      db.exec(`ALTER TABLE emi_applications ADD COLUMN ${col} ${typeDef}`);
+    }
+  }
+} catch (e) {
+  console.warn("[DB Migration Warning] emi_applications:", e);
+}
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -42795,9 +42833,592 @@ function registerKycRoutes(app2, helpers) {
 }
 
 // server/emiRoutes.ts
-import crypto14 from "node:crypto";
+import crypto15 from "node:crypto";
 import fs8 from "node:fs";
 import path7 from "node:path";
+
+// server/flexiblePaymentSettings.ts
+import crypto14 from "node:crypto";
+var DEFAULT_VP_SETTINGS = {
+  category: "vp",
+  in: {
+    enabled: true,
+    packages: [
+      {
+        id: "vp-in-11000",
+        vpAmount: 11e3,
+        name: "11,000 Valorant Points",
+        priceINR: 7499,
+        downPaymentPct: 30,
+        downPaymentINR: 2250,
+        plans: [
+          { id: "in-11k-w4", name: "4 Weeks Weekly Plan", frequency: "weekly", duration: 4, installmentAmount: 1315, downPayment: 2250, balance: 5249, totalPayable: 7510 },
+          { id: "in-11k-m2", name: "2 Months Monthly Plan", frequency: "monthly", duration: 2, installmentAmount: 2625, downPayment: 2250, balance: 5249, totalPayable: 7500 }
+        ]
+      },
+      {
+        id: "vp-in-16500",
+        vpAmount: 16500,
+        name: "16,500 Valorant Points",
+        priceINR: 10999,
+        downPaymentPct: 30,
+        downPaymentINR: 3300,
+        plans: [
+          { id: "in-16k-w4", name: "4 Weeks Weekly Plan", frequency: "weekly", duration: 4, installmentAmount: 1925, downPayment: 3300, balance: 7699, totalPayable: 11e3 },
+          { id: "in-16k-m3", name: "3 Months Monthly Plan", frequency: "monthly", duration: 3, installmentAmount: 2567, downPayment: 3300, balance: 7699, totalPayable: 11001 }
+        ]
+      },
+      {
+        id: "vp-in-22000",
+        vpAmount: 22e3,
+        name: "22,000 Valorant Points",
+        priceINR: 14499,
+        downPaymentPct: 30,
+        downPaymentINR: 4350,
+        plans: [
+          { id: "in-22k-w6", name: "6 Weeks Weekly Plan", frequency: "weekly", duration: 6, installmentAmount: 1692, downPayment: 4350, balance: 10149, totalPayable: 14502 },
+          { id: "in-22k-m3", name: "3 Months Monthly Plan", frequency: "monthly", duration: 3, installmentAmount: 3383, downPayment: 4350, balance: 10149, totalPayable: 14499 }
+        ]
+      },
+      {
+        id: "vp-in-35000",
+        vpAmount: 35e3,
+        name: "35,000 Valorant Points",
+        priceINR: 22999,
+        downPaymentPct: 35,
+        downPaymentINR: 8050,
+        plans: [
+          { id: "in-35k-w8", name: "8 Weeks Weekly Plan", frequency: "weekly", duration: 8, installmentAmount: 1869, downPayment: 8050, balance: 14949, totalPayable: 23002 },
+          { id: "in-35k-m4", name: "4 Months Monthly Plan", frequency: "monthly", duration: 4, installmentAmount: 3738, downPayment: 8050, balance: 14949, totalPayable: 23002 }
+        ]
+      }
+    ]
+  },
+  php: {
+    enabled: true,
+    packages: [
+      {
+        id: "vp-php-13750",
+        vpAmount: 13750,
+        name: "13,750 PHP Region VP",
+        priceINR: 5499,
+        downPaymentPct: 30,
+        downPaymentINR: 1650,
+        plans: [
+          { id: "php-13k-w4", name: "4 Weeks Weekly Plan", frequency: "weekly", duration: 4, installmentAmount: 965, downPayment: 1650, balance: 3849, totalPayable: 5510 },
+          { id: "php-13k-m2", name: "2 Months Monthly Plan", frequency: "monthly", duration: 2, installmentAmount: 1925, downPayment: 1650, balance: 3849, totalPayable: 5500 }
+        ]
+      },
+      {
+        id: "vp-php-20500",
+        vpAmount: 20500,
+        name: "20,500 PHP Region VP",
+        priceINR: 7999,
+        downPaymentPct: 30,
+        downPaymentINR: 2400,
+        plans: [
+          { id: "php-20k-w4", name: "4 Weeks Weekly Plan", frequency: "weekly", duration: 4, installmentAmount: 1400, downPayment: 2400, balance: 5599, totalPayable: 8e3 },
+          { id: "php-20k-m3", name: "3 Months Monthly Plan", frequency: "monthly", duration: 3, installmentAmount: 1867, downPayment: 2400, balance: 5599, totalPayable: 8001 }
+        ]
+      },
+      {
+        id: "vp-php-28000",
+        vpAmount: 28e3,
+        name: "28,000 PHP Region VP",
+        priceINR: 10499,
+        downPaymentPct: 30,
+        downPaymentINR: 3150,
+        plans: [
+          { id: "php-28k-w6", name: "6 Weeks Weekly Plan", frequency: "weekly", duration: 6, installmentAmount: 1225, downPayment: 3150, balance: 7349, totalPayable: 10500 },
+          { id: "php-28k-m3", name: "3 Months Monthly Plan", frequency: "monthly", duration: 3, installmentAmount: 2450, downPayment: 3150, balance: 7349, totalPayable: 10500 }
+        ]
+      }
+    ]
+  },
+  weeklyLateFee: 300,
+  monthlyLateFee: 1500
+};
+var DEFAULT_ACCOUNT_SETTINGS = {
+  category: "account",
+  enabled: true,
+  minAmount: 1500,
+  slabs: [
+    {
+      id: "slab-1",
+      name: "Entry Tier (\u20B91,500 \u2013 \u20B95,000)",
+      minPrice: 1500,
+      maxPrice: 5e3,
+      downPaymentPct: 30,
+      fixedProfit: 450,
+      options: [
+        { name: "4 Weeks (Weekly)", frequency: "weekly", installments: 4 },
+        { name: "2 Months (Monthly)", frequency: "monthly", installments: 2 }
+      ]
+    },
+    {
+      id: "slab-2",
+      name: "Mid Tier (\u20B95,001 \u2013 \u20B912,000)",
+      minPrice: 5001,
+      maxPrice: 12e3,
+      downPaymentPct: 30,
+      fixedProfit: 950,
+      options: [
+        { name: "6 Weeks (Weekly)", frequency: "weekly", installments: 6 },
+        { name: "8 Weeks (Weekly)", frequency: "weekly", installments: 8 },
+        { name: "3 Months (Monthly)", frequency: "monthly", installments: 3 }
+      ]
+    },
+    {
+      id: "slab-3",
+      name: "High Tier (\u20B912,001 \u2013 \u20B925,000)",
+      minPrice: 12001,
+      maxPrice: 25e3,
+      downPaymentPct: 35,
+      fixedProfit: 1850,
+      options: [
+        { name: "8 Weeks (Weekly)", frequency: "weekly", installments: 8 },
+        { name: "3 Months (Monthly)", frequency: "monthly", installments: 3 },
+        { name: "4 Months (Monthly)", frequency: "monthly", installments: 4 }
+      ]
+    },
+    {
+      id: "slab-4",
+      name: "Elite Tier (\u20B925,001+)",
+      minPrice: 25001,
+      maxPrice: 999999,
+      downPaymentPct: 40,
+      fixedProfit: 2800,
+      options: [
+        { name: "3 Months (Monthly)", frequency: "monthly", installments: 3 },
+        { name: "4 Months (Monthly)", frequency: "monthly", installments: 4 },
+        { name: "6 Months (Monthly)", frequency: "monthly", installments: 6 }
+      ]
+    }
+  ],
+  weeklyLateFee: 300,
+  monthlyLateFee: 1500
+};
+function getVpFlexibleSettings() {
+  try {
+    const row = db.prepare("SELECT settings_json FROM emi_settings WHERE category = ?").get("vp");
+    if (row?.settings_json) {
+      return JSON.parse(row.settings_json);
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const id = "set_" + crypto14.randomBytes(6).toString("hex");
+    db.prepare("INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)").run(id, "vp", JSON.stringify(DEFAULT_VP_SETTINGS), now);
+    return DEFAULT_VP_SETTINGS;
+  } catch (e) {
+    console.error("[getVpFlexibleSettings error]:", e);
+    return DEFAULT_VP_SETTINGS;
+  }
+}
+function getAccountFlexibleSettings() {
+  try {
+    const row = db.prepare("SELECT settings_json FROM emi_settings WHERE category = ?").get("account");
+    if (row?.settings_json) {
+      return JSON.parse(row.settings_json);
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const id = "set_" + crypto14.randomBytes(6).toString("hex");
+    db.prepare("INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)").run(id, "account", JSON.stringify(DEFAULT_ACCOUNT_SETTINGS), now);
+    return DEFAULT_ACCOUNT_SETTINGS;
+  } catch (e) {
+    console.error("[getAccountFlexibleSettings error]:", e);
+    return DEFAULT_ACCOUNT_SETTINGS;
+  }
+}
+function saveVpFlexibleSettings(settings, adminId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const existing = db.prepare("SELECT id FROM emi_settings WHERE category = ?").get("vp");
+  const id = existing?.id || "set_" + crypto14.randomBytes(6).toString("hex");
+  db.prepare(`
+    INSERT INTO emi_settings (id, category, settings_json, updated_at, updated_by)
+    VALUES (?, 'vp', ?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET
+      settings_json = excluded.settings_json,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by
+  `).run(id, JSON.stringify(settings), now, adminId);
+}
+function saveAccountFlexibleSettings(settings, adminId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const existing = db.prepare("SELECT id FROM emi_settings WHERE category = ?").get("account");
+  const id = existing?.id || "set_" + crypto14.randomBytes(6).toString("hex");
+  db.prepare(`
+    INSERT INTO emi_settings (id, category, settings_json, updated_at, updated_by)
+    VALUES (?, 'account', ?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET
+      settings_json = excluded.settings_json,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by
+  `).run(id, JSON.stringify(settings), now, adminId);
+}
+function calculateAccountPlans(priceINR) {
+  const cfg = getAccountFlexibleSettings();
+  if (!cfg.enabled || priceINR < cfg.minAmount) return [];
+  const slab = cfg.slabs.find((s) => priceINR >= s.minPrice && priceINR <= s.maxPrice) || cfg.slabs[cfg.slabs.length - 1];
+  if (!slab) return [];
+  const downPaymentAmount = Math.round(priceINR * (slab.downPaymentPct / 100));
+  const principalBalance = priceINR - downPaymentAmount;
+  const totalPayable = principalBalance + slab.fixedProfit;
+  return slab.options.map((opt, idx) => {
+    const installmentAmount = Math.round(totalPayable / opt.installments);
+    return {
+      id: `acc-plan-${opt.frequency}-${opt.installments}-${idx}`,
+      name: opt.name,
+      frequency: opt.frequency,
+      installments: opt.installments,
+      serviceCost: priceINR,
+      downPaymentPct: slab.downPaymentPct,
+      downPaymentAmount,
+      principalBalance,
+      fixedProfit: slab.fixedProfit,
+      totalPayable,
+      installmentAmount,
+      slabName: slab.name
+    };
+  });
+}
+
+// server/agreementGenerator.ts
+function escapeHtml2(s) {
+  if (s === null || s === void 0) return "";
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+var formatINR = (n) => `\u20B9${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+function generateFlexiblePaymentAgreementHtml(ctx) {
+  const isVP = ctx.service.serviceType === "vp";
+  const agreementTitle = isVP ? "FLEXIBLE PAYMENT PLAN AGREEMENT \u2014 VP SERVICES" : "FLEXIBLE PAYMENT PLAN AGREEMENT \u2014 DIGITAL PROFILE SERVICES";
+  const serviceCategoryLabel = isVP ? `Valorant Points Top-Up (${ctx.service.region === "php" ? "Philippines Region" : "Indian Region"})` : "Digital Profile & Valorant Account Services";
+  const weeklyLateFee = ctx.financials.weeklyLateFee || 300;
+  const monthlyLateFee = ctx.financials.monthlyLateFee || 1500;
+  const scheduleRows = ctx.schedule.map((item) => `
+    <tr>
+      <td style="padding: 10px 14px; border: 1px solid #33294d; font-family: monospace;">#${item.installmentNo}</td>
+      <td style="padding: 10px 14px; border: 1px solid #33294d;">${escapeHtml2(item.dueDate)}</td>
+      <td style="padding: 10px 14px; border: 1px solid #33294d; font-weight: bold; color: #a855f7;">${formatINR(item.amount)}</td>
+      <td style="padding: 10px 14px; border: 1px solid #33294d; color: #f59e0b; font-size: 11px; text-transform: uppercase;">Scheduled</td>
+    </tr>
+  `).join("");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml2(agreementTitle)}</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #0c0a18;
+    color: #e2e8f0;
+    line-height: 1.6;
+    margin: 0;
+    padding: 32px 20px;
+  }
+  .agreement-container {
+    max-width: 860px;
+    margin: 0 auto;
+    background-color: #120e24;
+    border: 1px solid #33294d;
+    border-radius: 12px;
+    padding: 36px 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .header-brand {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #581c87;
+    padding-bottom: 18px;
+    margin-bottom: 24px;
+  }
+  .logo-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #a855f7;
+    margin: 0;
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .ref-box {
+    text-align: right;
+    font-family: monospace;
+    font-size: 12px;
+    color: #cbd5e1;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff;
+    text-align: center;
+    margin: 24px 0 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .meta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 28px;
+    font-size: 13px;
+  }
+  .meta-table th, .meta-table td {
+    padding: 8px 12px;
+    border: 1px solid #2e2648;
+    text-align: left;
+  }
+  .meta-table th {
+    background: #1a1435;
+    color: #c084fc;
+    width: 35%;
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #c084fc;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-left: 4px solid #a855f7;
+    padding-left: 10px;
+    margin: 28px 0 14px;
+  }
+  p, li {
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+  .financial-grid {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+  .financial-grid th, .financial-grid td {
+    padding: 10px 14px;
+    border: 1px solid #33294d;
+  }
+  .financial-grid th {
+    background: #1e173e;
+    color: #f3e8ff;
+    text-align: left;
+  }
+  .schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+  .schedule-table th {
+    background: #1e173e;
+    color: #f3e8ff;
+    padding: 10px 14px;
+    border: 1px solid #33294d;
+    text-align: left;
+  }
+  .notice-box {
+    background: #25122f;
+    border: 1px solid #86198f;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .signature-area {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid #33294d;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .sig-block {
+    flex: 1;
+    background: #16112e;
+    border: 1px dashed #4c3870;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .sig-img {
+    max-height: 60px;
+    max-width: 180px;
+    display: block;
+    margin-top: 10px;
+  }
+  @media print {
+    body { background: #ffffff; color: #111827; }
+    .agreement-container { background: #ffffff; border: none; box-shadow: none; color: #111827; }
+    .header-brand { border-bottom-color: #6b21a8; }
+    .logo-title { color: #6b21a8; }
+    .meta-table th { background: #f3f4f6; color: #1f2937; }
+    .meta-table th, .meta-table td, .financial-grid th, .financial-grid td, .schedule-table th, .schedule-table td {
+      border-color: #d1d5db; color: #111827;
+    }
+    .financial-grid th, .schedule-table th { background: #f3f4f6; color: #111827; }
+    .notice-box { background: #faf5ff; border-color: #d8b4fe; color: #3b0764; }
+    .sig-block { background: #f9fafb; border-color: #9ca3af; }
+  }
+</style>
+</head>
+<body>
+<div class="agreement-container">
+  <div class="header-brand">
+    <div>
+      <div class="logo-title">VIB 2.0</div>
+      <div class="logo-sub">Digital Services &amp; Escrow Platform</div>
+    </div>
+    <div class="ref-box">
+      <div><strong>Ref:</strong> ${escapeHtml2(ctx.agreementRef)}</div>
+      <div><strong>Date:</strong> ${escapeHtml2(ctx.dateStr)}</div>
+      <div><strong>Version:</strong> ${escapeHtml2(ctx.version)}</div>
+      ${ctx.orderId ? `<div><strong>Order:</strong> ${escapeHtml2(ctx.orderId)}</div>` : ""}
+    </div>
+  </div>
+
+  <h1>${escapeHtml2(agreementTitle)}</h1>
+
+  <div class="section-title">Part 1 \u2014 Parties &amp; Recitals</div>
+  <table class="meta-table">
+    <tr>
+      <th>Platform Provider</th>
+      <td><strong>VIB Digital Services Platform</strong> (thevibofficial@gmail.com / teamvibofficial@gmail.com)</td>
+    </tr>
+    <tr>
+      <th>Customer Legal Name</th>
+      <td><strong>${escapeHtml2(ctx.customer.fullName)}</strong></td>
+    </tr>
+    <tr>
+      <th>Email Address</th>
+      <td>${escapeHtml2(ctx.customer.email)}</td>
+    </tr>
+    <tr>
+      <th>Mobile Number</th>
+      <td>${escapeHtml2(ctx.customer.phone || "Recorded on Profile")}</td>
+    </tr>
+    <tr>
+      <th>Residential Address</th>
+      <td>${escapeHtml2(ctx.customer.address || "Address provided during KYC")}, ${escapeHtml2(ctx.customer.city || "")} ${escapeHtml2(ctx.customer.state || "")} ${escapeHtml2(ctx.customer.country || "India")}</td>
+    </tr>
+    ${ctx.customer.guardianName ? `
+    <tr>
+      <th>Guardian Name &amp; Relation</th>
+      <td>${escapeHtml2(ctx.customer.guardianName)} (${escapeHtml2(ctx.customer.guardianRelation || "Legal Guardian")})</td>
+    </tr>` : ""}
+  </table>
+
+  <div class="section-title">Part 2 \u2014 Service Scope &amp; Identification</div>
+  <table class="meta-table">
+    <tr>
+      <th>Service Category</th>
+      <td>${escapeHtml2(serviceCategoryLabel)}</td>
+    </tr>
+    <tr>
+      <th>Service Title / Product</th>
+      <td><strong>${escapeHtml2(ctx.service.title)}</strong></td>
+    </tr>
+    ${ctx.service.listingId ? `
+    <tr>
+      <th>Listing / Inventory ID</th>
+      <td>${escapeHtml2(ctx.service.listingId)}</td>
+    </tr>` : ""}
+    ${ctx.service.specsSummary ? `
+    <tr>
+      <th>Specifications</th>
+      <td>${escapeHtml2(ctx.service.specsSummary)}</td>
+    </tr>` : ""}
+  </table>
+
+  <div class="section-title">Part 3 \u2014 Financial Structure &amp; Installment Obligations</div>
+  <table class="financial-grid">
+    <tr>
+      <th>Total Contract Service Cost</th>
+      <td><strong>${formatINR(ctx.financials.serviceCost)}</strong></td>
+    </tr>
+    <tr>
+      <th>Initial Down Payment</th>
+      <td><strong>${formatINR(ctx.financials.downPayment)}</strong> ${ctx.financials.downPaymentPct ? `(${ctx.financials.downPaymentPct}%)` : ""}</td>
+    </tr>
+    <tr>
+      <th>Remaining Principal Balance</th>
+      <td>${formatINR(ctx.financials.principalBalance)}</td>
+    </tr>
+    <tr>
+      <th>Fixed Profit / Platform Fee</th>
+      <td>${formatINR(ctx.financials.fixedProfit)}</td>
+    </tr>
+    <tr style="background: rgba(168,85,247,0.12);">
+      <th>Total Payable Balance</th>
+      <td><strong style="color: #c084fc; font-size: 15px;">${formatINR(ctx.financials.totalPayable)}</strong></td>
+    </tr>
+    <tr>
+      <th>Installment Frequency &amp; Count</th>
+      <td>${ctx.financials.installmentsCount} ${ctx.financials.paymentFrequency === "weekly" ? "Weekly" : "Monthly"} Installments</td>
+    </tr>
+    <tr>
+      <th>Amount Per Installment</th>
+      <td><strong>${formatINR(ctx.financials.installmentAmount)}</strong> / ${ctx.financials.paymentFrequency === "weekly" ? "week" : "month"}</td>
+    </tr>
+  </table>
+
+  <div class="section-title">Part 4 \u2014 Approved Installment Schedule</div>
+  <table class="schedule-table">
+    <thead>
+      <tr>
+        <th>Inst. #</th>
+        <th>Scheduled Due Date</th>
+        <th>Amount Payable</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${scheduleRows}
+    </tbody>
+  </table>
+
+  <div class="notice-box">
+    <div style="font-weight: bold; color: #f472b6; margin-bottom: 6px; text-transform: uppercase;">
+      Important Notice: Late Payment Policy &amp; Default Consequences
+    </div>
+    <ul style="margin: 0; padding-left: 18px;">
+      <li><strong>Installment Discipline:</strong> Every installment must be paid on or prior to the specified due date through authorized VIB UPI QR verification channels.</li>
+      <li><strong>Late-Payment Policy:</strong> For weekly payment plans, a late-payment fee of <strong>\u20B9${weeklyLateFee} per week</strong> applies. For monthly payment plans, a late-payment fee of <strong>\u20B9${monthlyLateFee} per monthly occurrence</strong> applies on overdue balances in accordance with the documented cumulative schedule.</li>
+      <li><strong>Default &amp; Access Revocation:</strong> Failure to settle overdue installments within 7 calendar days of notice will result in immediate suspension of account credentials, forfeiture of warranties, and initiation of dispute and recovery procedures.</li>
+      <li><strong>Non-Transferability:</strong> Flexible Payment Plans cannot be transferred, assigned, or sold to third parties without prior written consent from VIB Digital Services.</li>
+    </ul>
+  </div>
+
+  <div class="section-title">Part 5 \u2014 Electronic Acceptance &amp; Declarations</div>
+  <p>
+    By executing this Agreement electronically, the Customer acknowledges that they have read, understood, and voluntarily agree to all terms, covenants, and schedule obligations set forth herein.
+  </p>
+
+  <div class="signature-area">
+    <div class="sig-block">
+      <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8;">For VIB Digital Services Platform</div>
+      <div style="font-weight: bold; color: #ffffff; margin-top: 4px;">Authorized Administrator</div>
+      <div style="font-family: monospace; font-size: 11px; color: #a855f7; margin-top: 6px;">ELECTRONICALLY VERIFIED &amp; SEALED</div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">VIB Trust &amp; Escrow Infrastructure</div>
+    </div>
+    <div class="sig-block">
+      <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8;">Customer Electronic Acceptance</div>
+      <div style="font-weight: bold; color: #ffffff; margin-top: 4px;">${escapeHtml2(ctx.customer.fullName)}</div>
+      ${ctx.signatureDataUrl ? `<img src="${ctx.signatureDataUrl}" alt="Customer Signature" class="sig-img" />` : '<div style="font-style: italic; color: #94a3b8; font-size: 12px; margin-top: 8px;">[Electronically Signed &amp; Accepted]</div>'}
+      <div style="font-size: 10px; color: #64748b; margin-top: 6px; font-family: monospace;">
+        Timestamp: ${escapeHtml2(ctx.dateStr)}<br/>
+        IP Reference: ${escapeHtml2(ctx.ipAddress || "Verified User Session")}
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+// server/emiRoutes.ts
 var uploadsDir = path7.join(databaseDirectory, "uploads");
 if (!fs8.existsSync(uploadsDir)) {
   fs8.mkdirSync(uploadsDir, { recursive: true });
@@ -42814,6 +43435,12 @@ function addMonths(dateStr, months) {
   }
   return copy.toISOString();
 }
+function addWeeks(dateStr, weeks) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  date.setUTCDate(date.getUTCDate() + weeks * 7);
+  return date.toISOString();
+}
 function saveEvidenceImage(dataUrl) {
   if (typeof dataUrl !== "string") throw new Error("INVALID_IMAGE");
   const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
@@ -42825,7 +43452,7 @@ function saveEvidenceImage(dataUrl) {
   if (!fs8.existsSync(uploadsDir)) {
     fs8.mkdirSync(uploadsDir, { recursive: true });
   }
-  const filename = `emi_evidence_${Date.now()}_${crypto14.randomBytes(4).toString("hex")}.${ext}`;
+  const filename = `emi_evidence_${Date.now()}_${crypto15.randomBytes(4).toString("hex")}.${ext}`;
   fs8.writeFileSync(path7.join(uploadsDir, filename), buffer);
   return { url: `/uploads/${filename}`, filename };
 }
@@ -42833,7 +43460,7 @@ function insertNotification2(userId, title, message, now) {
   db.prepare(`
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'emi', 0, ?)
-  `).run("notif_" + crypto14.randomBytes(8).toString("hex"), userId, title, message, now);
+  `).run("notif_" + crypto15.randomBytes(8).toString("hex"), userId, title, message, now);
 }
 function outstandingBalance(appId) {
   const row = db.prepare(`
@@ -42880,6 +43507,13 @@ function markOverdue(application) {
   application.next_due_date = nextDue;
 }
 function serializeApplication(app2) {
+  let customerDetails = null;
+  if (app2.customer_details_json) {
+    try {
+      customerDetails = JSON.parse(app2.customer_details_json);
+    } catch {
+    }
+  }
   return {
     id: app2.id,
     productTitle: app2.product_title,
@@ -42896,12 +43530,27 @@ function serializeApplication(app2) {
     totalInstallments: app2.total_installments,
     outstandingBalance: outstandingBalance(app2.id),
     createdAt: app2.created_at,
-    startDate: app2.start_date || null
+    startDate: app2.start_date || null,
+    serviceType: app2.service_type || "account",
+    region: app2.region || null,
+    listingId: app2.listing_id || null,
+    planType: app2.plan_type || null,
+    paymentFrequency: app2.payment_frequency || "monthly",
+    fixedProfit: app2.fixed_profit || 0,
+    totalPayable: app2.total_payable || app2.amount_financed || 0,
+    agreementRef: app2.agreement_ref || null,
+    agreementVersion: app2.agreement_version || null,
+    agreementHtml: app2.agreement_html || null,
+    customerSignature: app2.customer_signature || null,
+    signedAt: app2.signed_at || null,
+    customerDetails,
+    kycSubmissionId: app2.kyc_submission_id || null,
+    adminRemarks: app2.admin_remarks || null
   };
 }
 var formatInr = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 var formatDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "TBD";
-function escapeHtml2(value) {
+function escapeHtml3(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function registerEmiRoutes(app2, helpers) {
@@ -42914,13 +43563,87 @@ function registerEmiRoutes(app2, helpers) {
       console.warn("[EMI Email Warning]:", err?.message || err);
     });
   };
+  app2.get("/api/emi/settings", (_req, res) => {
+    try {
+      const vp = getVpFlexibleSettings();
+      const account = getAccountFlexibleSettings();
+      return res.json({ success: true, vp, account });
+    } catch (err) {
+      console.error("[EMI Settings Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch settings." });
+    }
+  });
+  app2.post("/api/emi/calculate", (req, res) => {
+    try {
+      const { serviceType, region, priceINR } = req.body || {};
+      if (serviceType === "vp") {
+        const vpSettings = getVpFlexibleSettings();
+        const reg = region === "php" ? "php" : "in";
+        const packages = vpSettings[reg]?.packages || [];
+        return res.json({
+          success: true,
+          serviceType: "vp",
+          region: reg,
+          packages,
+          lateFees: { weekly: vpSettings.weeklyLateFee, monthly: vpSettings.monthlyLateFee }
+        });
+      } else {
+        const price = Number(priceINR) || 0;
+        const plans = calculateAccountPlans(price);
+        const accSettings = getAccountFlexibleSettings();
+        return res.json({
+          success: true,
+          serviceType: "account",
+          priceINR: price,
+          plans,
+          slabs: accSettings.slabs,
+          lateFees: { weekly: accSettings.weeklyLateFee, monthly: accSettings.monthlyLateFee }
+        });
+      }
+    } catch (err) {
+      console.error("[EMI Calculate Error]:", err);
+      return res.status(500).json({ error: "Failed to calculate payment plans." });
+    }
+  });
+  app2.get("/api/admin/emi/settings", authenticate2, staffOnly2, (_req, res) => {
+    try {
+      const vp = getVpFlexibleSettings();
+      const account = getAccountFlexibleSettings();
+      return res.json({ success: true, vp, account });
+    } catch (err) {
+      console.error("[Admin EMI Settings Error]:", err);
+      return res.status(500).json({ error: "Failed to fetch settings." });
+    }
+  });
+  app2.put("/api/admin/emi/settings", authenticate2, staffOnly2, (req, res) => {
+    try {
+      const { category, settings } = req.body || {};
+      const staff = req.user;
+      if (category !== "vp" && category !== "account") {
+        return res.status(400).json({ error: 'category must be "vp" or "account".' });
+      }
+      if (!settings || typeof settings !== "object") {
+        return res.status(400).json({ error: "settings object is required." });
+      }
+      if (category === "vp") {
+        saveVpFlexibleSettings(settings, staff.id);
+      } else {
+        saveAccountFlexibleSettings(settings, staff.id);
+      }
+      logAudit2(staff.id, staff.name, "EMI_SETTINGS_UPDATE", "emi_settings", category, { category }, req);
+      return res.json({ success: true, message: `${category.toUpperCase()} flexible payment settings updated successfully.` });
+    } catch (err) {
+      console.error("[Admin EMI Settings Update Error]:", err);
+      return res.status(500).json({ error: "Failed to update settings." });
+    }
+  });
   app2.post("/api/emi/apply", authenticate2, (req, res) => {
     try {
       const body = req.body || {};
       const productTitle = typeof body.productTitle === "string" ? body.productTitle.trim() : "";
       const totalAmount = Number(body.totalAmount);
       const initialPayment = body.initialPayment === void 0 || body.initialPayment === null ? 0 : Number(body.initialPayment);
-      const tenureMonths = Number(body.tenureMonths);
+      const tenureMonths = Number(body.tenureMonths || body.installmentsCount);
       let ratePct = body.interestRatePct === void 0 || body.interestRatePct === null ? 0 : Number(body.interestRatePct);
       if (!Number.isFinite(ratePct)) ratePct = 0;
       ratePct = Math.min(36, Math.max(0, ratePct));
@@ -42938,18 +43661,98 @@ function registerEmiRoutes(app2, helpers) {
         return res.status(400).json({ error: "Tenure months must be a whole number between 1 and 36." });
       }
       const amountFinanced = round2(totalAmount - initialPayment);
-      const totalPayable = amountFinanced * (1 + ratePct / 100 * (tenureMonths / 12));
-      const emiAmount = round2(totalPayable / tenureMonths);
-      const id = "emi_" + crypto14.randomBytes(6).toString("hex");
+      const serviceType = body.serviceType === "vp" ? "vp" : "account";
+      const region = body.region === "php" ? "php" : body.region === "in" ? "in" : null;
+      const listingId = typeof body.listingId === "string" && body.listingId.trim() ? body.listingId.trim() : null;
+      const planType = typeof body.planType === "string" ? body.planType.trim() : null;
+      const paymentFrequency = body.paymentFrequency === "weekly" ? "weekly" : "monthly";
+      const fixedProfit = Number(body.fixedProfit) || 0;
+      let totalPayable = Number(body.totalPayable);
+      if (!Number.isFinite(totalPayable) || totalPayable <= 0) {
+        totalPayable = fixedProfit > 0 ? round2(amountFinanced + fixedProfit) : round2(amountFinanced * (1 + ratePct / 100 * (tenureMonths / 12)));
+      }
+      let emiAmount = Number(body.emiAmount);
+      if (!Number.isFinite(emiAmount) || emiAmount <= 0) {
+        emiAmount = round2(totalPayable / tenureMonths);
+      }
+      const agreementRef = typeof body.agreementRef === "string" && body.agreementRef.trim() ? body.agreementRef.trim() : `VIB-FPP-2026-${crypto15.randomBytes(4).toString("hex").toUpperCase()}`;
+      const agreementVersion = typeof body.agreementVersion === "string" ? body.agreementVersion : "2026.1";
+      const customerSignature = typeof body.customerSignature === "string" ? body.customerSignature : null;
+      const customerDetails = body.customerDetails && typeof body.customerDetails === "object" ? body.customerDetails : null;
+      const kycSubmissionId = typeof body.kycSubmissionId === "string" ? body.kycSubmissionId : null;
+      const clientIp = req.ip || req.headers["x-forwarded-for"] || "127.0.0.1";
+      const id = "emi_" + crypto15.randomBytes(6).toString("hex");
       const now = (/* @__PURE__ */ new Date()).toISOString();
       const userId = req.user.id;
+      const scheduleItems = [];
+      const isWeekly = paymentFrequency === "weekly";
+      for (let i = 1; i <= tenureMonths; i++) {
+        const dueDate = isWeekly ? addWeeks(now, i) : addMonths(now, i);
+        const formattedDate = new Date(dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        scheduleItems.push({
+          installmentNo: i,
+          dueDate: formattedDate,
+          amount: i === tenureMonths ? round2(totalPayable - emiAmount * (tenureMonths - 1)) : emiAmount
+        });
+      }
+      const agreementHtml = generateFlexiblePaymentAgreementHtml({
+        agreementRef,
+        orderId: orderId || void 0,
+        version: agreementVersion,
+        dateStr: (/* @__PURE__ */ new Date()).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+        customer: {
+          fullName: customerDetails?.fullName || req.user.name || "Verified Customer",
+          dob: customerDetails?.dob,
+          phone: customerDetails?.phone || req.user.phone,
+          email: customerDetails?.email || req.user.email,
+          address: customerDetails?.address,
+          city: customerDetails?.city,
+          state: customerDetails?.state,
+          country: customerDetails?.country || "India",
+          guardianName: customerDetails?.guardianName,
+          guardianRelation: customerDetails?.guardianRelation
+        },
+        service: {
+          serviceType,
+          title: productTitle,
+          region: region || void 0,
+          listingId: listingId || void 0
+        },
+        financials: {
+          serviceCost: totalAmount,
+          downPayment: initialPayment,
+          downPaymentPct: initialPayment > 0 ? Math.round(initialPayment / totalAmount * 100) : void 0,
+          principalBalance: amountFinanced,
+          fixedProfit,
+          totalPayable,
+          installmentAmount: emiAmount,
+          installmentsCount: tenureMonths,
+          paymentFrequency,
+          weeklyLateFee: 300,
+          monthlyLateFee: 1500
+        },
+        schedule: scheduleItems,
+        signatureDataUrl: customerSignature || void 0,
+        ipAddress: String(clientIp)
+      });
       db.prepare(`
         INSERT INTO emi_applications (
           id, user_id, order_id, product_title, total_amount, initial_payment,
           amount_financed, tenure_months, interest_rate_pct, emi_amount,
           total_installments, installments_paid, status, rejection_reason,
-          start_date, next_due_date, created_at, updated_at, reviewed_at, reviewed_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending_approval', NULL, NULL, NULL, ?, ?, NULL, NULL)
+          start_date, next_due_date, created_at, updated_at, reviewed_at, reviewed_by,
+          service_type, region, listing_id, plan_type, payment_frequency,
+          fixed_profit, total_payable, agreement_ref, agreement_version, agreement_html,
+          customer_signature, signed_at, ip_address, customer_details_json, kyc_submission_id
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, 0, 'pending_approval', NULL,
+          NULL, NULL, ?, ?, NULL, NULL,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?
+        )
       `).run(
         id,
         userId,
@@ -42963,14 +43766,42 @@ function registerEmiRoutes(app2, helpers) {
         emiAmount,
         tenureMonths,
         now,
-        now
+        now,
+        serviceType,
+        region,
+        listingId,
+        planType,
+        paymentFrequency,
+        fixedProfit,
+        totalPayable,
+        agreementRef,
+        agreementVersion,
+        agreementHtml,
+        customerSignature,
+        now,
+        String(clientIp),
+        customerDetails ? JSON.stringify(customerDetails) : null,
+        kycSubmissionId
       );
       insertNotification2(
         userId,
-        "EMI Application Received",
-        `Your EMI application for ${productTitle} has been received and is pending review.`,
+        "Flexible Payment Application Received",
+        `Your application for ${productTitle} (${agreementRef}) has been received and is pending staff review.`,
         now
       );
+      if (isEmailConfigured2()) {
+        sendEmail2({
+          to: "thevibofficial@gmail.com",
+          subject: `[VIB] New Flexible Payment Application: ${productTitle} (${agreementRef})`,
+          html: `<p>A new flexible payment plan application has been submitted.</p>
+                 <p><strong>Customer:</strong> ${escapeHtml3(customerDetails?.fullName || req.user.name || "Customer")} (${escapeHtml3(req.user.email)})</p>
+                 <p><strong>Service:</strong> ${escapeHtml3(productTitle)}</p>
+                 <p><strong>Total Cost:</strong> \u20B9${formatInr(totalAmount)} | <strong>Down Payment:</strong> \u20B9${formatInr(initialPayment)}</p>
+                 <p><strong>Total Payable:</strong> \u20B9${formatInr(totalPayable)} | <strong>Installments:</strong> ${tenureMonths} (${paymentFrequency}) of \u20B9${formatInr(emiAmount)}</p>
+                 <p><strong>Agreement Ref:</strong> ${escapeHtml3(agreementRef)}</p>`
+        }).catch(() => {
+        });
+      }
       return res.status(201).json({
         success: true,
         application: {
@@ -42978,7 +43809,10 @@ function registerEmiRoutes(app2, helpers) {
           status: "pending_approval",
           amountFinanced,
           emiAmount,
-          totalInstallments: tenureMonths
+          totalInstallments: tenureMonths,
+          agreementRef,
+          totalPayable,
+          paymentFrequency
         }
       });
     } catch (err) {
@@ -43147,7 +43981,19 @@ function registerEmiRoutes(app2, helpers) {
         created_at: r.created_at,
         start_date: r.start_date,
         next_due_date: r.next_due_date,
-        outstanding: outstandingBalance(r.id)
+        outstanding: outstandingBalance(r.id),
+        service_type: r.service_type || "account",
+        region: r.region || null,
+        listing_id: r.listing_id || null,
+        plan_type: r.plan_type || null,
+        payment_frequency: r.payment_frequency || "monthly",
+        fixed_profit: r.fixed_profit || 0,
+        total_payable: r.total_payable || r.amount_financed || 0,
+        agreement_ref: r.agreement_ref || null,
+        agreement_version: r.agreement_version || null,
+        customer_details_json: r.customer_details_json || null,
+        kyc_submission_id: r.kyc_submission_id || null,
+        admin_remarks: r.admin_remarks || null
       }));
       return res.json({ applications });
     } catch (err) {
@@ -43195,11 +44041,12 @@ function registerEmiRoutes(app2, helpers) {
         if (application.status !== "pending_approval") {
           return res.status(409).json({ error: "Only pending EMI applications can be approved." });
         }
+        const isWeekly = application.payment_frequency === "weekly";
         const startDate = now;
-        const firstDue = addMonths(startDate, 1);
+        const firstDue = isWeekly ? addWeeks(startDate, 1) : addMonths(startDate, 1);
         const totalInstallments = application.total_installments;
         const emiAmount = application.emi_amount;
-        const totalPayable = round2(
+        const totalPayable = application.total_payable && application.total_payable > 0 ? round2(application.total_payable) : round2(
           application.amount_financed * (1 + application.interest_rate_pct / 100 * (application.tenure_months / 12))
         );
         const lastInstallmentAmount = round2(totalPayable - emiAmount * (totalInstallments - 1));
@@ -43216,12 +44063,13 @@ function registerEmiRoutes(app2, helpers) {
           `);
           for (let i = 1; i <= totalInstallments; i++) {
             const installmentAmount = i === totalInstallments ? lastInstallmentAmount : emiAmount;
+            const dueDate = isWeekly ? addWeeks(startDate, i) : addMonths(startDate, i);
             insertPay.run(
-              "emi_pay_" + crypto14.randomBytes(6).toString("hex"),
+              "emi_pay_" + crypto15.randomBytes(6).toString("hex"),
               appId,
               i,
               installmentAmount,
-              addMonths(startDate, i),
+              dueDate,
               now
             );
           }
@@ -43242,7 +44090,7 @@ function registerEmiRoutes(app2, helpers) {
         sendEmiEmailIfConfigured(
           application.user_id,
           "EMI Application Approved",
-          `<p>Hello,</p><p>Your EMI plan for <strong>${escapeHtml2(application.product_title)}</strong> is approved.</p><p>First installment of \u20B9${formatInr(emiAmount)} is due on <strong>${formatDate(firstDue)}</strong>.</p>`,
+          `<p>Hello,</p><p>Your EMI plan for <strong>${escapeHtml3(application.product_title)}</strong> is approved.</p><p>First installment of \u20B9${formatInr(emiAmount)} is due on <strong>${formatDate(firstDue)}</strong>.</p>`,
           `Your EMI plan for ${application.product_title} is approved. First installment of \u20B9${formatInr(emiAmount)} is due on ${formatDate(firstDue)}.`
         );
         logAudit2(staff.id, staff.name, "EMI_APPROVE", "emi_application", appId, {
@@ -43278,7 +44126,7 @@ function registerEmiRoutes(app2, helpers) {
         sendEmiEmailIfConfigured(
           application.user_id,
           "EMI Application Rejected",
-          `<p>Hello,</p><p>Your EMI application for <strong>${escapeHtml2(application.product_title)}</strong> was not approved.</p><p>Reason: ${escapeHtml2(rejectReason)}</p>`,
+          `<p>Hello,</p><p>Your EMI application for <strong>${escapeHtml3(application.product_title)}</strong> was not approved.</p><p>Reason: ${escapeHtml3(rejectReason)}</p>`,
           `Your EMI application for ${application.product_title} was rejected. Reason: ${rejectReason}`
         );
         logAudit2(staff.id, staff.name, "EMI_REJECT", "emi_application", appId, {
@@ -43358,7 +44206,7 @@ function registerEmiRoutes(app2, helpers) {
           sendEmiEmailIfConfigured(
             application.user_id,
             "EMI Completed",
-            `<p>Hello,</p><p>Congratulations! You have completed all EMI installments for <strong>${escapeHtml2(application.product_title)}</strong>.</p>`,
+            `<p>Hello,</p><p>Congratulations! You have completed all EMI installments for <strong>${escapeHtml3(application.product_title)}</strong>.</p>`,
             `You have completed all EMI installments for ${application.product_title}.`
           );
         } else {
@@ -43401,7 +44249,7 @@ function registerEmiRoutes(app2, helpers) {
       sendEmiEmailIfConfigured(
         application.user_id,
         "EMI Installment Rejected",
-        `<p>Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${escapeHtml2(reason.trim())}` : "."}</p>`,
+        `<p>Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${escapeHtml3(reason.trim())}` : "."}</p>`,
         `Your installment #${payment.installment_no} payment of \u20B9${formatInr(payment.amount)} was not approved${typeof reason === "string" && reason.trim() ? `: ${reason.trim()}` : "."}`
       );
       logAudit2(staff.id, staff.name, "EMI_PAYMENT_REJECT", "emi_payment", paymentId, {
@@ -43465,7 +44313,7 @@ app.post("/api/upload", (req, res) => {
       res.status(400).json({ error: "Image exceeds maximum 10MB file size limit." });
       return;
     }
-    const safeName = `receipt_${Date.now()}_${crypto15.randomBytes(4).toString("hex")}.${ext}`;
+    const safeName = `receipt_${Date.now()}_${crypto16.randomBytes(4).toString("hex")}.${ext}`;
     const filePath = path8.join(uploadsDir2, safeName);
     fs9.writeFileSync(filePath, buffer);
     res.json({
@@ -43728,7 +44576,7 @@ function clearLoginFailures(ip) {
   loginFailuresByIp.delete(ip);
 }
 function logAudit(actorId, actorName, action, targetType, targetId, details, ipOrReq) {
-  const auditId = "aud_" + crypto15.randomBytes(8).toString("hex");
+  const auditId = "aud_" + crypto16.randomBytes(8).toString("hex");
   let cleanIp = "unavailable";
   if (typeof ipOrReq === "object" && ipOrReq !== null && ("headers" in ipOrReq || "ip" in ipOrReq)) {
     cleanIp = extractClientIp(ipOrReq);
@@ -43849,8 +44697,8 @@ app.post("/api/auth/register-otp/send", async (req, res) => {
         return;
       }
     }
-    const otpCode = crypto15.randomInt(1e5, 999999).toString();
-    const id = "otp_" + crypto15.randomBytes(8).toString("hex");
+    const otpCode = crypto16.randomInt(1e5, 999999).toString();
+    const id = "otp_" + crypto16.randomBytes(8).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1e3).toISOString();
     db.prepare(`
@@ -43935,9 +44783,9 @@ app.post("/api/auth/register-with-otp", async (req, res) => {
       res.status(409).json({ error: "An account with this email address already exists. Please sign in." });
       return;
     }
-    const userId = "usr_" + crypto15.randomBytes(8).toString("hex");
+    const userId = "usr_" + crypto16.randomBytes(8).toString("hex");
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const autoPassword = crypto15.randomBytes(16).toString("hex");
+    const autoPassword = crypto16.randomBytes(16).toString("hex");
     const { hash, salt } = hashPassword(autoPassword);
     const now = (/* @__PURE__ */ new Date()).toISOString();
     db.prepare(`
@@ -44039,8 +44887,8 @@ app.post("/api/auth/login-otp/send", async (req, res) => {
         return;
       }
     }
-    const otpCode = crypto15.randomInt(1e5, 999999).toString();
-    const id = "otp_" + crypto15.randomBytes(8).toString("hex");
+    const otpCode = crypto16.randomInt(1e5, 999999).toString();
+    const id = "otp_" + crypto16.randomBytes(8).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1e3).toISOString();
     db.prepare(`
@@ -44170,7 +45018,7 @@ app.post("/api/auth/register", async (req, res) => {
       verifiedRiotId = riotCheck.riotId;
       isRiotVerified = 1;
     }
-    const userId = "usr_" + crypto15.randomBytes(8).toString("hex");
+    const userId = "usr_" + crypto16.randomBytes(8).toString("hex");
     const { hash, salt } = hashPassword(password);
     const verificationCode = Math.floor(1e5 + Math.random() * 9e5).toString();
     const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -44217,7 +45065,7 @@ app.post("/api/auth/register", async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'info', 0, ?)
     `).run(
-      "notif_" + crypto15.randomBytes(8).toString("hex"),
+      "notif_" + crypto16.randomBytes(8).toString("hex"),
       userId,
       "Welcome to VIB Digital Services Platform!",
       "Your account has been created. Enjoy verified Valorant VP top-ups, rank journeys, and protected marketplace transactions.",
@@ -44381,8 +45229,8 @@ app.post("/api/auth/firebase-login", (req, res) => {
         }
       }
     } else {
-      userId = "usr_" + crypto15.randomBytes(8).toString("hex");
-      const randomPassword = crypto15.randomBytes(32).toString("hex");
+      userId = "usr_" + crypto16.randomBytes(8).toString("hex");
+      const randomPassword = crypto16.randomBytes(32).toString("hex");
       const { hash, salt } = hashPassword(randomPassword);
       db.prepare(`
         INSERT INTO users (id, email, password_hash, salt, name, role, status, email_verified, firebase_uid, auth_provider, created_at, updated_at)
@@ -44485,7 +45333,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
   const resetCode = Math.floor(1e5 + Math.random() * 9e5).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1e3).toISOString();
-  const resetTokenHash = crypto15.createHash("sha256").update(resetCode).digest("hex");
+  const resetTokenHash = crypto16.createHash("sha256").update(resetCode).digest("hex");
   db.prepare("UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?").run(resetTokenHash, expiresAt, user.id);
   const delivery = await sendPasswordRecoveryOtpEmail(normalizedEmail, resetCode);
   if (!delivery.success) {
@@ -44507,9 +45355,9 @@ app.post("/api/auth/reset-password", (req, res) => {
     return;
   }
   const user = db.prepare("SELECT id, reset_token, reset_token_expires_at FROM users WHERE email = ?").get(String(email).trim().toLowerCase());
-  const submittedCodeHash = crypto15.createHash("sha256").update(cleanCode).digest("hex");
+  const submittedCodeHash = crypto16.createHash("sha256").update(cleanCode).digest("hex");
   const storedResetHash = typeof user?.reset_token === "string" && /^[a-f0-9]{64}$/i.test(user.reset_token) ? Buffer.from(user.reset_token, "hex") : null;
-  const codeMatches = storedResetHash && crypto15.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
+  const codeMatches = storedResetHash && crypto16.timingSafeEqual(storedResetHash, Buffer.from(submittedCodeHash, "hex"));
   if (!user || !codeMatches || !user.reset_token_expires_at || Date.parse(user.reset_token_expires_at) <= Date.now()) {
     res.status(400).json({ error: "Invalid or expired verification reset code." });
     return;
@@ -44788,8 +45636,8 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       res.status(400).json({ error: "Valid title and price are required for order creation." });
       return;
     }
-    const orderId = "ord_" + crypto15.randomBytes(6).toString("hex");
-    const txnId = "txn_" + crypto15.randomBytes(6).toString("hex");
+    const orderId = "ord_" + crypto16.randomBytes(6).toString("hex");
+    const txnId = "txn_" + crypto16.randomBytes(6).toString("hex");
     const refNo = "VIB-" + Date.now().toString(36).toUpperCase();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const initialTimeline = [
@@ -44896,7 +45744,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
       VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
     `).run(
-      "msg_" + crypto15.randomBytes(6).toString("hex"),
+      "msg_" + crypto16.randomBytes(6).toString("hex"),
       orderId,
       `Order room initialized for #${orderId} (${title}). All deliveries, game account credentials, and communications are secured under official VIB middleman escrow. Please keep all communication inside this order room.`,
       now
@@ -44905,7 +45753,7 @@ app.post("/api/user/orders", authenticate, async (req, res) => {
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto15.randomBytes(8).toString("hex"),
+      "notif_" + crypto16.randomBytes(8).toString("hex"),
       req.user.id,
       `Order Received: ${title}`,
       `Your order #${orderId} for ${currency} ${amount} is currently awaiting payment verification. Invoice #${invoiceId} generated.`,
@@ -45033,7 +45881,7 @@ app.post("/api/orders/:id/messages", authenticate, (req, res) => {
     return;
   }
   const scanResult = !isStaff ? scanMessageForAntiFraud(String(message)) : { flagged: false, reason: null };
-  const msgId = "msg_" + crypto15.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const senderRole = isStaff ? "admin" : req.user.role || "user";
   const senderName = isStaff ? req.user.name ? `${req.user.name} (VIB Support)` : "VIB Support Desk" : req.user.name;
@@ -45121,7 +45969,7 @@ app.post("/api/escrow/tickets", authenticate, (req, res) => {
     }
     const userId = req.user.id;
     const userName = req.user.name;
-    const ticketId = "escrow_" + crypto15.randomBytes(6).toString("hex");
+    const ticketId = "escrow_" + crypto16.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const subject = `[Escrow Trade] ${normalizedTradeType.toUpperCase()} - ${normalizedItem} (\u20B9${amountValue})`;
     const detailMessage = `Trade Type: ${String(tradeType).toUpperCase()}
@@ -45143,7 +45991,7 @@ Contact: ${normalizedEmail || req.user.email}`;
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto15.randomBytes(8).toString("hex"),
+      "notif_" + crypto16.randomBytes(8).toString("hex"),
       userId,
       `Escrow request received: #${ticketId}`,
       "Your escrow request is linked to your support dashboard and is waiting for staff review.",
@@ -45174,7 +46022,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     res.status(400).json({ error: "Enter a subject (3\u2013200 characters), a message (1\u20134000 characters), valid category, and valid priority." });
     return;
   }
-  const ticketId = "tkt_" + crypto15.randomBytes(6).toString("hex");
+  const ticketId = "tkt_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialMessages = JSON.stringify([
     { sender: "user", senderName: req.user.name, text: messageText, time: now }
@@ -45201,7 +46049,7 @@ app.post("/api/user/tickets", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto15.randomBytes(8).toString("hex"),
+        "notif_" + crypto16.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support ticket",
         `A customer opened ticket #${ticketId}.`,
@@ -45257,7 +46105,7 @@ app.post("/api/user/tickets/:id/reply", authenticate, (req, res) => {
     `);
     for (const staffUser of staffUsers) {
       insertStaffNotification.run(
-        "notif_" + crypto15.randomBytes(8).toString("hex"),
+        "notif_" + crypto16.randomBytes(8).toString("hex"),
         staffUser.id,
         "New customer support reply",
         `A customer replied to ticket #${ticket.id}.`,
@@ -45519,9 +46367,9 @@ app.post("/api/admin/staff", authenticate, superAdminOnly, async (req, res) => {
       res.status(409).json({ error: "An account with this email address already exists." });
       return;
     }
-    const salt = crypto15.randomBytes(16).toString("hex");
-    const hash = crypto15.scryptSync(password, salt, 64).toString("hex");
-    const userId = "usr_staff_" + crypto15.randomBytes(6).toString("hex");
+    const salt = crypto16.randomBytes(16).toString("hex");
+    const hash = crypto16.scryptSync(password, salt, 64).toString("hex");
+    const userId = "usr_staff_" + crypto16.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     db.prepare(`
       INSERT INTO users (id, name, email, password_hash, salt, role, status, created_at, updated_at)
@@ -45659,7 +46507,7 @@ var updateOrderStatusHandler = (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)
   `).run(
-    "notif_" + crypto15.randomBytes(8).toString("hex"),
+    "notif_" + crypto16.randomBytes(8).toString("hex"),
     order.user_id,
     `Order #${orderId} Updated`,
     `Status has been updated to ${status.toUpperCase()}. ${finalNote ? `Note: ${finalNote}` : ""}`,
@@ -45726,7 +46574,7 @@ app.put("/api/admin/tickets/:id", authenticate, staffOnly, (req, res) => {
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'info', 0, ?)
   `).run(
-    "notif_" + crypto15.randomBytes(8).toString("hex"),
+    "notif_" + crypto16.randomBytes(8).toString("hex"),
     ticket.user_id,
     `Support Desk Update: ${ticket.subject}`,
     `Staff response received. Ticket status is now ${newStatus.toUpperCase()}.`,
@@ -45762,7 +46610,7 @@ app.post("/api/admin/announcements", authenticate, staffOnly, (req, res) => {
   db.exec("BEGIN IMMEDIATE");
   try {
     targetUsers.forEach((u) => {
-      insertNotif.run("notif_" + crypto15.randomBytes(8).toString("hex"), u.id, title, message, now);
+      insertNotif.run("notif_" + crypto16.randomBytes(8).toString("hex"), u.id, title, message, now);
     });
     logAudit(req.user.id, req.user.name, "DISPATCH_ANNOUNCEMENT", "broadcast", targetGroup, { recipientCount: targetUsers.length }, req.ip || "127.0.0.1");
     db.exec("COMMIT");
@@ -45929,7 +46777,7 @@ app.post("/api/admin/finance/expenses", authenticate, adminOnly, (req, res) => {
     res.status(400).json({ error: "Category, description, and amount are required." });
     return;
   }
-  const expId = "exp_" + crypto15.randomBytes(6).toString("hex");
+  const expId = "exp_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO expenses (id, category, description, amount, currency, payment_method, reference_no, recorded_by, expense_date, created_at)
@@ -45984,7 +46832,7 @@ app.post("/api/admin/tasks", authenticate, staffOnly, (req, res) => {
     res.status(400).json({ error: "Title and department are required." });
     return;
   }
-  const taskId = "task_" + crypto15.randomBytes(6).toString("hex");
+  const taskId = "task_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO staff_tasks (id, title, description, department, priority, status, assigned_to, created_by, due_date, notes, created_at, updated_at)
@@ -46069,7 +46917,7 @@ app.post("/api/admin/users/:id/crm/notes", authenticate, adminOnly, (req, res) =
     res.status(400).json({ error: "Note text cannot be empty." });
     return;
   }
-  const noteId = "crm_note_" + crypto15.randomBytes(6).toString("hex");
+  const noteId = "crm_note_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   db.prepare(`
     INSERT INTO user_crm_notes (id, user_id, staff_id, staff_name, note, risk_level, created_at)
@@ -46424,7 +47272,7 @@ app.put("/api/orders/:id/delivery-contact", authenticate, (req, res) => {
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
     VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
   `).run(
-    "msg_" + crypto15.randomBytes(6).toString("hex"),
+    "msg_" + crypto16.randomBytes(6).toString("hex"),
     orderId,
     "Delivery contact details were updated by the customer. Staff can view the current details in the order record for dispatch coordination.",
     now
@@ -46521,7 +47369,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto15.randomBytes(8).toString("hex"),
+        "notif_" + crypto16.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Verification Unresolved: #${order.id}`,
         `Your payment verification for order #${order.id} was rejected: ${reason || "Invalid reference"}. Please review your order tracking page.`,
@@ -46641,7 +47489,7 @@ app.put("/api/admin/orders/:id/verify-payment", authenticate, staffOnly, async (
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-        "notif_" + crypto15.randomBytes(8).toString("hex"),
+        "notif_" + crypto16.randomBytes(8).toString("hex"),
         order.user_id,
         `Payment Approved: #${order.id}`,
         codeAssigned ? `Payment verified! Your VP code for order #${order.id} has been issued and sent to your email.` : `Payment verified! Your order #${order.id} is now being fulfilled by our operations team.`,
@@ -46714,7 +47562,7 @@ app.post("/api/admin/orders/:id/issue-code", authenticate, staffOnly, async (req
   `).run(cleanCode, now, JSON.stringify(timeline), now, orderId);
   db.prepare("UPDATE transactions SET status = 'success' WHERE order_id = ?").run(orderId);
   db.prepare("UPDATE invoices SET status = 'paid' WHERE order_id = ?").run(orderId);
-  const msgId = "msg_" + crypto15.randomBytes(6).toString("hex");
+  const msgId = "msg_" + crypto16.randomBytes(6).toString("hex");
   db.prepare(`
     INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, attachment_url, flagged, flag_reason, created_at)
     VALUES (?, ?, ?, ?, 'system', ?, NULL, 0, NULL, ?)
@@ -46864,7 +47712,7 @@ app.post("/api/admin/vp-codes", authenticate, staffOnly, (req, res) => {
         VALUES (?, ?, ?, 'available', ?, ?)
       `);
       for (const code of newCodes) {
-        const id = "vpc_" + crypto15.randomBytes(8).toString("hex");
+        const id = "vpc_" + crypto16.randomBytes(8).toString("hex");
         insertStmt.run(id, normalizedPackId, code, batch, now);
       }
       db.exec("COMMIT");
@@ -47016,7 +47864,7 @@ app.put("/api/admin/regional-orders/:id/status", authenticate, staffOnly, (req, 
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'order', 0, ?)
     `).run(
-      "notif_" + crypto15.randomBytes(8).toString("hex"),
+      "notif_" + crypto16.randomBytes(8).toString("hex"),
       order.user_id,
       `Regional order update: #${orderId}`,
       message,
@@ -47141,7 +47989,7 @@ app.post("/api/user/listings", authenticate, (req, res) => {
     res.status(400).json({ error: "Listing title, price, and competitive rank are mandatory." });
     return;
   }
-  const listingId = "lst_" + crypto15.randomBytes(6).toString("hex");
+  const listingId = "lst_" + crypto16.randomBytes(6).toString("hex");
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const initialStatus = submitForReview || status === "submitted" || status === "pending_review" ? "submitted" : "draft";
   db.prepare(`
@@ -47290,7 +48138,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, (req, res) => {
       res.status(400).json({ error: "Title, price in INR, and competitive rank are mandatory fields." });
       return;
     }
-    const listingId = "lst_" + crypto15.randomBytes(6).toString("hex");
+    const listingId = "lst_" + crypto16.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const resolvedSellerName = seller_name && String(seller_name).trim() || req.user?.name || "VIB Official Vault";
     const parsedPrice = Number(price_inr);

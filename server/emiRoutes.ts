@@ -3,6 +3,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, databaseDirectory, validateImageMagicBytes } from './db.js';
+import {
+  getVpFlexibleSettings,
+  getAccountFlexibleSettings,
+  saveVpFlexibleSettings,
+  saveAccountFlexibleSettings,
+  calculateAccountPlans,
+} from './flexiblePaymentSettings.js';
+import {
+  generateFlexiblePaymentAgreementHtml,
+} from './agreementGenerator.js';
 
 // =============================================================================
 // EMI (Equated Monthly Installment) Financing Backend
@@ -42,6 +52,16 @@ function addMonths(dateStr: string, months: number): string {
     copy.setUTCDate(0);
   }
   return copy.toISOString();
+}
+
+/**
+ * Adds `weeks` 7-day intervals to an ISO timestamp for weekly installment plans.
+ */
+function addWeeks(dateStr: string, weeks: number): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  date.setUTCDate(date.getUTCDate() + (weeks * 7));
+  return date.toISOString();
 }
 
 /**
@@ -143,6 +163,13 @@ function markOverdue(application: any): void {
  * by customer-facing endpoints.
  */
 function serializeApplication(app: any): any {
+  let customerDetails: any = null;
+  if (app.customer_details_json) {
+    try {
+      customerDetails = JSON.parse(app.customer_details_json);
+    } catch {}
+  }
+
   return {
     id: app.id,
     productTitle: app.product_title,
@@ -160,6 +187,21 @@ function serializeApplication(app: any): any {
     outstandingBalance: outstandingBalance(app.id),
     createdAt: app.created_at,
     startDate: app.start_date || null,
+    serviceType: app.service_type || 'account',
+    region: app.region || null,
+    listingId: app.listing_id || null,
+    planType: app.plan_type || null,
+    paymentFrequency: app.payment_frequency || 'monthly',
+    fixedProfit: app.fixed_profit || 0,
+    totalPayable: app.total_payable || app.amount_financed || 0,
+    agreementRef: app.agreement_ref || null,
+    agreementVersion: app.agreement_version || null,
+    agreementHtml: app.agreement_html || null,
+    customerSignature: app.customer_signature || null,
+    signedAt: app.signed_at || null,
+    customerDetails,
+    kycSubmissionId: app.kyc_submission_id || null,
+    adminRemarks: app.admin_remarks || null,
   };
 }
 
@@ -202,17 +244,105 @@ export function registerEmiRoutes(
   };
 
   // ===========================================================================
+  // Flexible Payment Settings & Calculation routes
+  // ===========================================================================
+
+  // GET /api/emi/settings — customer/public settings
+  app.get('/api/emi/settings', (_req: Request, res: Response) => {
+    try {
+      const vp = getVpFlexibleSettings();
+      const account = getAccountFlexibleSettings();
+      return res.json({ success: true, vp, account });
+    } catch (err: any) {
+      console.error('[EMI Settings Error]:', err);
+      return res.status(500).json({ error: 'Failed to fetch settings.' });
+    }
+  });
+
+  // POST /api/emi/calculate — plan calculation engine
+  app.post('/api/emi/calculate', (req: Request, res: Response) => {
+    try {
+      const { serviceType, region, priceINR } = req.body || {};
+      if (serviceType === 'vp') {
+        const vpSettings = getVpFlexibleSettings();
+        const reg = region === 'php' ? 'php' : 'in';
+        const packages = vpSettings[reg]?.packages || [];
+        return res.json({
+          success: true,
+          serviceType: 'vp',
+          region: reg,
+          packages,
+          lateFees: { weekly: vpSettings.weeklyLateFee, monthly: vpSettings.monthlyLateFee },
+        });
+      } else {
+        const price = Number(priceINR) || 0;
+        const plans = calculateAccountPlans(price);
+        const accSettings = getAccountFlexibleSettings();
+        return res.json({
+          success: true,
+          serviceType: 'account',
+          priceINR: price,
+          plans,
+          slabs: accSettings.slabs,
+          lateFees: { weekly: accSettings.weeklyLateFee, monthly: accSettings.monthlyLateFee },
+        });
+      }
+    } catch (err: any) {
+      console.error('[EMI Calculate Error]:', err);
+      return res.status(500).json({ error: 'Failed to calculate payment plans.' });
+    }
+  });
+
+  // GET /api/admin/emi/settings — staff settings
+  app.get('/api/admin/emi/settings', authenticate, staffOnly, (_req: Request, res: Response) => {
+    try {
+      const vp = getVpFlexibleSettings();
+      const account = getAccountFlexibleSettings();
+      return res.json({ success: true, vp, account });
+    } catch (err: any) {
+      console.error('[Admin EMI Settings Error]:', err);
+      return res.status(500).json({ error: 'Failed to fetch settings.' });
+    }
+  });
+
+  // PUT /api/admin/emi/settings — update VP or Account settings
+  app.put('/api/admin/emi/settings', authenticate, staffOnly, (req: Request, res: Response) => {
+    try {
+      const { category, settings } = req.body || {};
+      const staff = (req as any).user;
+      if (category !== 'vp' && category !== 'account') {
+        return res.status(400).json({ error: 'category must be "vp" or "account".' });
+      }
+      if (!settings || typeof settings !== 'object') {
+        return res.status(400).json({ error: 'settings object is required.' });
+      }
+
+      if (category === 'vp') {
+        saveVpFlexibleSettings(settings, staff.id);
+      } else {
+        saveAccountFlexibleSettings(settings, staff.id);
+      }
+
+      logAudit(staff.id, staff.name, 'EMI_SETTINGS_UPDATE', 'emi_settings', category, { category }, req);
+      return res.json({ success: true, message: `${category.toUpperCase()} flexible payment settings updated successfully.` });
+    } catch (err: any) {
+      console.error('[Admin EMI Settings Update Error]:', err);
+      return res.status(500).json({ error: 'Failed to update settings.' });
+    }
+  });
+
+  // ===========================================================================
   // Customer routes
   // ===========================================================================
 
-  // POST /api/emi/apply — submit an EMI financing application
+  // POST /api/emi/apply — submit a flexible payment / EMI financing application
   app.post('/api/emi/apply', authenticate, (req: Request, res: Response) => {
     try {
       const body = req.body || {};
       const productTitle = typeof body.productTitle === 'string' ? body.productTitle.trim() : '';
       const totalAmount = Number(body.totalAmount);
       const initialPayment = body.initialPayment === undefined || body.initialPayment === null ? 0 : Number(body.initialPayment);
-      const tenureMonths = Number(body.tenureMonths);
+      const tenureMonths = Number(body.tenureMonths || body.installmentsCount);
       let ratePct = body.interestRatePct === undefined || body.interestRatePct === null ? 0 : Number(body.interestRatePct);
       if (!Number.isFinite(ratePct)) ratePct = 0;
       ratePct = Math.min(36, Math.max(0, ratePct));
@@ -232,20 +362,110 @@ export function registerEmiRoutes(
       }
 
       const amountFinanced = round2(totalAmount - initialPayment);
-      const totalPayable = amountFinanced * (1 + (ratePct / 100) * (tenureMonths / 12));
-      const emiAmount = round2(totalPayable / tenureMonths);
+
+      // Flexible Plan Rich Fields
+      const serviceType = body.serviceType === 'vp' ? 'vp' : 'account';
+      const region = body.region === 'php' ? 'php' : (body.region === 'in' ? 'in' : null);
+      const listingId = typeof body.listingId === 'string' && body.listingId.trim() ? body.listingId.trim() : null;
+      const planType = typeof body.planType === 'string' ? body.planType.trim() : null;
+      const paymentFrequency = body.paymentFrequency === 'weekly' ? 'weekly' : 'monthly';
+      const fixedProfit = Number(body.fixedProfit) || 0;
+      let totalPayable = Number(body.totalPayable);
+      if (!Number.isFinite(totalPayable) || totalPayable <= 0) {
+        totalPayable = fixedProfit > 0
+          ? round2(amountFinanced + fixedProfit)
+          : round2(amountFinanced * (1 + (ratePct / 100) * (tenureMonths / 12)));
+      }
+      let emiAmount = Number(body.emiAmount);
+      if (!Number.isFinite(emiAmount) || emiAmount <= 0) {
+        emiAmount = round2(totalPayable / tenureMonths);
+      }
+
+      const agreementRef = typeof body.agreementRef === 'string' && body.agreementRef.trim()
+        ? body.agreementRef.trim()
+        : `VIB-FPP-2026-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      const agreementVersion = typeof body.agreementVersion === 'string' ? body.agreementVersion : '2026.1';
+      const customerSignature = typeof body.customerSignature === 'string' ? body.customerSignature : null;
+      const customerDetails = body.customerDetails && typeof body.customerDetails === 'object' ? body.customerDetails : null;
+      const kycSubmissionId = typeof body.kycSubmissionId === 'string' ? body.kycSubmissionId : null;
+      const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
 
       const id = 'emi_' + crypto.randomBytes(6).toString('hex');
       const now = new Date().toISOString();
       const userId = (req as any).user.id;
+
+      // Generate full agreement HTML
+      const scheduleItems = [];
+      const isWeekly = paymentFrequency === 'weekly';
+      for (let i = 1; i <= tenureMonths; i++) {
+        const dueDate = isWeekly ? addWeeks(now, i) : addMonths(now, i);
+        const formattedDate = new Date(dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        scheduleItems.push({
+          installmentNo: i,
+          dueDate: formattedDate,
+          amount: i === tenureMonths ? round2(totalPayable - emiAmount * (tenureMonths - 1)) : emiAmount,
+        });
+      }
+
+      const agreementHtml = generateFlexiblePaymentAgreementHtml({
+        agreementRef,
+        orderId: orderId || undefined,
+        version: agreementVersion,
+        dateStr: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        customer: {
+          fullName: customerDetails?.fullName || (req as any).user.name || 'Verified Customer',
+          dob: customerDetails?.dob,
+          phone: customerDetails?.phone || (req as any).user.phone,
+          email: customerDetails?.email || (req as any).user.email,
+          address: customerDetails?.address,
+          city: customerDetails?.city,
+          state: customerDetails?.state,
+          country: customerDetails?.country || 'India',
+          guardianName: customerDetails?.guardianName,
+          guardianRelation: customerDetails?.guardianRelation,
+        },
+        service: {
+          serviceType,
+          title: productTitle,
+          region: region || undefined,
+          listingId: listingId || undefined,
+        },
+        financials: {
+          serviceCost: totalAmount,
+          downPayment: initialPayment,
+          downPaymentPct: initialPayment > 0 ? Math.round((initialPayment / totalAmount) * 100) : undefined,
+          principalBalance: amountFinanced,
+          fixedProfit,
+          totalPayable,
+          installmentAmount: emiAmount,
+          installmentsCount: tenureMonths,
+          paymentFrequency,
+          weeklyLateFee: 300,
+          monthlyLateFee: 1500,
+        },
+        schedule: scheduleItems,
+        signatureDataUrl: customerSignature || undefined,
+        ipAddress: String(clientIp),
+      });
 
       db.prepare(`
         INSERT INTO emi_applications (
           id, user_id, order_id, product_title, total_amount, initial_payment,
           amount_financed, tenure_months, interest_rate_pct, emi_amount,
           total_installments, installments_paid, status, rejection_reason,
-          start_date, next_due_date, created_at, updated_at, reviewed_at, reviewed_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending_approval', NULL, NULL, NULL, ?, ?, NULL, NULL)
+          start_date, next_due_date, created_at, updated_at, reviewed_at, reviewed_by,
+          service_type, region, listing_id, plan_type, payment_frequency,
+          fixed_profit, total_payable, agreement_ref, agreement_version, agreement_html,
+          customer_signature, signed_at, ip_address, customer_details_json, kyc_submission_id
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, 0, 'pending_approval', NULL,
+          NULL, NULL, ?, ?, NULL, NULL,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?
+        )
       `).run(
         id,
         userId,
@@ -259,15 +479,44 @@ export function registerEmiRoutes(
         emiAmount,
         tenureMonths,
         now,
-        now
+        now,
+        serviceType,
+        region,
+        listingId,
+        planType,
+        paymentFrequency,
+        fixedProfit,
+        totalPayable,
+        agreementRef,
+        agreementVersion,
+        agreementHtml,
+        customerSignature,
+        now,
+        String(clientIp),
+        customerDetails ? JSON.stringify(customerDetails) : null,
+        kycSubmissionId
       );
 
       insertNotification(
         userId,
-        'EMI Application Received',
-        `Your EMI application for ${productTitle} has been received and is pending review.`,
+        'Flexible Payment Application Received',
+        `Your application for ${productTitle} (${agreementRef}) has been received and is pending staff review.`,
         now
       );
+
+      // Notify administrator email
+      if (isEmailConfigured()) {
+        sendEmail({
+          to: 'thevibofficial@gmail.com',
+          subject: `[VIB] New Flexible Payment Application: ${productTitle} (${agreementRef})`,
+          html: `<p>A new flexible payment plan application has been submitted.</p>
+                 <p><strong>Customer:</strong> ${escapeHtml(customerDetails?.fullName || (req as any).user.name || 'Customer')} (${escapeHtml((req as any).user.email)})</p>
+                 <p><strong>Service:</strong> ${escapeHtml(productTitle)}</p>
+                 <p><strong>Total Cost:</strong> ₹${formatInr(totalAmount)} | <strong>Down Payment:</strong> ₹${formatInr(initialPayment)}</p>
+                 <p><strong>Total Payable:</strong> ₹${formatInr(totalPayable)} | <strong>Installments:</strong> ${tenureMonths} (${paymentFrequency}) of ₹${formatInr(emiAmount)}</p>
+                 <p><strong>Agreement Ref:</strong> ${escapeHtml(agreementRef)}</p>`,
+        }).catch(() => {});
+      }
 
       return res.status(201).json({
         success: true,
@@ -277,6 +526,9 @@ export function registerEmiRoutes(
           amountFinanced,
           emiAmount,
           totalInstallments: tenureMonths,
+          agreementRef,
+          totalPayable,
+          paymentFrequency,
         },
       });
     } catch (err: any) {
@@ -477,6 +729,18 @@ export function registerEmiRoutes(
         start_date: r.start_date,
         next_due_date: r.next_due_date,
         outstanding: outstandingBalance(r.id),
+        service_type: r.service_type || 'account',
+        region: r.region || null,
+        listing_id: r.listing_id || null,
+        plan_type: r.plan_type || null,
+        payment_frequency: r.payment_frequency || 'monthly',
+        fixed_profit: r.fixed_profit || 0,
+        total_payable: r.total_payable || r.amount_financed || 0,
+        agreement_ref: r.agreement_ref || null,
+        agreement_version: r.agreement_version || null,
+        customer_details_json: r.customer_details_json || null,
+        kyc_submission_id: r.kyc_submission_id || null,
+        admin_remarks: r.admin_remarks || null,
       }));
 
       return res.json({ applications });
@@ -538,15 +802,18 @@ export function registerEmiRoutes(
           return res.status(409).json({ error: 'Only pending EMI applications can be approved.' });
         }
 
+        const isWeekly = application.payment_frequency === 'weekly';
         const startDate = now;
-        const firstDue = addMonths(startDate, 1);
+        const firstDue = isWeekly ? addWeeks(startDate, 1) : addMonths(startDate, 1);
         const totalInstallments = application.total_installments;
         const emiAmount = application.emi_amount;
         // Reconciled schedule: the final installment absorbs any rounding drift so
         // the sum of all installments exactly equals the total payable amount.
-        const totalPayable = round2(
-          application.amount_financed * (1 + (application.interest_rate_pct / 100) * (application.tenure_months / 12))
-        );
+        const totalPayable = application.total_payable && application.total_payable > 0
+          ? round2(application.total_payable)
+          : round2(
+              application.amount_financed * (1 + (application.interest_rate_pct / 100) * (application.tenure_months / 12))
+            );
         const lastInstallmentAmount = round2(totalPayable - emiAmount * (totalInstallments - 1));
 
         try {
@@ -567,12 +834,13 @@ export function registerEmiRoutes(
           `);
           for (let i = 1; i <= totalInstallments; i++) {
             const installmentAmount = i === totalInstallments ? lastInstallmentAmount : emiAmount;
+            const dueDate = isWeekly ? addWeeks(startDate, i) : addMonths(startDate, i);
             insertPay.run(
               'emi_pay_' + crypto.randomBytes(6).toString('hex'),
               appId,
               i,
               installmentAmount,
-              addMonths(startDate, i),
+              dueDate,
               now
             );
           }

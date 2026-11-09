@@ -11,6 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  ShieldCheck,
+  Eye,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -37,6 +39,13 @@ interface EmiApplication {
   outstandingBalance: number;
   createdAt: string;
   startDate: string | null;
+  serviceType?: 'vp' | 'account';
+  region?: string | null;
+  paymentFrequency?: 'weekly' | 'monthly';
+  totalPayable?: number;
+  agreementRef?: string | null;
+  agreementHtml?: string | null;
+  customerDetails?: any;
 }
 
 interface EmiPayment {
@@ -404,7 +413,19 @@ const EmiSection: React.FC = () => {
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-white font-rajdhani text-base">{app.productTitle}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-white font-rajdhani text-base">{app.productTitle}</span>
+                  {app.serviceType && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-purple-950/70 text-purple-300 border border-purple-500/40">
+                      {app.serviceType === 'vp' ? 'VP Plan' : 'Profile Plan'}
+                    </span>
+                  )}
+                  {app.paymentFrequency && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-amber-950/70 text-amber-300 border border-amber-500/40">
+                      {app.paymentFrequency}
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11px] text-gray-500 font-mono mt-0.5">
                   {app.id} • Started {formatDate(app.startDate || app.createdAt)}
                 </div>
@@ -415,7 +436,9 @@ const EmiSection: React.FC = () => {
               <span className={emiStatusChip(app.status)}>{app.status.replace(/_/g, ' ')}</span>
               <div className="text-lg font-black font-rajdhani text-fuchsia-300">
                 ₹{formatInr(app.emiAmount)}
-                <span className="text-[10px] text-gray-500 font-mono ml-1 uppercase">/mo</span>
+                <span className="text-[10px] text-gray-500 font-mono ml-1 uppercase">
+                  {app.paymentFrequency === 'weekly' ? '/wk' : '/mo'}
+                </span>
               </div>
               <button
                 type="button"
@@ -488,6 +511,39 @@ const EmiSection: React.FC = () => {
                   <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>{lastPayFeedback}</span>
+                  </div>
+                )}
+
+                {/* Agreement Download & Legal Reference */}
+                {(app.agreementHtml || app.agreementRef) && (
+                  <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-white text-xs font-mono">
+                          Agreement: {app.agreementRef || 'VIB-FPP-2026'}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono">
+                          Official electronic contract binding this payment plan
+                        </div>
+                      </div>
+                    </div>
+                    {app.agreementHtml && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const w = window.open('', '_blank');
+                          if (w) {
+                            w.document.write(app.agreementHtml!);
+                            w.document.close();
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View / Print Contract</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -580,10 +636,10 @@ const EmiSection: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider">
-              EMI Financing Workspace
+              Flexible Payment Plans Workspace
             </h2>
             <p className="text-xs text-gray-400 font-mono">
-              Finance your purchases with flexible monthly installments
+              Finance your purchases with flexible weekly or monthly installment plans
             </p>
           </div>
         </div>

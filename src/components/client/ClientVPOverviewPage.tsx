@@ -30,6 +30,7 @@ interface ClientVPOverviewPageProps {
   onNavigate: (page: ClientPage) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
+  onOpenFlexiblePlans?: (context?: { serviceType: 'vp' | 'account'; region?: 'in' | 'php' }) => void;
 }
 
 /* Flag Components */
@@ -58,6 +59,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   onNavigate,
   onAddToCart,
   onOpenCheckout,
+  onOpenFlexiblePlans,
 }) => {
   const [activeRegion, setActiveRegion] = useState<'in' | 'php' | 'other'>('in');
   const [selectedOtherRegion, setSelectedOtherRegion] = useState<string>('Indonesia');
@@ -431,7 +433,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => onNavigate('support')}
+              onClick={() => onOpenFlexiblePlans ? onOpenFlexiblePlans({ serviceType: 'vp', region: activeRegion === 'php' ? 'php' : 'in' }) : onNavigate('support')}
               className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors cursor-pointer text-xs ml-2 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
               Learn More →
@@ -691,6 +693,30 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
         </div>
 
+        {/* Dedicated Indian Flexible Payment Plans Bar */}
+        <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950/40 via-[#100a22] to-[#0c0a18] border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-900/40 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded bg-purple-500/20 text-[10px] font-mono font-bold uppercase tracking-wider text-purple-300">
+                FLEXIBLE PAYMENT PLANS AVAILABLE
+              </div>
+              <div className="text-xs text-gray-300 mt-0.5">
+                Top up 11,000+ Indian VP with low down payment and easy weekly or monthly installments.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'vp', region: 'in' })}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs tracking-wider transition-all cursor-pointer whitespace-nowrap shadow-md shadow-purple-600/30"
+          >
+            CLICK HERE TO CHECK PLANS →
+          </button>
+        </div>
+
         {/* View All Button */}
         <div className="text-center pt-1">
           <button
@@ -810,6 +836,30 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Dedicated Philippines Flexible Payment Plans Bar */}
+        <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950/40 via-[#100a22] to-[#0c0a18] border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-900/40 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded bg-purple-500/20 text-[10px] font-mono font-bold uppercase tracking-wider text-purple-300">
+                FLEXIBLE PAYMENT PLANS AVAILABLE
+              </div>
+              <div className="text-xs text-gray-300 mt-0.5">
+                Top up Philippines VP with discounted regional pricing and structured weekly or monthly installments.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'vp', region: 'php' })}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs tracking-wider transition-all cursor-pointer whitespace-nowrap shadow-md shadow-purple-600/30"
+          >
+            CLICK HERE TO CHECK PLANS →
+          </button>
         </div>
 
         {/* View All Button */}
@@ -938,7 +988,8 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="pt-2">
               <button
-                onClick={() => onNavigate('support')}
+                type="button"
+                onClick={() => onOpenFlexiblePlans ? onOpenFlexiblePlans({ serviceType: 'vp', region: activeRegion === 'php' ? 'php' : 'in' }) : onNavigate('vp')}
                 className="px-4 py-2 rounded-lg bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-xs font-bold text-purple-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-rajdhani"
               >
                 <span>View Payment Plans</span>

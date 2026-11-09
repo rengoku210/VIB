@@ -826,7 +826,47 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_emi_pay_app ON emi_payments(application_id);
   CREATE INDEX IF NOT EXISTS idx_emi_pay_status ON emi_payments(status);
+
+  CREATE TABLE IF NOT EXISTS emi_settings (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL UNIQUE,
+    settings_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT
+  );
 `);
+
+// Migration for emi_applications to support comprehensive Flexible Payment Plans
+try {
+  const existingCols = new Set(
+    (db.prepare("PRAGMA table_info(emi_applications)").all() as any[]).map(c => c.name)
+  );
+  const colsToAdd: [string, string][] = [
+    ['service_type', 'TEXT DEFAULT "account"'],
+    ['region', 'TEXT'],
+    ['listing_id', 'TEXT'],
+    ['plan_type', 'TEXT'],
+    ['payment_frequency', 'TEXT DEFAULT "monthly"'],
+    ['fixed_profit', 'REAL DEFAULT 0'],
+    ['total_payable', 'REAL DEFAULT 0'],
+    ['agreement_ref', 'TEXT'],
+    ['agreement_version', 'TEXT'],
+    ['agreement_html', 'TEXT'],
+    ['customer_signature', 'TEXT'],
+    ['signed_at', 'TEXT'],
+    ['ip_address', 'TEXT'],
+    ['customer_details_json', 'TEXT'],
+    ['kyc_submission_id', 'TEXT'],
+    ['admin_remarks', 'TEXT']
+  ];
+  for (const [col, typeDef] of colsToAdd) {
+    if (!existingCols.has(col)) {
+      db.exec(`ALTER TABLE emi_applications ADD COLUMN ${col} ${typeDef}`);
+    }
+  }
+} catch (e) {
+  console.warn('[DB Migration Warning] emi_applications:', e);
+}
 
 
 // Password hashing utility using scrypt

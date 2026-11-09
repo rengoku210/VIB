@@ -572,7 +572,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       items: [
         { key: 'transactions', label: 'Transactions', icon: CreditCard, badge: transactions.length },
         { key: 'invoices', label: 'Tax Invoices', icon: FileText, badge: invoices.length },
-        { key: 'emi', label: 'EMI Plans', icon: CalendarClock },
+        { key: 'emi', label: 'Flexible Payment Plans', icon: CalendarClock },
       ],
     },
     {

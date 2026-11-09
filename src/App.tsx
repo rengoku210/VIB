@@ -23,6 +23,7 @@ import { EscrowModal } from './components/home/EscrowModal';
 import { ListingDetailPage } from './components/profiles/ListingDetailPage';
 import { LegalPage } from './components/legal/LegalPage';
 import { CookieConsentBanner } from './components/legal/CookieConsentBanner';
+import { FlexiblePaymentPlanModal, FlexiblePlanContext } from './components/modals/FlexiblePaymentPlanModal';
 import { VP_PACKAGES } from './data/packages';
 import { Currency, CartItem, VPPackage } from './types';
 import { soundFx } from './utils/audio';
@@ -190,6 +191,14 @@ function AppContent() {
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingOrderId, setTrackingOrderId] = useState('');
+  const [isFlexiblePlanModalOpen, setIsFlexiblePlanModalOpen] = useState(false);
+  const [flexiblePlanContext, setFlexiblePlanContext] = useState<FlexiblePlanContext | undefined>(undefined);
+
+  const handleOpenFlexiblePlans = (ctx?: FlexiblePlanContext) => {
+    soundFx.playClickSound();
+    setFlexiblePlanContext(ctx || { serviceType: 'vp', region: 'in' });
+    setIsFlexiblePlanModalOpen(true);
+  };
 
   const handleOpenTracking = (orderId?: string) => {
     soundFx.playClickSound();
@@ -395,6 +404,7 @@ function AppContent() {
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
+            onOpenFlexiblePlans={handleOpenFlexiblePlans}
           />
         )}
 
@@ -404,6 +414,7 @@ function AppContent() {
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
+            onOpenFlexiblePlans={handleOpenFlexiblePlans}
           />
         )}
 
@@ -610,6 +621,17 @@ function AppContent() {
       <EscrowModal
         isOpen={isEscrowModalOpen}
         onClose={() => setIsEscrowModalOpen(false)}
+      />
+
+      {/* Flexible Payment Plans (EMI) Modal */}
+      <FlexiblePaymentPlanModal
+        isOpen={isFlexiblePlanModalOpen}
+        onClose={() => setIsFlexiblePlanModalOpen(false)}
+        context={flexiblePlanContext}
+        onNavigateToDashboard={() => {
+          setIsFlexiblePlanModalOpen(false);
+          handleNavigate('dashboard');
+        }}
       />
 
       {/* Statutory Cookie & DPDPA Consent Banner */}
