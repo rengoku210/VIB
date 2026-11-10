@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Eye,
+  Download,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -64,8 +65,6 @@ interface EmiDetail {
   payments: EmiPayment[];
 }
 
-const TENURES = [3, 6, 9, 12, 18, 24];
-
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 
 const readFileAsDataUrl = (file: File, onProgress: (pct: number) => void): Promise<string> =>
@@ -84,12 +83,6 @@ const formatInr = (n: number): string =>
 
 const formatDate = (iso: string | null | undefined): string =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'TBD';
-
-const addMonthsEstimate = (months: number): Date => {
-  const d = new Date();
-  d.setMonth(d.getMonth() + months);
-  return d;
-};
 
 /* ------------------------------------------------------------------ */
 /* Status chips                                                        */
@@ -131,21 +124,16 @@ const paymentStatusChip = (status: PaymentStatus) => {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-const EmiSection: React.FC = () => {
+interface EmiSectionProps {
+  onBrowsePlans?: () => void;
+}
+
+const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('vib_auth_token') : null;
 
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<EmiApplication[]>([]);
   const [listError, setListError] = useState<string | null>(null);
-
-  // Apply form
-  const [productTitle, setProductTitle] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [initialPayment, setInitialPayment] = useState('');
-  const [tenureMonths, setTenureMonths] = useState(12);
-  const [applyError, setApplyError] = useState<string | null>(null);
-  const [applying, setApplying] = useState(false);
-  const [applySuccess, setApplySuccess] = useState<string | null>(null);
 
   // Detail expansion
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -222,74 +210,6 @@ const EmiSection: React.FC = () => {
     }
     setExpandedId(appId);
     fetchDetail(appId);
-  };
-
-  /* ------------------------- live computed summary ----------------- */
-
-  const totalAmountNum = Number(totalAmount);
-  const initialPaymentNum = Number(initialPayment);
-  const amountFinanced = totalAmountNum > 0 && initialPaymentNum >= 0 ? totalAmountNum - initialPaymentNum : 0;
-  const ratePct = 0; // fixed 0% interest in UI
-  const totalPayable = amountFinanced > 0 ? amountFinanced * (1 + (ratePct / 100) * (tenureMonths / 12)) : 0;
-  const emiAmount = totalPayable > 0 ? totalPayable / tenureMonths : 0;
-  const firstDueEstimate = addMonthsEstimate(1);
-
-  const applyValidationError = (): string | null => {
-    if (!productTitle.trim()) return 'Product title is required.';
-    if (!Number.isFinite(totalAmountNum) || totalAmountNum <= 0) return 'Total amount must be greater than 0.';
-    if (!Number.isFinite(initialPaymentNum) || initialPaymentNum < 0) return 'Initial payment must be 0 or more.';
-    if (initialPaymentNum >= totalAmountNum) return 'Initial payment must be less than the total amount.';
-    return null;
-  };
-
-  /* ----------------------------- apply ----------------------------- */
-
-  const handleApply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setApplyError(null);
-    setApplySuccess(null);
-
-    const validation = applyValidationError();
-    if (validation) {
-      setApplyError(validation);
-      return;
-    }
-
-    setApplying(true);
-    try {
-      const res = await fetch('/api/emi/apply', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          productTitle: productTitle.trim(),
-          totalAmount: totalAmountNum,
-          initialPayment: initialPaymentNum,
-          tenureMonths,
-          interestRatePct: ratePct,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setApplyError(data.error || `Application failed (HTTP ${res.status}).`);
-        return;
-      }
-
-      setApplySuccess(`EMI application for "${productTitle.trim()}" submitted. It is awaiting staff approval.`);
-      setProductTitle('');
-      setTotalAmount('');
-      setInitialPayment('');
-      setTenureMonths(12);
-      fetchApplications();
-      window.setTimeout(() => setApplySuccess(null), 5000);
-    } catch {
-      setApplyError('Network error while submitting EMI application.');
-    } finally {
-      setApplying(false);
-    }
   };
 
   /* --------------------------- payment modal ------------------------ */
@@ -452,10 +372,19 @@ const EmiSection: React.FC = () => {
           </div>
 
           {/* Stats grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
             <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-              <div className="text-[10px] font-mono uppercase text-gray-500">Tenure</div>
-              <div className="text-sm font-bold text-white mt-1">{app.tenureMonths} months</div>
+              <div className="text-[10px] font-mono uppercase text-gray-500">Schedule</div>
+              <div className="text-sm font-bold text-white mt-1">
+                {app.totalInstallments || app.tenureMonths}{' '}
+                {app.paymentFrequency === 'weekly' ? 'weeks' : 'months'}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+              <div className="text-[10px] font-mono uppercase text-gray-500">Payments Received</div>
+              <div className="text-sm font-bold text-emerald-300 mt-1">
+                {app.installmentsPaid || 0} / {app.totalInstallments || app.tenureMonths}
+              </div>
             </div>
             <div className="p-3 rounded-xl bg-white/5 border border-white/5">
               <div className="text-[10px] font-mono uppercase text-gray-500">Outstanding</div>
@@ -467,9 +396,15 @@ const EmiSection: React.FC = () => {
                 {app.nextDueDate ? formatDate(app.nextDueDate) : '—'}
               </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-              <div className="text-[10px] font-mono uppercase text-gray-500">Financed</div>
-              <div className="text-sm font-bold text-purple-300 mt-1">₹{formatInr(app.amountFinanced)}</div>
+            <div className="p-3 rounded-xl bg-white/5 border border-white/5 col-span-2 md:col-span-1">
+              <div className="text-[10px] font-mono uppercase text-gray-500">Verification / Status</div>
+              <div className="text-xs font-bold text-purple-300 mt-1 uppercase">
+                {app.status === 'pending_approval'
+                  ? 'Awaiting KYC Review'
+                  : app.status === 'active'
+                    ? 'Verified & Active'
+                    : app.status.replace(/_/g, ' ')}
+              </div>
             </div>
           </div>
 
@@ -529,20 +464,40 @@ const EmiSection: React.FC = () => {
                       </div>
                     </div>
                     {app.agreementHtml && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const w = window.open('', '_blank');
-                          if (w) {
-                            w.document.write(app.agreementHtml!);
-                            w.document.close();
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View / Print Contract</span>
-                      </button>
+                      <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const w = window.open('', '_blank');
+                            if (w) {
+                              w.document.write(app.agreementHtml!);
+                              w.document.close();
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Agreement</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const blob = new Blob([app.agreementHtml!], { type: 'text/html;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${app.agreementRef || app.id}-Agreement.html`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download Agreement</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -639,156 +594,33 @@ const EmiSection: React.FC = () => {
               Flexible Payment Plans Workspace
             </h2>
             <p className="text-xs text-gray-400 font-mono">
-              Finance your purchases with flexible weekly or monthly installment plans
+              Track your applications, KYC status, installment schedules, and signed agreements
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={fetchApplications}
-          disabled={loading}
-          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-all cursor-pointer"
-          title="Refresh EMI plans"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* Apply card */}
-      <div className="p-6 rounded-2xl bg-[#0c0d1c] border border-purple-500/20 space-y-5">
         <div className="flex items-center gap-2">
-          <CreditCard className="w-5 h-5 text-purple-400" />
-          <h3 className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">Apply for EMI</h3>
-        </div>
-
-        {applySuccess && (
-          <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-sm flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span>{applySuccess}</span>
-          </div>
-        )}
-
-        {applyError && (
-          <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-sm flex items-center gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-            <span>{applyError}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleApply} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="sm:col-span-2 lg:col-span-1">
-              <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                Product Title *
-              </label>
-              <input
-                type="text"
-                value={productTitle}
-                onChange={(e) => setProductTitle(e.target.value)}
-                placeholder="e.g. Valorant Account - Radiant"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                Total Amount (₹) *
-              </label>
-              <input
-                type="number"
-                min="1"
-                step="any"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-                placeholder="0"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                Initial Payment (₹) *
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={initialPayment}
-                onChange={(e) => setInitialPayment(e.target.value)}
-                placeholder="0"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                Tenure *
-              </label>
-              <select
-                value={tenureMonths}
-                onChange={(e) => setTenureMonths(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#111425] border border-white/15 text-white text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none"
-              >
-                {TENURES.map((t) => (
-                  <option key={t} value={t}>
-                    {t} months
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Live computed summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-[10px] font-mono uppercase text-gray-500">Amount Financed</div>
-              <div className="text-base font-black font-rajdhani text-white mt-1">
-                ₹{formatInr(amountFinanced)}
-              </div>
-            </div>
-            <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-[10px] font-mono uppercase text-gray-500">Total Payable</div>
-              <div className="text-base font-black font-rajdhani text-purple-300 mt-1">
-                ₹{formatInr(totalPayable)}
-              </div>
-            </div>
-            <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-[10px] font-mono uppercase text-gray-500">Monthly EMI</div>
-              <div className="text-base font-black font-rajdhani text-fuchsia-300 mt-1">
-                ₹{formatInr(emiAmount)}
-              </div>
-            </div>
-            <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-[10px] font-mono uppercase text-gray-500 flex items-center gap-1">
-                <CalendarClock className="w-3 h-3" />
-                <span>First Due (est.)</span>
-              </div>
-              <div className="text-base font-black font-rajdhani text-white mt-1">
-                {formatDate(firstDueEstimate.toISOString())}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
+          {onBrowsePlans && (
             <button
-              type="submit"
-              disabled={applying}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/40 disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              onClick={onBrowsePlans}
+              className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs tracking-wider transition-all cursor-pointer shadow-lg shadow-purple-900/40"
             >
-              {applying ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Submitting…</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-4 h-4" />
-                  <span>Submit EMI Application</span>
-                </>
-              )}
+              Browse Flexible Plans
             </button>
-          </div>
-        </form>
+          )}
+          <button
+            type="button"
+            onClick={fetchApplications}
+            disabled={loading}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-all cursor-pointer"
+            title="Refresh Flexible Payment Plans"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* My EMI Plans */}
+      {/* My Flexible Payment Plans */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">

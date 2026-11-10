@@ -21,6 +21,7 @@ import {
   Clock,
   Globe,
   Repeat,
+  CreditCard,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { soundFx } from '../../utils/audio';
@@ -42,7 +43,10 @@ export type ClientPage =
   | 'community'
   | 'support'
   | 'dashboard'
-  | 'admin';
+  | 'admin'
+  | 'flexible-payment-plans'
+  | 'flexible-checkout'
+  | 'flexible-confirmation';
 
 interface HeaderProps {
   currentPage: ClientPage;
@@ -446,6 +450,21 @@ export const Header: React.FC<HeaderProps> = ({
                         <span className="text-[10px] text-gray-400 truncate">Story 24HR & highlight promotion packages</span>
                       </div>
                     </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('flexible-payment-plans')}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/5 text-xs text-gray-200 hover:text-white transition-colors flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <CreditCard className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold truncate text-white">Flexible Payment Plans</span>
+                        <span className="text-[10px] text-gray-400 truncate">VP & Guaranteed Profiles on installments</span>
+                      </div>
+                    </button>
                   </div>
 
                   {/* Middle: Community & Tracking */}
@@ -841,6 +860,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Repeat className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span>Trade / Exchange Plans (₹55 / ₹105)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('flexible-payment-plans')}
+              className={`min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 transition-all cursor-pointer col-span-2 ${
+                currentPage === 'flexible-payment-plans'
+                  ? 'bg-purple-600/30 text-white font-bold border border-purple-500/40'
+                  : 'text-purple-200 hover:text-white hover:bg-white/5 border border-purple-500/20'
+              }`}
+            >
+              <CreditCard className="w-4 h-4 text-purple-400 flex-shrink-0" />
+              <span>Flexible Payment Plans</span>
             </button>
 
             <button

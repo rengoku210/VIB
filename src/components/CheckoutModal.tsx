@@ -904,7 +904,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </p>
                     </div>
                     <a
-                      href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                      href={`https://wa.me/918099641606?text=${encodeURIComponent(
                         `Hi VIB Support, I have questions or want to use a different payment method for ${currentTitle} (₹${currentPriceINR}).`
                       )}`}
                       target="_blank"
@@ -1389,7 +1389,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <a
-                  href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                  href={`https://wa.me/918099641606?text=${encodeURIComponent(
                     isValuation
                       ? `Hello VIB Valuation Desk, I submitted free appraisal request #${createdOrder.id} for Riot ID ${riotId}#${tagline}. Please review my account value.`
                       : `Hello VIB Team, I have submitted payment for Order #${createdOrder.id} (UTR: ${utrRef}). Please verify.`

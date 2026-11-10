@@ -239,7 +239,7 @@ export const VPPacksPage: React.FC<VPPacksPageProps> = ({
               Contact our concierge on WhatsApp or Discord for immediate regional activation.
             </p>
             <a
-              href="https://wa.me/919999999999"
+              href="https://wa.me/918099641606"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-chakra font-bold text-xs uppercase cursor-pointer"
@@ -298,7 +298,7 @@ export const VPPacksPage: React.FC<VPPacksPageProps> = ({
                 </p>
 
                 <a
-                  href="https://wa.me/919999999999"
+                  href="https://wa.me/918099641606"
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-2.5 rounded-xl font-chakra font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-all cursor-pointer shadow-md"

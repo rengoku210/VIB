@@ -18,7 +18,7 @@ export interface EmailLogEntry {
 }
 
 const ADMIN_EMAIL = process.env.VIB_ADMIN_EMAIL || 'thevibofficial@gmail.com';
-const SUPPORT_WHATSAPP = '+91 9181801766';
+const SUPPORT_WHATSAPP = '+91 80996 41606';
 const PLATFORM_NAME = 'VIB Digital Services';
 const SENDER_EMAIL = process.env.SMTP_FROM || 'support@vib.gg';
 

@@ -86,7 +86,7 @@ export const CompleteServicesShowcase: React.FC<CompleteServicesShowcaseProps> =
 
   const handleAction = (service: MainServiceItem) => {
     if (service.whatsAppMsg) {
-      const url = `https://wa.me/919181801766?text=${encodeURIComponent(service.whatsAppMsg)}`;
+      const url = `https://wa.me/918099641606?text=${encodeURIComponent(service.whatsAppMsg)}`;
       window.open(url, '_blank');
       return;
     }
@@ -202,13 +202,13 @@ export const CompleteServicesShowcase: React.FC<CompleteServicesShowcaseProps> =
         </div>
 
         <a
-          href="https://wa.me/919181801766?text=Hello%20VIB%20Team%2C%20I%20have%20a%20custom%20service%20inquiry"
+          href="https://wa.me/918099641606?text=Hello%20VIB%20Team%2C%20I%20have%20a%20custom%20service%20inquiry"
           target="_blank"
           rel="noopener noreferrer"
           className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-[0_0_12px_rgba(34,197,94,0.3)] transition-all flex-shrink-0"
         >
           <MessageCircle className="w-3.5 h-3.5" />
-          <span>Chat on WhatsApp (+91 9181801766)</span>
+          <span>Chat on WhatsApp (+91 80996 41606)</span>
         </a>
       </div>
     </section>

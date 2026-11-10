@@ -133,7 +133,7 @@ function buildKycEmailHtml(title: string, message: string): string {
       <h3 style="color: #ffffff;">${escapeHtml(title)}</h3>
       <p style="color: #e2e8f0; line-height: 1.6;">${escapeHtml(message)}</p>
       <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
-      <p style="color: #94a3b8; font-size: 12px;">VIB Official Security Desk | Support WhatsApp: +91 91818 01766</p>
+      <p style="color: #94a3b8; font-size: 12px;">VIB Official Security Desk | Support WhatsApp: +91 80996 41606</p>
     </div>
   `;
 }

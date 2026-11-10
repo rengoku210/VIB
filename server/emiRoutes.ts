@@ -376,9 +376,13 @@ export function registerEmiRoutes(
           ? round2(amountFinanced + fixedProfit)
           : round2(amountFinanced * (1 + (ratePct / 100) * (tenureMonths / 12)));
       }
+      const installmentPool =
+        serviceType === 'vp' && totalPayable >= totalAmount
+          ? Math.max(0, round2(totalPayable - initialPayment))
+          : totalPayable;
       let emiAmount = Number(body.emiAmount);
       if (!Number.isFinite(emiAmount) || emiAmount <= 0) {
-        emiAmount = round2(totalPayable / tenureMonths);
+        emiAmount = round2(installmentPool / tenureMonths);
       }
 
       const agreementRef = typeof body.agreementRef === 'string' && body.agreementRef.trim()
@@ -403,7 +407,7 @@ export function registerEmiRoutes(
         scheduleItems.push({
           installmentNo: i,
           dueDate: formattedDate,
-          amount: i === tenureMonths ? round2(totalPayable - emiAmount * (tenureMonths - 1)) : emiAmount,
+          amount: i === tenureMonths ? round2(installmentPool - emiAmount * (tenureMonths - 1)) : emiAmount,
         });
       }
 
@@ -814,7 +818,11 @@ export function registerEmiRoutes(
           : round2(
               application.amount_financed * (1 + (application.interest_rate_pct / 100) * (application.tenure_months / 12))
             );
-        const lastInstallmentAmount = round2(totalPayable - emiAmount * (totalInstallments - 1));
+        const installmentPool =
+          application.service_type === 'vp' && totalPayable >= application.total_amount
+            ? Math.max(0, round2(totalPayable - (application.initial_payment || 0)))
+            : totalPayable;
+        const lastInstallmentAmount = round2(installmentPool - emiAmount * (totalInstallments - 1));
 
         try {
           db.exec('BEGIN IMMEDIATE');

@@ -88,7 +88,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenTracking,
 }) => {
   const { user, token, logout, updateProfile, refreshUser, isAdmin, isStaff } = useAuth();
-  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    try {
+      const tab = new URLSearchParams(window.location.search).get('tab') as DashboardTab | null;
+      const valid: DashboardTab[] = [
+        'overview', 'orders', 'my_auctions', 'my_rentals', 'listings',
+        'transactions', 'invoices', 'tickets', 'notifications', 'settings', 'kyc', 'emi',
+      ];
+      if (tab && valid.includes(tab)) return tab;
+    } catch {}
+    return 'overview';
+  });
 
   // Live state from backend
   const [orders, setOrders] = useState<any[]>([]);
@@ -1883,7 +1893,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {/* ============================================================== */}
         {activeTab === 'emi' && (
           <div className="space-y-4 animate-in fade-in">
-            <EmiSection />
+            <EmiSection onBrowsePlans={() => onNavigate('flexible-payment-plans')} />
           </div>
         )}
 

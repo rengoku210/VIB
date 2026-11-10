@@ -385,7 +385,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                 Can't find the VP amount you need? Contact us on WhatsApp for custom requests.
               </p>
               <a
-                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
@@ -408,7 +408,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                 For orders outside this time, please contact us on WhatsApp.
               </p>
               <a
-                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-1.5 rounded-lg bg-[#261545] hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-purple-500/30 cursor-pointer"
@@ -587,7 +587,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
               </div>
 
               <a
-                href="https://wa.me/919181801766?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs whitespace-nowrap cursor-pointer shadow-md flex items-center gap-1.5 transition-all"

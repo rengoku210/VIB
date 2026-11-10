@@ -82,12 +82,12 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
         <button
           type="button"
           onClick={() => {
-            window.open('https://discord.gg', '_blank', 'noopener,noreferrer');
+            window.open('https://wa.me/918099641606?text=Hello%20VIB%20Support%2C%20I%20need%20assistance.', '_blank', 'noopener,noreferrer');
             onClose();
           }}
-          className="w-full min-h-[44px] py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-chakra font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+          className="w-full min-h-[44px] py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-chakra font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
         >
-          <span>Accept Discord Invite</span>
+          <span>Chat on WhatsApp (+91 80996 41606)</span>
           <ExternalLink className="w-4 h-4" />
         </button>
       </div>

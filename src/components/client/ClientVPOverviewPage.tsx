@@ -27,10 +27,9 @@ import { FlagIcon } from '../common/FlagIcon';
 
 interface ClientVPOverviewPageProps {
   currency: Currency;
-  onNavigate: (page: ClientPage) => void;
+  onNavigate: (page: ClientPage, sectionId?: string) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
-  onOpenFlexiblePlans?: (context?: { serviceType: 'vp' | 'account'; region?: 'in' | 'php' }) => void;
 }
 
 /* Flag Components */
@@ -59,7 +58,6 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   onNavigate,
   onAddToCart,
   onOpenCheckout,
-  onOpenFlexiblePlans,
 }) => {
   const [activeRegion, setActiveRegion] = useState<'in' | 'php' | 'other'>('in');
   const [selectedOtherRegion, setSelectedOtherRegion] = useState<string>('Indonesia');
@@ -433,7 +431,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => onOpenFlexiblePlans ? onOpenFlexiblePlans({ serviceType: 'vp', region: activeRegion === 'php' ? 'php' : 'in' }) : onNavigate('support')}
+              onClick={() => onNavigate('flexible-payment-plans', activeRegion === 'php' ? 'category:vp-php' : 'category:vp-in')}
               className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors cursor-pointer text-xs ml-2 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
               Learn More →
@@ -710,7 +708,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'vp', region: 'in' })}
+            onClick={() => onNavigate('flexible-payment-plans', 'category:vp-in')}
             className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs tracking-wider transition-all cursor-pointer whitespace-nowrap shadow-md shadow-purple-600/30"
           >
             CLICK HERE TO CHECK PLANS →
@@ -855,7 +853,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'vp', region: 'php' })}
+            onClick={() => onNavigate('flexible-payment-plans', 'category:vp-php')}
             className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs tracking-wider transition-all cursor-pointer whitespace-nowrap shadow-md shadow-purple-600/30"
           >
             CLICK HERE TO CHECK PLANS →
@@ -954,7 +952,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
 
             <a
-              href={`https://wa.me/919181801766?text=${encodeURIComponent(
+              href={`https://wa.me/918099641606?text=${encodeURIComponent(
                 'Hello VIB Regional Desk, I would like to request assistance with purchasing a Valorant Points pack for region: ' + selectedOtherRegion + '. Please share available pack denominations and provisioning details.'
               )}`}
               target="_blank"
@@ -989,7 +987,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => onOpenFlexiblePlans ? onOpenFlexiblePlans({ serviceType: 'vp', region: activeRegion === 'php' ? 'php' : 'in' }) : onNavigate('vp')}
+                onClick={() => onNavigate('flexible-payment-plans', activeRegion === 'php' ? 'category:vp-php' : 'category:vp-in')}
                 className="px-4 py-2 rounded-lg bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-xs font-bold text-purple-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-rajdhani"
               >
                 <span>View Payment Plans</span>
@@ -1057,7 +1055,7 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div className="flex items-center gap-2 pt-2">
               <a
-                href={`https://wa.me/919181801766?text=${encodeURIComponent('Hello VIB Support, I need assistance with my VP order. Please assist me.')}`}
+                href={`https://wa.me/918099641606?text=${encodeURIComponent('Hello VIB Support, I need assistance with my VP order. Please assist me.')}`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani transition-all shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1.5"

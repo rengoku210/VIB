@@ -111,7 +111,7 @@ export const AdminRegionalOrders: React.FC<AdminRegionalOrdersProps> = ({ onOpen
               PHP &amp; Regional VP Manual Operations Desk
             </h2>
             <p className="text-xs text-gray-400 font-mono">
-              Strict fulfillment rule: Regional packs are handled 1-on-1 via WhatsApp (+91 9181801766) • No automated code issuance
+              Strict fulfillment rule: Regional packs are handled 1-on-1 via WhatsApp (+91 80996 41606) • No automated code issuance
             </p>
           </div>
         </div>
@@ -187,7 +187,7 @@ export const AdminRegionalOrders: React.FC<AdminRegionalOrdersProps> = ({ onOpen
                     const whatsappText = encodeURIComponent(
                       `Hello ${ord.user_name || 'Customer'}, this is the VIB Operations Desk regarding your Regional VP Order #${ord.id} (${ord.title}). Target Riot ID: ${riotTarget}.`
                     );
-                    const whatsappLink = `https://wa.me/919181801766?text=${whatsappText}`;
+                    const whatsappLink = `https://wa.me/918099641606?text=${whatsappText}`;
 
                     return (
                       <tr key={ord.id} className="hover:bg-white/[0.02] transition-colors">

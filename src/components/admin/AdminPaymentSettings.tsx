@@ -411,7 +411,7 @@ export const AdminPaymentSettings: React.FC = () => {
                     type="text"
                     value={settings.support_whatsapp || settings.support_phone || ''}
                     onChange={(e) => setSettings({ ...settings, support_whatsapp: e.target.value, support_phone: e.target.value })}
-                    placeholder="+91 9181801766"
+                    placeholder="+91 80996 41606"
                     className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-xs focus:ring-2 focus:ring-amber-400"
                   />
                 </div>

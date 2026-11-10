@@ -805,12 +805,12 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   <span>Need Urgent Human Assistance?</span>
                 </div>
                 <div className="text-xs text-gray-400">
-                  Connect directly with our 24/7 Operations Desk on WhatsApp (+91 9181801766).
+                  Connect directly with our 24/7 Operations Desk on WhatsApp (+91 80996 41606).
                 </div>
               </div>
 
               <a
-                href={order.whatsappSupportUrl || `https://wa.me/919181801766?text=Order%20${order.id}`}
+                href={order.whatsappSupportUrl || `https://wa.me/918099641606?text=Order%20${order.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase text-xs flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"

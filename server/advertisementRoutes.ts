@@ -508,7 +508,7 @@ export function registerAdvertisementRoutes(
           payee_name: settings.payee_name || settings.account_name || 'VIB Digital Services Platform',
           qr_image_url: settings.qr_image_url,
           instructions: settings.instructions,
-          support_whatsapp: settings.support_whatsapp || '+918076612143',
+          support_whatsapp: settings.support_whatsapp || '+918099641606',
         },
       });
     } catch (err: any) {

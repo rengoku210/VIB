@@ -34,7 +34,7 @@ export const WhyChooseVIBSection: React.FC = () => {
     {
       icon: <PhoneCall className="w-6 h-6 text-cyan-400" />,
       title: 'Direct WhatsApp & Email Support',
-      description: 'Connect directly with verified VIB team members 24/7 via WhatsApp (+91 9181801766) and official email (teamvibofficial@gmail.com). No automated bot runarounds.'
+      description: 'Connect directly with verified VIB team members 24/7 via WhatsApp (+91 80996 41606) and official email (teamvibofficial@gmail.com). No automated bot runarounds.'
     }
   ];
 

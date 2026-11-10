@@ -157,7 +157,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </li>
               <li>
                 <a
-                  href="https://wa.me/919999999999"
+                  href="https://wa.me/918099641606"
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-fuchsia-300 transition-colors text-left"

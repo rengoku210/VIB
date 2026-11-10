@@ -1105,7 +1105,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                 Contact our VIB support executive for any questions or help regarding your promotion.
               </p>
               <a
-                href={`https://wa.me/918076612143?text=Hi%20VIB%20Team%2C%20I%20need%20assistance%20with%20my%20promotion%20submission%20for%20order%20${order.id}`}
+                href={`https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance%20with%20my%20promotion%20submission%20for%20order%20${order.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs uppercase font-rajdhani tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px] shadow-[0_0_20px_rgba(37,211,102,0.3)]"

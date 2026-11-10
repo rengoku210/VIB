@@ -18,12 +18,14 @@ import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { OrderTrackingModal } from './components/orders/OrderTrackingModal';
-import { DiscordModal } from './components/home/DiscordModal';
 import { EscrowModal } from './components/home/EscrowModal';
 import { ListingDetailPage } from './components/profiles/ListingDetailPage';
 import { LegalPage } from './components/legal/LegalPage';
 import { CookieConsentBanner } from './components/legal/CookieConsentBanner';
-import { FlexiblePaymentPlanModal, FlexiblePlanContext } from './components/modals/FlexiblePaymentPlanModal';
+import { FlexiblePaymentPlansPage } from './components/flexible/FlexiblePaymentPlansPage';
+import { FlexibleCheckoutPage } from './components/flexible/FlexibleCheckoutPage';
+import { FlexibleConfirmationPage } from './components/flexible/FlexibleConfirmationPage';
+import { FlexiblePlanSelection } from './types/flexiblePlans';
 import { VP_PACKAGES } from './data/packages';
 import { Currency, CartItem, VPPackage } from './types';
 import { soundFx } from './utils/audio';
@@ -34,8 +36,18 @@ function AppContent() {
 
   const getInitialPage = (): ClientPage => {
     try {
-      if (window.location.pathname === '/advertise' || window.location.pathname.startsWith('/advertise')) {
+      const path = window.location.pathname;
+      if (path === '/advertise' || path.startsWith('/advertise')) {
         return 'advertise';
+      }
+      if (path === '/flexible-payment-plans' || path.startsWith('/flexible-payment-plans')) {
+        return 'flexible-payment-plans';
+      }
+      if (path === '/flexible-checkout' || path.startsWith('/flexible-checkout')) {
+        return 'flexible-checkout';
+      }
+      if (path === '/flexible-confirmation' || path.startsWith('/flexible-confirmation')) {
+        return 'flexible-confirmation';
       }
       const params = new URLSearchParams(window.location.search);
       const p = params.get('page') as ClientPage;
@@ -56,6 +68,9 @@ function AppContent() {
           'legal',
           'dashboard',
           'admin',
+          'flexible-payment-plans',
+          'flexible-checkout',
+          'flexible-confirmation',
         ].includes(p)
       ) {
         return p;
@@ -87,6 +102,42 @@ function AppContent() {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Flexible Payment Plans Page & Checkout state
+  const [flexibleCategory, setFlexibleCategory] = useState<'vp' | 'account'>(() => {
+    try {
+      const cat = new URLSearchParams(window.location.search).get('category');
+      if (cat === 'account' || new URLSearchParams(window.location.search).get('listingId')) {
+        return 'account';
+      }
+    } catch {}
+    return 'vp';
+  });
+  const [flexibleRegion, setFlexibleRegion] = useState<'in' | 'php'>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('region') === 'php' ? 'php' : 'in';
+    } catch {}
+    return 'in';
+  });
+  const [flexibleListingId, setFlexibleListingId] = useState<string>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('listingId') || '';
+    } catch {}
+    return '';
+  });
+  const [selectedFlexiblePlan, setSelectedFlexiblePlan] = useState<FlexiblePlanSelection | null>(() => {
+    try {
+      const saved = localStorage.getItem('vib_selected_flexible_plan');
+      return saved ? JSON.parse(saved) : null;
+    } catch {}
+    return null;
+  });
+  const [flexibleApplicationRef, setFlexibleApplicationRef] = useState<string>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('ref') || '';
+    } catch {}
+    return '';
+  });
+
   // Handle URL history state & back/forward navigation
   useEffect(() => {
     // Sanitize any malformed duplicate slashes in pathname (e.g. //?page=...)
@@ -99,11 +150,28 @@ function AppContent() {
     } catch {}
 
     const onPopState = () => {
-      if (window.location.pathname === '/advertise') {
+      const path = window.location.pathname;
+      if (path === '/advertise' || path.startsWith('/advertise')) {
         setCurrentPage('advertise');
         return;
       }
       const params = new URLSearchParams(window.location.search);
+      if (path === '/flexible-payment-plans' || path.startsWith('/flexible-payment-plans')) {
+        setFlexibleCategory(params.get('category') === 'account' || params.get('listingId') ? 'account' : 'vp');
+        setFlexibleRegion(params.get('region') === 'php' ? 'php' : 'in');
+        setFlexibleListingId(params.get('listingId') || '');
+        setCurrentPage('flexible-payment-plans');
+        return;
+      }
+      if (path === '/flexible-checkout' || path.startsWith('/flexible-checkout')) {
+        setCurrentPage('flexible-checkout');
+        return;
+      }
+      if (path === '/flexible-confirmation' || path.startsWith('/flexible-confirmation')) {
+        setFlexibleApplicationRef(params.get('ref') || '');
+        setCurrentPage('flexible-confirmation');
+        return;
+      }
       const p = (params.get('page') as ClientPage) || 'home';
       if (
         [
@@ -120,11 +188,22 @@ function AppContent() {
           'auctions',
           'dashboard',
           'admin',
+          'flexible-payment-plans',
+          'flexible-checkout',
+          'flexible-confirmation',
         ].includes(p)
       ) {
         setCurrentPage(p);
         if (p === 'listing') {
           setSelectedListingId(params.get('id') || '');
+        }
+        if (p === 'flexible-payment-plans') {
+          setFlexibleCategory(params.get('category') === 'account' || params.get('listingId') ? 'account' : 'vp');
+          setFlexibleRegion(params.get('region') === 'php' ? 'php' : 'in');
+          setFlexibleListingId(params.get('listingId') || '');
+        }
+        if (p === 'flexible-confirmation') {
+          setFlexibleApplicationRef(params.get('ref') || '');
         }
       } else {
         setCurrentPage('home');
@@ -187,17 +266,17 @@ function AppContent() {
   const [checkoutCustomItem, setCheckoutCustomItem] = useState<
     { title: string; priceINR: number; productId?: string; id?: string; cartItems?: Array<Pick<CartItem, 'id' | 'quantity'>>; rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' }; rentalDuration?: string } | undefined
   >(undefined);
-  const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingOrderId, setTrackingOrderId] = useState('');
-  const [isFlexiblePlanModalOpen, setIsFlexiblePlanModalOpen] = useState(false);
-  const [flexiblePlanContext, setFlexiblePlanContext] = useState<FlexiblePlanContext | undefined>(undefined);
 
-  const handleOpenFlexiblePlans = (ctx?: FlexiblePlanContext) => {
+  const handleSelectFlexiblePlan = (plan: FlexiblePlanSelection) => {
     soundFx.playClickSound();
-    setFlexiblePlanContext(ctx || { serviceType: 'vp', region: 'in' });
-    setIsFlexiblePlanModalOpen(true);
+    setSelectedFlexiblePlan(plan);
+    try {
+      localStorage.setItem('vib_selected_flexible_plan', JSON.stringify(plan));
+    } catch {}
+    handleNavigate('flexible-checkout');
   };
 
   const handleOpenTracking = (orderId?: string) => {
@@ -258,7 +337,11 @@ function AppContent() {
     soundFx.playClickSound();
 
     if (page === 'community' || page === 'support') {
-      setIsDiscordModalOpen(true);
+      window.open(
+        `https://wa.me/918099641606?text=${encodeURIComponent('Hello VIB Support, I need assistance.')}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
       return;
     }
 
@@ -286,6 +369,27 @@ function AppContent() {
     if (page === 'legal' && id) {
       setSelectedLegalSlug(id);
     }
+    if (page === 'flexible-payment-plans') {
+      if (id?.startsWith('listing:')) {
+        const lid = id.replace('listing:', '');
+        setFlexibleCategory('account');
+        setFlexibleListingId(lid);
+      } else if (id === 'category:vp-php') {
+        setFlexibleCategory('vp');
+        setFlexibleRegion('php');
+        setFlexibleListingId('');
+      } else if (id === 'category:vp-in' || id === 'category:vp') {
+        setFlexibleCategory('vp');
+        setFlexibleRegion('in');
+        setFlexibleListingId('');
+      } else if (id === 'category:account') {
+        setFlexibleCategory('account');
+        setFlexibleListingId('');
+      }
+    }
+    if (page === 'flexible-confirmation' && id) {
+      setFlexibleApplicationRef(id);
+    }
 
     setCurrentPage(page);
     try {
@@ -296,6 +400,54 @@ function AppContent() {
         url.searchParams.delete('page');
         url.searchParams.delete('id');
         url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+      } else if (page === 'flexible-payment-plans') {
+        url.pathname = '/flexible-payment-plans';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        if (id?.startsWith('listing:')) {
+          url.searchParams.set('category', 'account');
+          url.searchParams.set('listingId', id.replace('listing:', ''));
+          url.searchParams.delete('region');
+        } else if (id === 'category:vp-php') {
+          url.searchParams.set('category', 'vp');
+          url.searchParams.set('region', 'php');
+          url.searchParams.delete('listingId');
+        } else if (id === 'category:account') {
+          url.searchParams.set('category', 'account');
+          url.searchParams.delete('listingId');
+          url.searchParams.delete('region');
+        } else {
+          url.searchParams.set('category', id === 'category:vp-in' || id === 'category:vp' ? 'vp' : flexibleCategory);
+          if (flexibleCategory === 'vp' || id === 'category:vp-in' || id === 'category:vp') {
+            url.searchParams.set('region', id === 'category:vp-in' || id === 'category:vp' ? 'in' : flexibleRegion);
+          }
+          url.searchParams.delete('listingId');
+        }
+      } else if (page === 'flexible-checkout') {
+        url.pathname = '/flexible-checkout';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+      } else if (page === 'flexible-confirmation') {
+        url.pathname = '/flexible-confirmation';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        if (id) url.searchParams.set('ref', id);
       } else if (page === 'advertise') {
         url.pathname = '/advertise';
         url.searchParams.delete('page');
@@ -317,6 +469,10 @@ function AppContent() {
       } else {
         url.pathname = '/';
         url.searchParams.set('page', page);
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
         if (page === 'listing' && id) {
           url.searchParams.set('id', id);
         } else if (page !== 'listing') {
@@ -327,10 +483,22 @@ function AppContent() {
         } else if (page !== 'legal') {
           url.searchParams.delete('slug');
         }
+        if (page === 'dashboard' && id?.startsWith('tab:')) {
+          url.searchParams.set('tab', id.replace('tab:', ''));
+        } else if (page !== 'dashboard') {
+          url.searchParams.delete('tab');
+        }
       }
       window.history.pushState({ page, id }, '', url.toString());
     } catch {}
-    if (id && page !== 'listing' && page !== 'legal') {
+    if (
+      id &&
+      page !== 'listing' &&
+      page !== 'legal' &&
+      page !== 'flexible-payment-plans' &&
+      page !== 'flexible-confirmation' &&
+      !id.startsWith('tab:')
+    ) {
       const cleanId = id.startsWith('#') ? id.slice(1) : id;
       let attempts = 0;
       const attemptScroll = () => {
@@ -404,7 +572,6 @@ function AppContent() {
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
-            onOpenFlexiblePlans={handleOpenFlexiblePlans}
           />
         )}
 
@@ -414,7 +581,34 @@ function AppContent() {
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
             onOpenCheckout={handleOpenCustomCheckout}
-            onOpenFlexiblePlans={handleOpenFlexiblePlans}
+          />
+        )}
+
+        {currentPage === 'flexible-payment-plans' && (
+          <FlexiblePaymentPlansPage
+            currency={currency}
+            onNavigate={handleNavigate}
+            onSelectPlan={handleSelectFlexiblePlan}
+            initialCategory={flexibleCategory}
+            initialRegion={flexibleRegion}
+            initialListingId={flexibleListingId}
+          />
+        )}
+
+        {currentPage === 'flexible-checkout' && (
+          <FlexibleCheckoutPage
+            currency={currency}
+            selectedPlan={selectedFlexiblePlan}
+            onNavigate={handleNavigate}
+            onBackToPlans={() => handleNavigate('flexible-payment-plans')}
+            onSuccess={(appRef) => handleNavigate('flexible-confirmation', appRef)}
+          />
+        )}
+
+        {currentPage === 'flexible-confirmation' && (
+          <FlexibleConfirmationPage
+            applicationRef={flexibleApplicationRef}
+            onNavigate={handleNavigate}
           />
         )}
 
@@ -490,7 +684,7 @@ function AppContent() {
           ) : user ? (
             <UserDashboard
               currency={currency}
-              onNavigate={(p) => handleNavigate(p as ClientPage)}
+              onNavigate={(p, id) => handleNavigate(p as ClientPage, id)}
               onOpenCheckout={handleOpenCustomCheckout}
               onOpenTracking={handleOpenTracking}
             />
@@ -611,27 +805,10 @@ function AppContent() {
         }}
       />
 
-      {/* Community Discord Modal */}
-      <DiscordModal
-        isOpen={isDiscordModalOpen}
-        onClose={() => setIsDiscordModalOpen(false)}
-      />
-
       {/* Escrow Middleman Modal */}
       <EscrowModal
         isOpen={isEscrowModalOpen}
         onClose={() => setIsEscrowModalOpen(false)}
-      />
-
-      {/* Flexible Payment Plans (EMI) Modal */}
-      <FlexiblePaymentPlanModal
-        isOpen={isFlexiblePlanModalOpen}
-        onClose={() => setIsFlexiblePlanModalOpen(false)}
-        context={flexiblePlanContext}
-        onNavigateToDashboard={() => {
-          setIsFlexiblePlanModalOpen(false);
-          handleNavigate('dashboard');
-        }}
       />
 
       {/* Statutory Cookie & DPDPA Consent Banner */}

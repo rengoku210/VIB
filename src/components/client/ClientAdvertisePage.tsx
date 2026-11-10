@@ -976,7 +976,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           upiId={paymentSettings.upi_id}
           payeeName={paymentSettings.payee_name}
           qrImageUrl={paymentSettings.qr_image_url}
-          supportWhatsapp="+918076612143"
+          supportWhatsapp="+918099641606"
           onBack={handleBackToPlans}
           onSubmitProof={async (utr, screenshotData) => {
             const res = await fetch(`/api/advertisement/orders/${activeCheckoutOrderId}/submit-payment`, {

@@ -3332,7 +3332,7 @@ app.get('/api/payment/settings', (req: Request, res: Response): void => {
       qr_image_url: '/assets/reference_parts/part_01.png',
       instructions: 'Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank. Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof.',
       currency: 'INR',
-      support_whatsapp: '+919181801766',
+      support_whatsapp: '+918099641606',
       support_email: 'thevibofficial@gmail.com',
       manual_payment_enabled: 1,
       verification_instructions: 'Payment verification typically completes within 5 to 15 minutes.'
@@ -3393,7 +3393,7 @@ app.put('/api/admin/payment/settings', authenticate, adminOnly, (req: AuthReques
     ifsc_code || '',
     qr_image_url || '/assets/reference_parts/part_01.png',
     instructions || '',
-    support_whatsapp || '+919181801766',
+    support_whatsapp || '+918099641606',
     support_email || 'thevibofficial@gmail.com',
     manual_payment_enabled !== undefined ? Number(manual_payment_enabled) : 1,
     status || 'active',
@@ -3701,7 +3701,7 @@ app.get('/api/orders/track/:orderId', (req: Request, res: Response): void => {
   try { details = order.details_json ? JSON.parse(order.details_json) : {}; } catch {}
 
   const whatsappMsg = encodeURIComponent(`Hello VIB Digital Services, I need assistance with my order #${order.id} (${order.title}).`);
-  const whatsappUrl = `https://wa.me/919181801766?text=${whatsappMsg}`;
+  const whatsappUrl = `https://wa.me/918099641606?text=${whatsappMsg}`;
 
   res.json({
     order: {

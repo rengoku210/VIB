@@ -65,7 +65,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   payeeName = 'VIB Digital Services Platform',
   qrImageUrl,
   instructions,
-  supportWhatsapp = '+918076612143',
+  supportWhatsapp = '+918099641606',
   onSubmitProof,
   onComplete,
 }) => {

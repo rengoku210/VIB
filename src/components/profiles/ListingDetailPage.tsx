@@ -32,7 +32,6 @@ interface ListingDetailPageProps {
   onNavigate: (page: ClientPage, id?: string) => void;
   onAddToCart: (item: CartItem) => void;
   onOpenCheckout: (title: string, priceINR: number, productId?: string) => void;
-  onOpenFlexiblePlans?: (context: { serviceType: 'account'; listing: any }) => void;
 }
 
 export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
@@ -41,7 +40,6 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   onNavigate,
   onAddToCart,
   onOpenCheckout,
-  onOpenFlexiblePlans,
 }) => {
   const [listing, setListing] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -502,7 +500,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 {isGuaranteed && (
                   <button
                     type="button"
-                    onClick={() => onOpenFlexiblePlans && onOpenFlexiblePlans({ serviceType: 'account', listing })}
+                    onClick={() => onNavigate('flexible-payment-plans', `listing:${listing.id}`)}
                     className="w-full min-h-[44px] px-6 py-2.5 rounded-xl bg-purple-950/70 hover:bg-purple-900 border border-purple-500/50 text-purple-200 hover:text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-purple-950/40"
                   >
                     <CreditCard className="w-4 h-4 text-purple-400" />
@@ -531,7 +529,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 </button>
 
                 <a
-                  href={`https://wa.me/919181801766?text=${encodeURIComponent(
+                  href={`https://wa.me/918099641606?text=${encodeURIComponent(
                     `Hello VIB Team, I have an inquiry about profile listing #${listing.id} (${listing.title}). Price: ₹${listing.price_inr}.`
                   )}`}
                   target="_blank"
@@ -539,7 +537,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   className="w-full min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span>Inquire on WhatsApp (+91 9181801766)</span>
+                  <span>Inquire on WhatsApp (+91 80996 41606)</span>
                 </a>
               </div>
 

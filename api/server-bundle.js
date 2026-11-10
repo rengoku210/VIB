@@ -24637,7 +24637,7 @@ db.exec(`
     qr_image_url TEXT NOT NULL,
     instructions TEXT NOT NULL,
     currency TEXT DEFAULT 'INR',
-    support_whatsapp TEXT DEFAULT '+919181801766',
+    support_whatsapp TEXT DEFAULT '+918099641606',
     support_email TEXT DEFAULT 'thevibofficial@gmail.com',
     manual_payment_enabled INTEGER DEFAULT 1,
     verification_instructions TEXT,
@@ -25569,7 +25569,7 @@ function seedDatabase() {
       adminPass.hash,
       adminPass.salt,
       "VIB Executive Superadmin",
-      "+91 91818 01766",
+      "+91 80996 41606",
       "VIB_Director#EXEC",
       "superadmin",
       "active",
@@ -25793,7 +25793,7 @@ function seedCatalogAndBilling() {
       "/assets/reference_parts/part_01.png",
       "Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank using any UPI app (GPay, PhonePe, Paytm, BHIM). Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof for rapid verification.",
       "INR",
-      "+919181801766",
+      "+918099641606",
       "thevibofficial@gmail.com",
       "Payment verification typically completes within 5 to 15 minutes. Once verified by our financial staff, your VP code or profile credentials will be issued immediately.",
       now
@@ -26873,7 +26873,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
         UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ?
         WHERE id = ?
       `).run(bookingId, now, listing.id);
-      const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, "") : "") || "919181801766";
+      const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, "") : "") || "918099641606";
       const cleanPhone = sellerPhone.startsWith("91") ? sellerPhone : "91" + sellerPhone;
       const whatsappText = encodeURIComponent(
         `Hi, I have booked rental profile "${listing.title}" (Booking ID: ${bookingId}, Order: ${orderId}, Duration: ${duration}). Please share credentials and handover instructions.`
@@ -40590,7 +40590,7 @@ import crypto11 from "node:crypto";
 import fs5 from "node:fs";
 import path4 from "node:path";
 var ADMIN_EMAIL = process.env.VIB_ADMIN_EMAIL || "thevibofficial@gmail.com";
-var SUPPORT_WHATSAPP = "+91 9181801766";
+var SUPPORT_WHATSAPP = "+91 80996 41606";
 var PLATFORM_NAME = "VIB Digital Services";
 var SENDER_EMAIL = process.env.SMTP_FROM || "support@vib.gg";
 var transporter = null;
@@ -41837,7 +41837,7 @@ function registerAdvertisementRoutes(app2, db2, authenticate2, adminOnly2) {
           payee_name: settings.payee_name || settings.account_name || "VIB Digital Services Platform",
           qr_image_url: settings.qr_image_url,
           instructions: settings.instructions,
-          support_whatsapp: settings.support_whatsapp || "+918076612143"
+          support_whatsapp: settings.support_whatsapp || "+918099641606"
         }
       });
     } catch (err) {
@@ -42417,7 +42417,7 @@ function buildKycEmailHtml(title, message) {
       <h3 style="color: #ffffff;">${escapeHtml(title)}</h3>
       <p style="color: #e2e8f0; line-height: 1.6;">${escapeHtml(message)}</p>
       <hr style="border: 0; border-top: 1px solid #33294d; margin: 24px 0;" />
-      <p style="color: #94a3b8; font-size: 12px;">VIB Official Security Desk | Support WhatsApp: +91 91818 01766</p>
+      <p style="color: #94a3b8; font-size: 12px;">VIB Official Security Desk | Support WhatsApp: +91 80996 41606</p>
     </div>
   `;
 }
@@ -43671,9 +43671,10 @@ function registerEmiRoutes(app2, helpers) {
       if (!Number.isFinite(totalPayable) || totalPayable <= 0) {
         totalPayable = fixedProfit > 0 ? round2(amountFinanced + fixedProfit) : round2(amountFinanced * (1 + ratePct / 100 * (tenureMonths / 12)));
       }
+      const installmentPool = serviceType === "vp" && totalPayable >= totalAmount ? Math.max(0, round2(totalPayable - initialPayment)) : totalPayable;
       let emiAmount = Number(body.emiAmount);
       if (!Number.isFinite(emiAmount) || emiAmount <= 0) {
-        emiAmount = round2(totalPayable / tenureMonths);
+        emiAmount = round2(installmentPool / tenureMonths);
       }
       const agreementRef = typeof body.agreementRef === "string" && body.agreementRef.trim() ? body.agreementRef.trim() : `VIB-FPP-2026-${crypto15.randomBytes(4).toString("hex").toUpperCase()}`;
       const agreementVersion = typeof body.agreementVersion === "string" ? body.agreementVersion : "2026.1";
@@ -43692,7 +43693,7 @@ function registerEmiRoutes(app2, helpers) {
         scheduleItems.push({
           installmentNo: i,
           dueDate: formattedDate,
-          amount: i === tenureMonths ? round2(totalPayable - emiAmount * (tenureMonths - 1)) : emiAmount
+          amount: i === tenureMonths ? round2(installmentPool - emiAmount * (tenureMonths - 1)) : emiAmount
         });
       }
       const agreementHtml = generateFlexiblePaymentAgreementHtml({
@@ -44049,7 +44050,8 @@ function registerEmiRoutes(app2, helpers) {
         const totalPayable = application.total_payable && application.total_payable > 0 ? round2(application.total_payable) : round2(
           application.amount_financed * (1 + application.interest_rate_pct / 100 * (application.tenure_months / 12))
         );
-        const lastInstallmentAmount = round2(totalPayable - emiAmount * (totalInstallments - 1));
+        const installmentPool = application.service_type === "vp" && totalPayable >= application.total_amount ? Math.max(0, round2(totalPayable - (application.initial_payment || 0))) : totalPayable;
+        const lastInstallmentAmount = round2(installmentPool - emiAmount * (totalInstallments - 1));
         try {
           db.exec("BEGIN IMMEDIATE");
           db.prepare(`
@@ -46984,7 +46986,7 @@ app.get("/api/payment/settings", (req, res) => {
       qr_image_url: "/assets/reference_parts/part_01.png",
       instructions: "Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank. Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof.",
       currency: "INR",
-      support_whatsapp: "+919181801766",
+      support_whatsapp: "+918099641606",
       support_email: "thevibofficial@gmail.com",
       manual_payment_enabled: 1,
       verification_instructions: "Payment verification typically completes within 5 to 15 minutes."
@@ -47042,7 +47044,7 @@ app.put("/api/admin/payment/settings", authenticate, adminOnly, (req, res) => {
     ifsc_code || "",
     qr_image_url || "/assets/reference_parts/part_01.png",
     instructions || "",
-    support_whatsapp || "+919181801766",
+    support_whatsapp || "+918099641606",
     support_email || "thevibofficial@gmail.com",
     manual_payment_enabled !== void 0 ? Number(manual_payment_enabled) : 1,
     status || "active",
@@ -47308,7 +47310,7 @@ app.get("/api/orders/track/:orderId", (req, res) => {
   } catch {
   }
   const whatsappMsg = encodeURIComponent(`Hello VIB Digital Services, I need assistance with my order #${order.id} (${order.title}).`);
-  const whatsappUrl = `https://wa.me/919181801766?text=${whatsappMsg}`;
+  const whatsappUrl = `https://wa.me/918099641606?text=${whatsappMsg}`;
   res.json({
     order: {
       ...order,

@@ -131,7 +131,7 @@ export function registerOverhaulRoutes(
         WHERE id = ?
       `).run(bookingId, now, listing.id);
 
-      const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, '') : '') || '919181801766';
+      const sellerPhone = (listing.seller_whatsapp ? String(listing.seller_whatsapp).replace(/[^0-9]/g, '') : '') || '918099641606';
       const cleanPhone = sellerPhone.startsWith('91') ? sellerPhone : ('91' + sellerPhone);
       const whatsappText = encodeURIComponent(
         `Hi, I have booked rental profile "${listing.title}" (Booking ID: ${bookingId}, Order: ${orderId}, Duration: ${duration}). Please share credentials and handover instructions.`

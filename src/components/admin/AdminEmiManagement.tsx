@@ -859,7 +859,7 @@ const AdminEmiManagement: React.FC = () => {
                             </div>
                             <div className="text-right">
                               <span className="text-emerald-400 font-bold">
-                                {slab.downPaymentPercent}% Down
+                                {slab.downPaymentPct ?? slab.downPaymentPercent ?? 30}% Down
                               </span>
                               <div className="text-amber-300 text-[10px]">
                                 +₹{slab.fixedProfit} Profit
@@ -1187,8 +1187,47 @@ const AdminEmiManagement: React.FC = () => {
                         <div><span className="text-gray-500 block text-[10px]">DOB:</span> {cd.dob || '—'}</div>
                         <div><span className="text-gray-500 block text-[10px]">Phone:</span> {cd.phone || '—'}</div>
                         <div><span className="text-gray-500 block text-[10px]">City / State:</span> {cd.city}, {cd.state}</div>
+                        {cd.riotId && (
+                          <div><span className="text-gray-500 block text-[10px]">Riot ID:</span> {cd.riotId}</div>
+                        )}
+                        {cd.primaryDocType && (
+                          <div>
+                            <span className="text-gray-500 block text-[10px]">Primary ID ({cd.primaryDocType}):</span>{' '}
+                            {cd.primaryDocNumber || '—'}
+                          </div>
+                        )}
+                        {cd.secondaryDocType && (
+                          <div>
+                            <span className="text-gray-500 block text-[10px]">Secondary ID ({cd.secondaryDocType}):</span>{' '}
+                            {cd.secondaryDocNumber || '—'}
+                          </div>
+                        )}
                       </div>
-                      {cd.address && <div className="text-gray-400 text-[11px]"><span className="text-gray-500">Address:</span> {cd.address}</div>}
+                      {cd.address && <div className="text-gray-400 text-[11px]"><span className="text-gray-500">Address:</span> {cd.address} {cd.pincode ? `(${cd.pincode})` : ''}</div>}
+                      {(cd.primaryDocImage || cd.secondaryDocImage) && (
+                        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-white/10">
+                          {cd.primaryDocImage && (
+                            <button
+                              type="button"
+                              onClick={() => setZoomEvidence(cd.primaryDocImage)}
+                              className="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 text-[11px] flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Inspect {cd.primaryDocType || 'Primary'} Scan</span>
+                            </button>
+                          )}
+                          {cd.secondaryDocImage && (
+                            <button
+                              type="button"
+                              onClick={() => setZoomEvidence(cd.secondaryDocImage)}
+                              className="px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/40 text-cyan-200 text-[11px] flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Inspect {cd.secondaryDocType || 'Secondary'} Scan</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {cd.guardianName && (
                         <div className="text-amber-400 text-[11px]">
                           <span className="text-gray-500">Guardian:</span> {cd.guardianName} ({cd.guardianRelation})
