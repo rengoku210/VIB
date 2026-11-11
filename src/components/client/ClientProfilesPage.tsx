@@ -166,32 +166,24 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       return { img, border, name: typeof skinName === 'string' ? skinName : skinName?.name || 'Weapon Skin' };
     });
 
-    if (weaponPreviews.length === 0) {
-      weaponPreviews.push(
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40', name: 'Prime Vandal' },
-        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40', name: 'RGX Vandal' },
-        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40', name: 'RGX Phantom' },
-      );
-    }
-
     return {
       id: item.id,
       badge,
       isGuaranteed,
       title: item.title,
       description: item.description || '',
-      sub: `Level ${item.level || 1} • ${item.skin_count || (skins.length > 0 ? skins.length : 12)}+ Skins`,
+      sub: `Level ${item.level || 1} • ${Number(item.skin_count ?? skins.length)} Skins`,
       rankName: rankStr,
       rankFirstWord,
       level: Number(item.level) || 1,
       rankIcon: `/assets/hires/ranks/${rankFirstWord}.png`,
       slot1RankGlow: rankGlowMap[rankFirstWord] || 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
       priceINR: Number(item.price_inr),
-      originalPriceINR: Math.round(Number(item.price_inr) * 1.3),
+      originalPriceINR: item.original_price_inr ? Number(item.original_price_inr) : null,
       avatarImg,
       weapons: weaponPreviews,
       allSkins: skins.map((s: any) => typeof s === 'string' ? s.toLowerCase() : (s?.name?.toLowerCase() || '')),
-      sellerName: item.seller_name || 'VIB Verified',
+      sellerName: item.seller_name || 'Seller',
     };
   };
 
@@ -878,9 +870,11 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
                       <span className="text-base font-black text-[#ff2ebb] font-rajdhani">
                         {formatCurrencyPrice(p.priceINR, currency)}
                       </span>
-                      <span className="text-[10px] text-gray-400 line-through font-mono">
-                        {formatCurrencyPrice(p.originalPriceINR, currency)}
-                      </span>
+                      {p.originalPriceINR && p.originalPriceINR > p.priceINR && (
+                        <span className="text-[10px] text-gray-400 line-through font-mono">
+                          {formatCurrencyPrice(p.originalPriceINR, currency)}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -943,27 +937,20 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               </p>
             </div>
 
-            {/* Live Stats */}
+            {/* Verification Standards */}
             <div className="flex items-center gap-4 sm:gap-6 pt-2 md:pt-0">
               <div className="text-center md:text-right">
-                <div className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-fuchsia-400 font-rajdhani">
-                  50k+
+                <div className="text-sm sm:text-base font-black text-purple-300 font-rajdhani">
+                  Escrow Held
                 </div>
-                <div className="text-[10px] font-mono text-gray-400 uppercase">Active Members</div>
+                <div className="text-[10px] font-mono text-gray-400 uppercase">P2P Trade Lock</div>
               </div>
               <div className="w-[1px] h-8 bg-white/10" />
               <div className="text-center md:text-right">
-                <div className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-400 font-rajdhani">
-                  1L+
+                <div className="text-sm sm:text-base font-black text-cyan-300 font-rajdhani">
+                  Staff Checked
                 </div>
-                <div className="text-[10px] font-mono text-gray-400 uppercase">Transactions</div>
-              </div>
-              <div className="w-[1px] h-8 bg-white/10" />
-              <div className="text-center md:text-right">
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-rajdhani">
-                  99.8%
-                </div>
-                <div className="text-[10px] font-mono text-gray-400 uppercase">Trust Score</div>
+                <div className="text-[10px] font-mono text-gray-400 uppercase">Middleman Review</div>
               </div>
             </div>
           </div>
@@ -1197,47 +1184,8 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               </p>
             </div>
 
-            {/* Right side: Social icons & Join button */}
+            {/* Right side: Direct community join button */}
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2.5">
-                <a
-                  href="https://discord.gg"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#5865F2]/20 border border-[#5865F2]/40 flex items-center justify-center text-[#5865F2] hover:bg-[#5865F2] hover:text-white transition-all shadow-sm"
-                  title="Discord"
-                >
-                  <Discord className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#E1306C]/20 border border-[#E1306C]/40 flex items-center justify-center text-[#E1306C] hover:bg-[#E1306C] hover:text-white transition-all shadow-sm"
-                  title="Instagram"
-                >
-                  <Instagram className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://t.me"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#229ED9]/20 border border-[#229ED9]/40 flex items-center justify-center text-[#229ED9] hover:bg-[#229ED9] hover:text-white transition-all shadow-sm"
-                  title="Telegram"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </a>
-                <a
-                  href="https://youtube.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#FF0000]/20 border border-[#FF0000]/40 flex items-center justify-center text-[#FF0000] hover:bg-[#FF0000] hover:text-white transition-all shadow-sm"
-                  title="YouTube"
-                >
-                  <Youtube className="w-4 h-4" />
-                </a>
-              </div>
-
               <button
                 onClick={() => onNavigate('community')}
                 className="px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer shadow-lg flex items-center gap-2 whitespace-nowrap"
@@ -1246,7 +1194,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
                   boxShadow: '0 0 20px rgba(168, 85, 247, 0.45)',
                 }}
               >
-                <span>Join Now</span>
+                <span>Join Community Desk</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1287,8 +1235,8 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-extrabold text-xs text-white">Trusted by 50,000+</div>
-              <div className="text-[11px] text-gray-400">A growing community.</div>
+              <div className="font-extrabold text-xs text-white">Escrow Protected</div>
+              <div className="text-[11px] text-gray-400">Staff-verified transactions.</div>
             </div>
           </div>
 

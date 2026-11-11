@@ -71,7 +71,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 
   // Payment settings state for QR generation
   const [paymentSettings, setPaymentSettings] = useState({
-    upi_id: 'thevibofficial@okhdfcbank',
+    upi_id: '',
     payee_name: 'VIB Digital Services',
   });
 

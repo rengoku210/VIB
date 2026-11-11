@@ -1140,8 +1140,8 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
               <div className="w-8 h-8 rounded-lg bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-400 mx-auto">
                 <Users className="w-4 h-4" />
               </div>
-              <span className="block text-xs font-bold text-white font-rajdhani">25,000+</span>
-              <span className="text-[10px] text-gray-400 block">Users Facilitated</span>
+              <span className="block text-xs font-bold text-white font-rajdhani">Direct</span>
+              <span className="text-[10px] text-gray-400 block">Instagram Tagging</span>
             </div>
 
             <div className="space-y-0.5">

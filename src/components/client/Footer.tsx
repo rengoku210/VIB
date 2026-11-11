@@ -1,5 +1,5 @@
 import React from 'react';
-import { Instagram, Disc as Discord, Youtube, Send, ArrowUp, Heart } from 'lucide-react';
+import { ArrowUp, Heart } from 'lucide-react';
 import { ClientPage } from './Header';
 
 interface FooterProps {
@@ -32,7 +32,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTracking }) =>
             </div>
             <div>
               <span className="font-bold text-sm text-white">Digital Services Platform</span>
-              <span className="block text-[11px] text-gray-500">Built for a Global Community • MSME Verified</span>
+              <span className="block text-[11px] text-gray-500">Valorant Top-Ups, Profiles &amp; Escrow Services</span>
             </div>
           </div>
 
@@ -91,43 +91,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTracking }) =>
             )}
           </nav>
 
-          {/* Social Icons with compliant 44x44px touch targets */}
+          {/* Direct Support & Contact Links */}
           <div className="flex items-center gap-2">
             <a
-              href="https://instagram.com"
+              href={`https://wa.me/918099641606?text=${encodeURIComponent('Hello VIB Support, I need assistance.')}`}
               target="_blank"
               rel="noreferrer"
-              aria-label="Follow VIB on Instagram"
-              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              aria-label="Contact VIB on WhatsApp"
+              className="px-3 py-2 min-h-[40px] rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1.5 text-emerald-300 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
-              <Instagram className="w-4 h-4" />
-            </a>
-            <a
-              href="https://discord.gg"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Join VIB Discord Community"
-              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-            >
-              <Discord className="w-4 h-4" />
-            </a>
-            <a
-              href="https://youtube.com"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Subscribe to VIB on YouTube"
-              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-            >
-              <Youtube className="w-4 h-4" />
-            </a>
-            <a
-              href="https://t.me"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Join VIB on Telegram"
-              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-            >
-              <Send className="w-4 h-4" />
+              <span>WhatsApp Support</span>
             </a>
           </div>
         </div>

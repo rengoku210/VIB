@@ -39,6 +39,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth, type User } from '../../context/AuthContext';
 import { Currency } from '../../types';
@@ -51,6 +52,7 @@ import type { LucideIcon } from 'lucide-react';
 type DashboardTab =
   | 'overview'
   | 'orders'
+  | 'my_ads'
   | 'my_auctions'
   | 'my_rentals'
   | 'listings'
@@ -92,7 +94,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     try {
       const tab = new URLSearchParams(window.location.search).get('tab') as DashboardTab | null;
       const valid: DashboardTab[] = [
-        'overview', 'orders', 'my_auctions', 'my_rentals', 'listings',
+        'overview', 'orders', 'my_ads', 'my_auctions', 'my_rentals', 'listings',
         'transactions', 'invoices', 'tickets', 'notifications', 'settings', 'kyc', 'emi',
       ];
       if (tab && valid.includes(tab)) return tab;
@@ -107,6 +109,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [tickets, setTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [userListings, setUserListings] = useState<any[]>([]);
+  const [userAdOrders, setUserAdOrders] = useState<any[]>([]);
   const [userAuctions, setUserAuctions] = useState<any[]>([]);
   const [userRentals, setUserRentals] = useState<any[]>([]);
   const [revealedVaultId, setRevealedVaultId] = useState<string | null>(null);
@@ -179,13 +182,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   // Tax Invoice Modal state
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<{ upi_id: string; payee_name: string } | null>(null);
 
   // Load user data from API
   const fetchDashboardData = async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes, aucRes, rntRes] = await Promise.all([
+      const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes, aucRes, rntRes, adOrdRes, payCfgRes] = await Promise.all([
         fetch('/api/user/overview', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/orders', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/transactions', { headers: { Authorization: `Bearer ${token}` } }),
@@ -195,7 +199,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         fetch('/api/user/listings', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/my-auctions', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/user/my-rentals', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/advertisement-orders', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/payment/settings'),
       ]);
+      if (payCfgRes.ok) {
+        const cfg = await payCfgRes.json();
+        if (cfg?.upi_id) {
+          setPaymentSettings({ upi_id: cfg.upi_id, payee_name: cfg.payee_name || 'VIB Digital Services' });
+        }
+      }
 
       if (ordRes.ok) {
         const d = await ordRes.json();
@@ -228,6 +240,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (rntRes && rntRes.ok) {
         const d = await rntRes.json();
         setUserRentals(d.bookings || []);
+      }
+      if (adOrdRes && adOrdRes.ok) {
+        const d = await adOrdRes.json();
+        setUserAdOrders(d.orders || []);
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -572,6 +588,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       label: 'My Activity',
       items: [
         { key: 'orders', label: 'Orders', icon: Package, badge: orders.length },
+        { key: 'my_ads', label: 'Advertisements', icon: Megaphone, badge: userAdOrders.length },
         { key: 'my_auctions', label: 'My Auctions', icon: Gavel, badge: userAuctions.length },
         { key: 'my_rentals', label: 'My Rentals', icon: Key, badge: userRentals.length },
         { key: 'listings', label: 'My Listings', icon: ShieldCheck, badge: userListings.length },
@@ -643,12 +660,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
       {/* User mini-card */}
       <div className={`mb-5 p-3 rounded-2xl bg-white/5 border border-white/10 ${collapsed ? 'flex justify-center' : 'flex items-center gap-3'}`}>
-        <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-purple-400/40 bg-purple-950/40 shrink-0">
-          <img
-            src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
-            alt={user.name}
-            className="w-full h-full object-cover"
-          />
+        <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-purple-400/40 bg-purple-950/40 shrink-0 flex items-center justify-center font-rajdhani font-bold text-lg text-purple-200">
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span>{(user.name || 'U').charAt(0).toUpperCase()}</span>
+          )}
         </div>
         {!collapsed && (
           <div className="min-w-0 space-y-1">
@@ -930,14 +951,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               ) : (
                 <div className="divide-y divide-white/5">
                   {orders.slice(0, 3).map((ord) => (
-                    <div key={ord.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-sm text-white">{ord.title}</div>
-                        <div className="text-xs text-gray-400 font-mono">
+                    <div key={ord.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="font-bold text-sm text-white break-words">{ord.title}</div>
+                        <div className="text-xs text-gray-400 font-mono truncate">
                           #{ord.id} • {new Date(ord.created_at).toLocaleDateString()} • {ord.payment_method}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase ${
                           ord.status === 'completed'
                             ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
@@ -1805,9 +1826,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     </span>
                   )}
                   {riotVerification?.exists && (
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      Verified ({riotVerification.riotId})
+                    <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
+                      <CheckCircle2 className={`w-3 h-3 ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`} />
+                      {riotVerification.verified ? `Verified (${riotVerification.riotId})` : `Valid Format (${riotVerification.riotId})`}
                     </span>
                   )}
                   {!riotVerification && user?.riot_id && riotId === user.riot_id && (
@@ -2049,6 +2070,96 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
           </div>
         )}
+
+        {/* MY ADVERTISEMENTS TAB */}
+        {activeTab === 'my_ads' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0c0d1c] p-5 rounded-2xl border border-white/10">
+              <div>
+                <h2 className="text-xl font-black font-rajdhani uppercase text-white tracking-wider">
+                  Advertisement Campaigns
+                </h2>
+                <p className="text-xs text-gray-400">
+                  Track verification status and submit inventory details once approved.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('advertise')}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Ad Plan</span>
+              </button>
+            </div>
+
+            {userAdOrders.length === 0 ? (
+              <div className="p-10 rounded-2xl bg-[#0c0d1c] border border-white/5 text-center space-y-2">
+                <Megaphone className="w-8 h-8 text-gray-500 mx-auto" />
+                <div className="font-bold text-white font-rajdhani uppercase">No Advertisement Orders Yet</div>
+                <p className="text-xs text-gray-400 max-w-md mx-auto">
+                  Promote your Valorant profile on VIB Instagram stories, highlights, and community feeds.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {userAdOrders.map((ad) => (
+                  <div key={ad.id} className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/10 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-mono text-gray-400">{ad.id}</div>
+                        <h3 className="text-base font-bold text-white font-rajdhani uppercase">{ad.plan_name}</h3>
+                      </div>
+                      <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded uppercase border ${
+                        ad.status === 'live'
+                          ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                          : ad.status === 'approved'
+                          ? 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+                          : ad.status === 'details_submitted'
+                          ? 'bg-purple-950 text-purple-300 border-purple-500/40'
+                          : ad.status === 'rejected'
+                          ? 'bg-rose-950 text-rose-300 border-rose-500/40'
+                          : 'bg-amber-950 text-amber-300 border-amber-500/40'
+                      }`}>
+                        {String(ad.status || '').replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-3 rounded-xl border border-white/5">
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">PACKAGE AMOUNT</span>
+                        <span className="text-white font-bold">₹{Number(ad.plan_price || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">PAYMENT REF</span>
+                        <span className="text-gray-200">{ad.payment_reference || 'Pending'}</span>
+                      </div>
+                    </div>
+
+                    {ad.rejection_reason && (
+                      <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-500/30 text-xs text-rose-200">
+                        Rejection Reason: {ad.rejection_reason}
+                      </div>
+                    )}
+
+                    {ad.status === 'approved' && ad.submission_token && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = `/advertise/submit/${ad.id}?token=${encodeURIComponent(ad.submission_token)}`;
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Continue to Submit Advertisement Details</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
     </div>
@@ -2265,9 +2376,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     VIB DIGITAL SERVICES
                   </h2>
                   <div className="text-xs text-gray-400 font-mono mt-1 space-y-0.5">
-                    <div>GSTIN: 29AAECV1092F1Z8 • MSME Reg. Verified</div>
                     <div>Digital Profile &amp; Game Escrow Services Division</div>
-                    <div>Bangalore, Karnataka, India • support@vib.gg</div>
+                    <div>Support: thevibofficial@gmail.com</div>
                   </div>
                 </div>
                 <div className="text-right font-mono">
@@ -2285,11 +2395,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <span className="font-mono text-gray-400 uppercase text-[10px] block mb-1">Billed To (Customer):</span>
                   <div className="font-bold text-white text-sm">{selectedInvoice.customer_name}</div>
                   <div className="text-gray-300 font-mono">{selectedInvoice.customer_email}</div>
-                  <div className="text-gray-400 font-mono">{selectedInvoice.customer_phone || 'India'}</div>
+                  <div className="text-gray-400 font-mono">{selectedInvoice.customer_phone || 'Not provided'}</div>
                 </div>
                 <div>
                   <span className="font-mono text-gray-400 uppercase text-[10px] block mb-1">Transaction Ref:</span>
-                  <div className="font-mono text-purple-300 font-bold">{selectedInvoice.payment_reference || 'VIB-TXN-VERIFIED'}</div>
+                  <div className="font-mono text-purple-300 font-bold">{selectedInvoice.payment_reference || 'Pending / Not Provided'}</div>
                   <div className="text-gray-400 mt-1">Payment Method: <strong className="text-gray-200">{selectedInvoice.payment_method}</strong></div>
                   <div className="text-gray-400">Order ID: <strong className="text-gray-200">{selectedInvoice.order_id || 'N/A'}</strong></div>
                 </div>
@@ -2506,21 +2616,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/20 text-center space-y-2">
-              <div className="text-[11px] text-gray-300 font-medium">
-                Scan UPI QR to settle the remaining balance:
+            {paymentSettings?.upi_id ? (
+              <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/20 text-center space-y-2">
+                <div className="text-[11px] text-gray-300 font-medium">
+                  Scan UPI QR to settle the remaining balance:
+                </div>
+                <div className="w-36 h-36 mx-auto bg-white p-2 rounded-xl">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=${paymentSettings.upi_id}&pn=${encodeURIComponent(paymentSettings.payee_name || 'VIB Auctions')}&am=${settlingAuction.remaining}&cu=INR&tn=Auction_Settlement_${settlingAuction.id}`)}`}
+                    alt="UPI QR Code"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="text-[11px] font-mono text-purple-300 font-bold select-all">
+                  UPI ID: {paymentSettings.upi_id}
+                </div>
               </div>
-              <div className="w-36 h-36 mx-auto bg-white p-2 rounded-xl">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=teamvibofficial@okaxis&pn=VIB%20Auctions&am=${settlingAuction.remaining}&cu=INR&tn=Auction_Settlement_${settlingAuction.id}`)}`}
-                  alt="UPI QR Code"
-                  className="w-full h-full object-contain"
-                />
+            ) : (
+              <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-center text-xs text-amber-300 font-mono">
+                UPI payment settings are not configured. Contact support on +91 80996 41606.
               </div>
-              <div className="text-[11px] font-mono text-purple-300 font-bold select-all">
-                UPI ID: teamvibofficial@okaxis
-              </div>
-            </div>
+            )}
 
             {settleError && (
               <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300">

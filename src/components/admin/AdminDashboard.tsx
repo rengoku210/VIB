@@ -1180,7 +1180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5">
                 <div className="text-[10px] font-mono uppercase text-gray-400">Gross Volume</div>
                 <div className="text-xl font-black font-rajdhani text-amber-400 mt-1">
-                  â‚¹{Number(metrics.grossRevenue || 0).toLocaleString('en-IN')}
+                  ₹{Number(metrics.grossRevenue || 0).toLocaleString('en-IN')}
                 </div>
               </div>
               <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5">
@@ -1302,31 +1302,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left text-xs font-mono">
+                <table className="w-full min-w-[700px] text-left text-xs font-mono">
                   <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
                     <tr>
-                      <th className="p-4">User</th>
-                      <th className="p-4">Riot ID</th>
-                      <th className="p-4">Role</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4">Orders</th>
-                      <th className="p-4 text-right">Actions</th>
+                      <th className="px-3 py-3">User</th>
+                      <th className="px-3 py-3">Riot ID</th>
+                      <th className="px-3 py-3">Role</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3">Orders</th>
+                      <th className="px-3 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-gray-300">
                     {usersList.map((u) => (
                       <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           <div className="font-bold text-white font-sans">{u.name}</div>
                           <div className="text-[11px] text-gray-400">{u.email}</div>
                         </td>
-                        <td className="p-4 text-purple-300 font-bold">{u.riot_id || 'N/A'}</td>
-                        <td className="p-4">
+                        <td className="px-3 py-3 text-purple-300 font-bold">{u.riot_id || 'N/A'}</td>
+                        <td className="px-3 py-3">
                           <span className="px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30 uppercase text-[10px]">
                             {u.role}
                           </span>
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
                             u.status === 'active'
                               ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
@@ -1335,8 +1335,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             {u.status}
                           </span>
                         </td>
-                        <td className="p-4 font-bold text-white">{u.total_orders || 0}</td>
-                        <td className="p-4 text-right space-x-1.5">
+                        <td className="px-3 py-3 font-bold text-white">{u.total_orders || 0}</td>
+                        <td className="px-3 py-3 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => handleOpenUserCRM(u.id)}
@@ -1518,16 +1518,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               {/* Orders Table */}
               <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs font-mono">
+                  <table className="w-full text-left text-[11px] font-mono">
                     <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
                       <tr>
-                        <th className="p-3.5">Order ID &amp; Time</th>
-                        <th className="p-3.5">Customer &amp; Contact</th>
-                        <th className="p-3.5">Product &amp; Category</th>
-                        <th className="p-3.5">Amount</th>
-                        <th className="p-3.5">Payment Status</th>
-                        <th className="p-3.5">Payment Evidence</th>
-                        <th className="p-3.5 text-right">Actions</th>
+                        <th className="px-2 py-2.5">Order ID</th>
+                        <th className="px-2 py-2.5">Customer</th>
+                        <th className="px-2 py-2.5">Product</th>
+                        <th className="px-2 py-2.5">Amount</th>
+                        <th className="px-2 py-2.5">Status</th>
+                        <th className="px-2 py-2.5">Evidence</th>
+                        <th className="px-2 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-gray-300">
@@ -1558,45 +1558,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                               }`}
                             >
                               {/* Order ID & Date */}
-                              <td className="p-3.5">
-                                <div className="font-bold text-purple-300">#{ord.id}</div>
-                                <div className="text-[10px] text-gray-500 mt-0.5">
+                              <td className="px-2 py-2.5 max-w-[115px]">
+                                <div className="font-bold text-purple-300 truncate" title={ord.id}>#{ord.id}</div>
+                                <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">
                                   {new Date(ord.created_at).toLocaleDateString()}{' '}
                                   {new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                               </td>
 
                               {/* Customer & Delivery Contact */}
-                              <td className="p-3.5">
-                                <div className="font-bold text-white font-sans">{ord.user_name || 'Customer'}</div>
-                                <div className="text-[10px] text-gray-400">{email}</div>
+                              <td className="px-2 py-2.5 max-w-[130px]">
+                                <div className="font-bold text-white font-sans truncate">{ord.user_name || 'Customer'}</div>
+                                <div className="text-[10px] text-gray-400 truncate" title={email}>{email}</div>
                                 {phone && (
-                                  <div className="text-[10px] text-purple-300 font-mono mt-0.5 flex items-center gap-1">
-                                    <Phone className="w-3 h-3 text-purple-400" />
-                                    <span>{phone}</span>
+                                  <div className="text-[10px] text-purple-300 font-mono mt-0.5 flex items-center gap-1 truncate">
+                                    <Phone className="w-3 h-3 text-purple-400 shrink-0" />
+                                    <span className="truncate">{phone}</span>
                                   </div>
                                 )}
                               </td>
 
                               {/* Product & Type */}
-                              <td className="p-3.5">
-                                <div className="font-sans font-semibold text-white max-w-[180px] truncate" title={ord.title}>
+                              <td className="px-2 py-2.5 max-w-[130px]">
+                                <div className="font-sans font-semibold text-white truncate" title={ord.title}>
                                   {ord.title}
                                 </div>
                                 <div className="text-[10px] text-gray-400 uppercase font-mono mt-0.5">
-                                  Type: <span className="text-purple-300 font-bold">{ord.type}</span>
+                                  <span className="text-purple-300 font-bold">{ord.type}</span>
                                 </div>
                               </td>
 
                               {/* Amount */}
-                              <td className="p-3.5 font-bold text-emerald-400">
-                                â‚¹{Number(ord.amount).toLocaleString('en-IN')}
+                              <td className="px-2 py-2.5 font-bold text-emerald-400 whitespace-nowrap">
+                                ₹{Number(ord.amount).toLocaleString('en-IN')}
                               </td>
 
                               {/* Payment Status */}
-                              <td className="p-3.5">
+                              <td className="px-2 py-2.5">
                                 <span
-                                  className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold inline-block ${
+                                  className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold inline-block whitespace-nowrap ${
                                     ord.payment_status === 'PAYMENT_VERIFIED'
                                       ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
                                       : ord.payment_status === 'SUBMITTED_FOR_VERIFICATION'
@@ -1609,18 +1609,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                   {ord.payment_status || 'AWAITING_PAYMENT'}
                                 </span>
                                 {ord.fulfillment_status && (
-                                  <div className="text-[9px] text-gray-500 uppercase mt-1">
-                                    Fulfill: {ord.fulfillment_status}
+                                  <div className="text-[9px] text-gray-500 uppercase mt-1 whitespace-nowrap">
+                                    {ord.fulfillment_status}
                                   </div>
                                 )}
                               </td>
 
                               {/* Payment Evidence (UTR & Screenshot) */}
-                              <td className="p-3.5">
+                              <td className="px-2 py-2.5 max-w-[120px]">
                                 {ord.payment_evidence_ref ? (
                                   <div className="space-y-1">
-                                    <div className="text-[11px] font-mono text-purple-200 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30 inline-block font-bold">
-                                      UTR: {ord.payment_evidence_ref}
+                                    <div className="text-[10px] font-mono text-purple-200 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-500/30 inline-block font-bold truncate max-w-full" title={ord.payment_evidence_ref}>
+                                      {ord.payment_evidence_ref}
                                     </div>
                                     {ord.payment_evidence_image && (
                                       <div>
@@ -1629,27 +1629,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                           onClick={() => setZoomScreenshot(ord.payment_evidence_image)}
                                           className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer underline"
                                         >
-                                          <ImageIcon className="w-3 h-3" />
-                                          <span>View Receipt Screenshot</span>
+                                          <ImageIcon className="w-3 h-3 shrink-0" />
+                                          <span>Receipt</span>
                                         </button>
                                       </div>
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-gray-500 italic">No proof submitted</span>
+                                  <span className="text-[10px] text-gray-500 italic">No proof</span>
                                 )}
                               </td>
 
                               {/* Actions */}
-                              <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                              <td className="px-2 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1 flex-wrap">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAdminOrderRoom(ord.id)}
-                                  className="px-2.5 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                                  className="px-2 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
                                   title="Open Customer Order Room & Live Chat"
                                 >
                                   <MessageSquare className="w-3 h-3 text-indigo-400" />
-                                  <span>Order Room</span>
+                                  <span>Room</span>
                                 </button>
 
                                 {/* Linked Invoice button */}
@@ -1660,7 +1661,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                       <button
                                         type="button"
                                         onClick={() => setSelectedInvoiceView(linkedInv)}
-                                        className="px-2.5 py-1 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                                        className="px-2 py-1 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
                                         title={`View Official Invoice (${linkedInv.id})`}
                                       >
                                         <FileText className="w-3 h-3 text-purple-400" />
@@ -1680,7 +1681,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                       setVerifyAction('approve');
                                       setVerifyNotes('Verified in bank records / UPI ledger');
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
+                                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
                                     title="Verify & Confirm Payment"
                                   >
                                     Verify
@@ -1708,7 +1709,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                   <button
                                     type="button"
                                     onClick={() => handleOrderStatus(ord.id, 'completed')}
-                                    className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
+                                    className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm"
                                   >
                                     Fulfill
                                   </button>
@@ -1724,6 +1725,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                     Cancel
                                   </button>
                                 )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1764,18 +1766,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
+                <table className="w-full text-left text-[11px] font-mono">
                   <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
                     <tr>
-                      <th className="p-4">Invoice No.</th>
-                      <th className="p-4">Linked Order</th>
-                      <th className="p-4">Customer</th>
-                      <th className="p-4">Product / Particulars</th>
-                      <th className="p-4">Subtotal</th>
-                      <th className="p-4">GST (18%)</th>
-                      <th className="p-4">Final Total</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-right">Action</th>
+                      <th className="px-2 py-2.5">Invoice</th>
+                      <th className="px-2 py-2.5">Order</th>
+                      <th className="px-2 py-2.5">Customer</th>
+                      <th className="px-2 py-2.5">Product</th>
+                      <th className="px-2 py-2.5">Subtotal</th>
+                      <th className="px-2 py-2.5">GST</th>
+                      <th className="px-2 py-2.5">Total</th>
+                      <th className="px-2 py-2.5">Status</th>
+                      <th className="px-2 py-2.5 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-gray-300">
@@ -1788,8 +1790,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     ) : (
                       invoicesList.map((inv) => (
                         <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-4 font-bold text-purple-300">{inv.id}</td>
-                          <td className="p-4">
+                          <td className="px-2 py-2.5 font-bold text-purple-300 whitespace-nowrap">{inv.id}</td>
+                          <td className="px-2 py-2.5 max-w-[110px]">
                             {inv.order_id ? (
                               <button
                                 type="button"
@@ -1797,34 +1799,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                   setOrderSearchQuery(inv.order_id || '');
                                   setActiveTab('orders');
                                 }}
-                                className="text-purple-300 hover:text-purple-200 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer font-mono"
-                                title="Jump to Order in Orders tab"
+                                className="text-purple-300 hover:text-purple-200 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer font-mono max-w-full"
+                                title={`Jump to Order #${inv.order_id} in Orders tab`}
                               >
-                                <span>#{inv.order_id}</span>
-                                <ExternalLink className="w-3 h-3 text-purple-400" />
+                                <span className="truncate">#{inv.order_id}</span>
+                                <ExternalLink className="w-3 h-3 text-purple-400 shrink-0" />
                               </button>
                             ) : (
                               <span className="text-gray-500 italic text-[11px]">Direct Manual</span>
                             )}
                           </td>
-                          <td className="p-4">
-                            <div className="font-bold text-white font-sans">{inv.customer_name}</div>
-                            <div className="text-[10px] text-gray-400">{inv.customer_email}</div>
+                          <td className="px-2 py-2.5 max-w-[115px]">
+                            <div className="font-bold text-white font-sans truncate">{inv.customer_name}</div>
+                            <div className="text-[10px] text-gray-400 truncate">{inv.customer_email}</div>
                           </td>
-                          <td className="p-4 font-sans font-semibold text-white max-w-xs truncate">{inv.product_name}</td>
-                          <td className="p-4">â‚¹{Number(inv.subtotal).toLocaleString('en-IN')}</td>
-                          <td className="p-4 text-amber-300">â‚¹{Number(inv.tax_amount).toLocaleString('en-IN')}</td>
-                          <td className="p-4 font-bold text-emerald-400">â‚¹{Number(inv.final_total).toLocaleString('en-IN')}</td>
-                          <td className="p-4">
-                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 uppercase text-[10px]">
+                          <td className="px-2 py-2.5 font-sans font-semibold text-white max-w-[125px] truncate" title={inv.product_name}>{inv.product_name}</td>
+                          <td className="px-2 py-2.5 whitespace-nowrap">₹{Number(inv.subtotal).toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-2.5 text-amber-300 whitespace-nowrap">₹{Number(inv.tax_amount).toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-2.5 font-bold text-emerald-400 whitespace-nowrap">₹{Number(inv.final_total).toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-2.5 whitespace-nowrap">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 uppercase text-[10px]">
                               {inv.status}
                             </span>
                           </td>
-                          <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                          <td className="px-2 py-2.5 text-right space-x-1 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => setSelectedInvoiceView(inv)}
-                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 text-[10px] font-bold font-rajdhani uppercase cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 text-[10px] font-bold font-rajdhani uppercase cursor-pointer"
                             >
                               View
                             </button>
@@ -1832,11 +1834,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                               <button
                                 type="button"
                                 onClick={() => handleOpenAdminOrderRoom(inv.order_id!)}
-                                className="px-2.5 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                                className="px-2 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
                                 title="Open Live Order Room for this Customer"
                               >
                                 <MessageSquare className="w-3 h-3 text-indigo-400" />
-                                <span>Order Room</span>
+                                <span>Room</span>
                               </button>
                             )}
                           </td>
@@ -1882,7 +1884,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">Gross Buyer Volume</div>
                     <div className="text-xl font-black font-rajdhani text-white mt-1">
-                      â‚¹{Number(financeOverview.grossBuyerPaid).toLocaleString('en-IN')}
+                      ₹{Number(financeOverview.grossBuyerPaid).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <button
@@ -1900,19 +1902,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                 <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5 flex flex-col justify-between">
                   <div>
-                    <div className="text-[10px] font-mono uppercase text-gray-400">Platform Commissions (10%)</div>
+                    <div className="text-[10px] font-mono uppercase text-gray-400">Recorded Platform Fees</div>
                     <div className="text-xl font-black font-rajdhani text-purple-300 mt-1">
-                      â‚¹{Number(financeOverview.platformCommissions).toLocaleString('en-IN')}
+                      ₹{Number(financeOverview.platformCommissions).toLocaleString('en-IN')}
                     </div>
                   </div>
-                  <div className="text-[10px] text-gray-500 font-mono mt-3">Calculated live</div>
+                  <div className="text-[10px] text-gray-500 font-mono mt-3">From paid invoices</div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-[#0c0d1c] border border-white/5 flex flex-col justify-between">
                   <div>
-                    <div className="text-[10px] font-mono uppercase text-gray-400">GST / Tax Collected (18%)</div>
+                    <div className="text-[10px] font-mono uppercase text-gray-400">GST / Tax Collected</div>
                     <div className="text-xl font-black font-rajdhani text-amber-300 mt-1">
-                      â‚¹{Number(financeOverview.totalTaxCollected).toLocaleString('en-IN')}
+                      ₹{Number(financeOverview.totalTaxCollected).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <button
@@ -1929,7 +1931,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <div>
                     <div className="text-[10px] font-mono uppercase text-gray-400">Total Operating Expenses</div>
                     <div className="text-xl font-black font-rajdhani text-rose-400 mt-1">
-                      â‚¹{Number(financeOverview.totalExpenses).toLocaleString('en-IN')}
+                      ₹{Number(financeOverview.totalExpenses).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div className="text-[10px] text-gray-500 font-mono mt-3">{expensesList.length} Entries Logged</div>
@@ -1968,7 +1970,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           <td className="p-3 font-bold text-white">{exp.reference_no}</td>
                           <td className="p-3 uppercase text-purple-300">{exp.category}</td>
                           <td className="p-3 font-sans text-gray-200">{exp.description}</td>
-                          <td className="p-3 font-bold text-rose-400">â‚¹{Number(exp.amount).toLocaleString('en-IN')}</td>
+                          <td className="p-3 font-bold text-rose-400">₹{Number(exp.amount).toLocaleString('en-IN')}</td>
                           <td className="p-3">{exp.payment_method}</td>
                           <td className="p-3 text-gray-400">{exp.recorded_by}</td>
                           <td className="p-3 text-gray-400">{new Date(exp.expense_date).toLocaleDateString()}</td>
@@ -2119,7 +2121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       </span>
                     </div>
                     <div className="text-xs text-gray-400 font-mono mt-1">
-                      From: {tkt.user_name} ({tkt.user_email}) â€¢ #{tkt.id}
+                      From: {tkt.user_name} ({tkt.user_email}) • #{tkt.id}
                     </div>
                   </div>
                 ))}
@@ -2262,7 +2264,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     disabled={announceSubmitting}
                     className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani tracking-wider cursor-pointer shadow-md"
                   >
-                    {announceSubmitting ? 'Dispatchingâ€¦' : 'Broadcast Announcement'}
+                    {announceSubmitting ? 'Dispatching...' : 'Broadcast Announcement'}
                   </button>
                 </form>
               </div>
@@ -2359,7 +2361,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                         <td className="p-4 font-bold text-purple-300">{log.action}</td>
                         <td className="p-4 uppercase">{log.target_type}</td>
                         <td className="p-4 text-gray-400">{log.target_id || 'N/A'}</td>
-                        <td className="p-4 text-gray-400">{log.ip_address || '127.0.0.1'}</td>
+                        <td className="p-4 text-gray-400">{log.ip_address || 'Unavailable'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2420,7 +2422,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <h3 id="crm-modal-title" className="text-lg font-black font-rajdhani text-white uppercase tracking-wider">
                     Customer CRM Profile: {selectedUserCRM.name}
                   </h3>
-                  <div className="text-xs text-gray-400 font-mono">{selectedUserCRM.email} â€¢ #{selectedUserCRM.id}</div>
+                  <div className="text-xs text-gray-400 font-mono">{selectedUserCRM.email} • #{selectedUserCRM.id}</div>
                 </div>
               </div>
               <button
@@ -2437,7 +2439,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="p-3 rounded-xl bg-white/5 border border-white/5">
                 <div className="text-[10px] text-gray-400 uppercase">Lifetime Spent</div>
                 <div className="text-base font-bold text-emerald-400 font-rajdhani">
-                  â‚¹{Number(selectedUserCRM.totalSpent || 0).toLocaleString('en-IN')}
+                  ₹{Number(selectedUserCRM.totalSpent || 0).toLocaleString('en-IN')}
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-white/5 border border-white/5">
@@ -2595,7 +2597,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Unit Price (â‚¹) *</label>
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Unit Price (₹) *</label>
                   <input
                     type="number"
                     value={invPrice}
@@ -2701,7 +2703,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Amount (â‚¹) *</label>
+                  <label className="text-xs font-mono uppercase text-gray-300 font-semibold">Amount (₹) *</label>
                   <input
                     type="number"
                     value={expAmount}
@@ -2894,9 +2896,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   <div class="header">
     <div>
       <div class="brand">VIB DIGITAL SERVICES</div>
-      <div>GSTIN: 29AAECV1092F1Z8</div>
-      <div>Bangalore, Karnataka, India</div>
-      <div>Support: support@vib.gg</div>
+      <div>Digital Profile &amp; Game Escrow Services</div>
+      <div>Support: thevibofficial@gmail.com</div>
     </div>
     <div class="meta">
       <h2>TAX INVOICE</h2>
@@ -2917,7 +2918,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       <strong>PAYMENT DETAILS:</strong><br>
       Method: ${selectedInvoiceView.payment_method || 'UPI'}<br>
       UTR / Ref: ${selectedInvoiceView.payment_reference || 'N/A'}<br>
-      Currency: INR (â‚¹)
+      Currency: INR (₹)
     </div>
   </div>
 
@@ -2934,8 +2935,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       <tr>
         <td><strong>${selectedInvoiceView.product_name}</strong></td>
         <td style="text-align: center;">1</td>
-        <td style="text-align: right;">â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
-        <td style="text-align: right;">â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+        <td style="text-align: right;">₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+        <td style="text-align: right;">₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
       </tr>
     </tbody>
   </table>
@@ -2943,15 +2944,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   <div class="totals">
     <div class="total-row">
       <span>Subtotal (Excl. Tax):</span>
-      <span>â‚¹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
+      <span>₹${Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
     </div>
     <div class="total-row">
       <span>GST (18%):</span>
-      <span>â‚¹${Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
+      <span>₹${Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
     </div>
     <div class="total-row final">
       <span>Total Paid:</span>
-      <span>â‚¹${Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
+      <span>₹${Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
     </div>
   </div>
 
@@ -2998,8 +2999,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="flex justify-between items-start">
                 <div>
                   <h3 id="admin-inv-title" className="text-xl font-bold font-rajdhani text-white">VIB DIGITAL SERVICES</h3>
-                  <div className="text-gray-400">GSTIN: 29AAECV1092F1Z8</div>
-                  <div className="text-gray-400">Bangalore, Karnataka, India</div>
+                  <div className="text-gray-400">Support: thevibofficial@gmail.com</div>
                 </div>
                 <div className="text-right">
                   <div className="text-base font-bold text-purple-300">{selectedInvoiceView.id}</div>
@@ -3070,7 +3070,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     <tr>
                       <td className="p-3 font-sans font-bold text-white">{selectedInvoiceView.product_name}</td>
                       <td className="p-3 text-center">1</td>
-                      <td className="p-3 text-right">â‚¹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
+                      <td className="p-3 text-right">₹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -3080,15 +3080,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 <div className="w-64 space-y-1.5 text-right">
                   <div className="flex justify-between text-gray-400">
                     <span>Taxable Subtotal:</span>
-                    <span>â‚¹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
+                    <span>₹{Number(selectedInvoiceView.subtotal).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-amber-300">
                     <span>GST (18%):</span>
-                    <span>â‚¹{Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
+                    <span>₹{Number(selectedInvoiceView.tax_amount).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="pt-2 border-t border-white/15 flex justify-between font-bold text-base text-emerald-400 font-rajdhani">
                     <span>Final Total:</span>
-                    <span>â‚¹{Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
+                    <span>₹{Number(selectedInvoiceView.final_total).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
@@ -3141,7 +3141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="flex justify-between">
                 <span className="text-gray-400">Amount:</span>
                 <span className="text-emerald-400 font-bold text-sm">
-                  â‚¹{Number(selectedOrderVerify.amount).toLocaleString('en-IN')}.00
+                  ₹{Number(selectedOrderVerify.amount).toLocaleString('en-IN')}.00
                 </span>
               </div>
               <div className="flex justify-between items-center pt-1 border-t border-white/5">
@@ -3209,8 +3209,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     </div>
                     <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
                       {selectedOrderVerify.type === 'vp' && !selectedOrderVerify.title.toLowerCase().includes('php')
-                        ? 'â€¢ Indian VP Order: A genuine prepaid code will be auto-allocated from the Indian VP Vault and emailed to the customer.'
-                        : 'â€¢ Manual Delivery Order: Payment status will be confirmed, order placed in fulfillment queue, and an email dispatched to customer to confirm delivery WhatsApp/email.'}
+                        ? '• Indian VP Order: A genuine prepaid code will be auto-allocated from the Indian VP Vault and emailed to the customer.'
+                        : '• Manual Delivery Order: Payment status will be confirmed, order placed in fulfillment queue, and an email dispatched to customer to confirm delivery WhatsApp/email.'}
                     </p>
                   </div>
 
@@ -3320,7 +3320,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
-                    {adminOrderRoom.title} â€¢ â‚¹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}
+                    {adminOrderRoom.title} • ₹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>
@@ -3378,7 +3378,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     )}
                     <div className="flex justify-between pt-1 border-t border-white/5">
                       <span className="text-gray-400">Total Price:</span>
-                      <span className="font-bold text-emerald-400">â‚¹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}</span>
+                      <span className="font-bold text-emerald-400">₹{Number(adminOrderRoom.amount || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -3512,20 +3512,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             type="text"
                             value={manualCodeInput}
                             onChange={(e) => setManualCodeInput(e.target.value)}
-                            placeholder="e.g. RA-VAL-8492-9102-4821"
+                            placeholder="Enter official Riot VP PIN or delivery details"
                             className="flex-1 p-2 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const randomDigits = Math.floor(100000000000 + Math.random() * 900000000000);
-                              setManualCodeInput(`RA-${randomDigits}`);
-                            }}
-                            className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-amber-300 font-mono text-[10px] font-bold cursor-pointer whitespace-nowrap"
-                            title="Auto-generate standard Riot format code"
-                          >
-                            Auto-Gen
-                          </button>
                         </div>
 
                         <button

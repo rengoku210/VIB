@@ -87,6 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
+  const suppressAutoHideUntil = useRef(0);
 
   // Measure closed header height dynamically on mount & resize
   useEffect(() => {
@@ -108,8 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
           const currentScrollY = window.scrollY || document.documentElement.scrollTop;
           const delta = currentScrollY - lastScrollY.current;
 
-          // If mobile drawer is open, keep header visible
-          if (mobileMenuOpen) {
+          if (mobileMenuOpen || Date.now() < suppressAutoHideUntil.current) {
             setIsHeaderVisible(true);
             lastScrollY.current = Math.max(0, currentScrollY);
             ticking.current = false;
@@ -139,6 +139,13 @@ export const Header: React.FC<HeaderProps> = ({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [mobileMenuOpen]);
+
+  // Restore sticky header visibility on navigation or auth state transitions
+  useEffect(() => {
+    suppressAutoHideUntil.current = Date.now() + 600;
+    lastScrollY.current = Math.max(0, window.scrollY || 0);
+    setIsHeaderVisible(true);
+  }, [currentPage, user?.id]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -499,8 +506,8 @@ export const Header: React.FC<HeaderProps> = ({
                         <MessageSquare className="w-3.5 h-3.5" />
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-bold truncate text-white">Community Discord</span>
-                        <span className="text-[10px] text-gray-400 truncate">Join 50,000+ members</span>
+                        <span className="font-bold truncate text-white">Community &amp; Discord</span>
+                        <span className="text-[10px] text-gray-400 truncate">Connect on official WhatsApp desk</span>
                       </div>
                     </button>
 
@@ -647,13 +654,17 @@ export const Header: React.FC<HeaderProps> = ({
                       : 'border-purple-500/30 bg-[#120f26] text-purple-200 hover:bg-purple-950/70 hover:border-purple-500/60'
                   }`}
                 >
-                  <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-400/40 flex-shrink-0">
-                    <img
-                      src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
-                      alt={user.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                      <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-400/40 flex-shrink-0 bg-purple-900/60 flex items-center justify-center text-[10px] font-bold text-purple-200">
+                        {user.avatar ? (
+                          <img
+                            src={user.avatar}
+                            alt={user.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span>{(user.name || 'U').charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
                   <span>{user.name.split(' ')[0]}</span>
                   <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-900/80 text-purple-300 uppercase">
                     {user.role}
@@ -894,8 +905,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => handleNav('community')}
               className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-              <span>Discord</span>
+              <MessageSquare className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>WhatsApp</span>
             </button>
 
             <button
@@ -904,7 +915,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <HelpCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>Support & MSME Verification</span>
+              <span>Support &amp; Verification</span>
             </button>
 
             {/* All Services Directory at bottom */}

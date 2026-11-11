@@ -185,9 +185,9 @@ export const EscrowModal: React.FC<EscrowModalProps> = ({ isOpen, onClose }) => 
                   </span>
                 )}
                 {riotVerification?.exists && (
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
                     <CheckCircle2 className="w-3 h-3" />
-                    Verified Riot ID
+                    {riotVerification.verified ? 'Verified Riot ID' : 'Valid Riot ID Format'}
                   </span>
                 )}
               </div>

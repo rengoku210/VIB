@@ -486,12 +486,7 @@ export function registerAdvertisementRoutes(
       }
 
       // Fetch active payment settings from database
-      const settings = (db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any) || {
-        upi_id: 'thevibofficial@okhdfcbank',
-        payee_name: 'VIB Digital Services',
-        account_name: 'VIB Digital Services Platform',
-        instructions: 'Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or transfer to UPI ID.',
-      };
+      const settings = db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any;
 
       // Fetch plan specs
       const plan = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(order.plan_id) as any;
@@ -503,13 +498,14 @@ export function registerAdvertisementRoutes(
           ...plan,
           benefits: typeof plan.benefits_json === 'string' ? JSON.parse(plan.benefits_json || '[]') : [],
         } : null,
-        paymentSettings: {
-          upi_id: settings.upi_id || 'thevibofficial@okhdfcbank',
-          payee_name: settings.payee_name || settings.account_name || 'VIB Digital Services Platform',
-          qr_image_url: settings.qr_image_url,
-          instructions: settings.instructions,
-          support_whatsapp: settings.support_whatsapp || '+918099641606',
-        },
+        paymentConfigured: Boolean(settings?.upi_id),
+        paymentSettings: settings ? {
+          upi_id: settings.upi_id || '',
+          payee_name: settings.payee_name || settings.account_name || '',
+          qr_image_url: settings.qr_image_url || '',
+          instructions: settings.instructions || '',
+          support_whatsapp: settings.support_whatsapp || '',
+        } : null,
       });
     } catch (err: any) {
       console.error('[Get Ad Order Error]:', err);
@@ -820,6 +816,22 @@ export function registerAdvertisementRoutes(
     }
   });
 
+  // Authenticated Customer: Get own advertisement orders
+  app.get('/api/user/advertisement-orders', authenticate, (req: Request, res: Response): void => {
+    try {
+      const authUser = (req as any).user;
+      const rows = db.prepare(`
+        SELECT * FROM advertisement_orders
+        WHERE user_id = ? OR LOWER(customer_email) = LOWER(?)
+        ORDER BY created_at DESC
+      `).all(authUser.id, authUser.email || '');
+      res.json({ success: true, orders: rows });
+    } catch (err: any) {
+      console.error('[User Ad Orders Error]:', err);
+      res.status(500).json({ error: 'Failed to load your advertisement orders.' });
+    }
+  });
+
   // Admin: Get all advertisement orders
   app.get('/api/admin/advertisement/orders', authenticate, adminOnly, (req: Request, res: Response): void => {
     try {
@@ -918,6 +930,47 @@ export function registerAdvertisementRoutes(
     }
   });
 
+  // Admin: Mark submitted advertisement campaign as Live
+  app.post('/api/admin/advertisement/orders/:id/mark-live', authenticate, adminOnly, (req: Request, res: Response): void => {
+    try {
+      const { id } = req.params;
+      const order = db.prepare('SELECT id, status, user_id, plan_name FROM advertisement_orders WHERE id = ?').get(id) as any;
+      if (!order) {
+        res.status(404).json({ error: 'Advertisement order not found.' });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      db.prepare(`
+        UPDATE advertisement_orders
+        SET status = 'live',
+            updated_at = ?
+        WHERE id = ?
+      `).run(now, id);
+
+      if (order.user_id) {
+        db.prepare(`
+          INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
+          VALUES (?, ?, ?, ?, 'ad', 0, ?)
+        `).run(
+          'notif_' + crypto.randomBytes(6).toString('hex'),
+          order.user_id,
+          'Advertisement Campaign Is Live!',
+          `Your ${order.plan_name || 'advertisement'} order (${id}) is now LIVE on VIB official channels.`,
+          now,
+        );
+      }
+
+      res.json({
+        success: true,
+        message: `Campaign ${id} marked LIVE.`,
+      });
+    } catch (err: any) {
+      console.error('[Mark Ad Live Error]:', err);
+      res.status(500).json({ error: 'Failed to mark advertisement campaign live.' });
+    }
+  });
+
   // Admin: Upload package documentation (PDF/DOCX/TXT content)
   app.post('/api/admin/advertisement/plans/:id/upload-doc', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
     try {
@@ -956,6 +1009,15 @@ export function registerAdvertisementRoutes(
   // Admin: Generate AI draft from package configuration and uploaded documentation
   app.post('/api/admin/advertisement/plans/:id/generate-ai-draft', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
     try {
+      const apiKey = process.env.GEMINI_API_KEY?.trim();
+      if (!apiKey) {
+        res.status(503).json({
+          success: false,
+          error: 'AI draft generation requires GEMINI_API_KEY configuration on the server. Edit draft fields manually instead.',
+        });
+        return;
+      }
+
       const { id } = req.params;
       const plan = db.prepare('SELECT * FROM advertisement_plans WHERE id = ?').get(id) as any;
       if (!plan) {
@@ -963,65 +1025,36 @@ export function registerAdvertisementRoutes(
         return;
       }
 
-      const docContext = plan.documentation_text || '';
       const benefits = typeof plan.benefits_json === 'string' ? JSON.parse(plan.benefits_json || '[]') : [];
+      const docContext = plan.documentation_text || '';
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = [
+        'Return strict JSON with keys: description (string), highlights (string[]), instructions (string[]), reach (string), placement (string), faq (array of {question, answer}).',
+        'Do not invent audience counts or unverified delivery times.',
+        `Plan Name: ${plan.name}`,
+        `Category: ${plan.category}`,
+        `Price INR: ${plan.price}`,
+        `Existing Description: ${plan.description || ''}`,
+        `Benefits: ${benefits.join('; ')}`,
+        docContext ? `Documentation: ${docContext}` : '',
+      ].filter(Boolean).join('\n');
 
-      let reach = '50,000+ Indian Valorant Gamers';
-      let placement = 'Instagram Story';
-      if (plan.instagram_post) placement = 'Instagram Permanent Feed Post';
-      if (plan.highlight_placement) placement += ' + Permanent Highlight';
-      if (plan.website_listing) placement += ' + Website Listing';
-
-      if (plan.category === 'premium') {
-        reach = '100,000+ Verified Buyers & VIP Network';
-      } else if (plan.category === 'trade') {
-        reach = 'Active Weapon Skin Traders & Collectors Across India';
-      }
-
-      const draftDescription = docContext.length > 50
-        ? `Official VIB ${plan.name} Campaign. ${docContext.slice(0, 300)}...`
-        : `Broadcast your Valorant inventory with our official ${plan.name} campaign. Designed for players seeking high-converting visibility across our community of over 50,000 verified gamers. ${plan.description}`;
-
-      const draftHighlights = [
-        `Direct Instagram seller tag & clickable DM contact`,
-        `Average 15-minute queue activation after payment approval`,
-        `100% scam-free escrow middleman support on all inquiries`,
-        ...benefits.slice(0, 3)
-      ];
-
-      const draftInstructions = [
-        'Only list premium and exclusive knife/gun skins (do not include standard battle pass items).',
-        'Upload one clear high-resolution screenshot displaying the in-game collection grid.',
-        'Keep your Instagram account public and direct messages open for interested buyers.',
-        'Verify your WhatsApp number for instant middleman notifications.'
-      ];
-
-      const draftFaq = [
-        {
-          question: `How fast will my ${plan.name} campaign be published?`,
-          answer: `Once your payment is verified and you submit your account screenshot, our marketing team formats the creative and schedules your promotion within 15 to 45 minutes.`
-        },
-        {
-          question: 'Do buyers contact me directly or through VIB?',
-          answer: 'Interested buyers will contact your tagged Instagram handle directly. Once you agree on price, our verified middleman agents facilitate the account handover with 100% escrow protection.'
-        },
-        {
-          question: 'What happens if my profile does not sell immediately?',
-          answer: plan.category === 'premium'
-            ? 'Our VIP Luxury and Guaranteed Sale packages include continuous buyer matchmaking and repeated story pushes until a confirmed sale occurs.'
-            : 'You can upgrade your package or extend with a trade highlight at any time through your VIB dashboard.'
-        }
-      ];
-
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' },
+      });
+      const parsed = JSON.parse(response.text || '{}');
       const aiDraft = {
         title: plan.name,
         price: plan.price,
-        description: draftDescription,
-        highlights: draftHighlights,
-        instructions: draftInstructions,
-        reach,
-        placement,
-        faq: draftFaq,
+        description: parsed.description || plan.description || '',
+        highlights: Array.isArray(parsed.highlights) ? parsed.highlights : benefits,
+        instructions: Array.isArray(parsed.instructions) ? parsed.instructions : [],
+        reach: parsed.reach || '',
+        placement: parsed.placement || '',
+        faq: Array.isArray(parsed.faq) ? parsed.faq : [],
         generated_at: new Date().toISOString(),
       };
 

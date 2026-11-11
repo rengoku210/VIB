@@ -90,6 +90,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Sync mode when initialMode prop changes
   useEffect(() => {
     setMode(initialMode);
+    setShowPassword(false);
     setLocalError(null);
     setSuccessMessage(null);
     setTermsAgreed(false);
@@ -275,7 +276,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </h2>
             <p className="text-xs text-gray-400 font-sans">
               {mode === 'login' && 'Sign in to access your orders, rank journeys, and dashboard'}
-              {mode === 'signup' && 'Join 50,000+ verified players on the secure VIB marketplace'}
+              {mode === 'signup' && 'Create a verified account on the VIB marketplace'}
               {mode === 'forgot' && 'Reset your password with your verified email address'}
             </p>
           </div>
@@ -524,9 +525,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </span>
                   )}
                   {riotVerification?.exists && (
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                    <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
                       <CheckCircle2 className="w-3 h-3" />
-                      Verified
+                      {riotVerification.verified ? 'Verified' : 'Valid Format'}
                     </span>
                   )}
                 </div>
@@ -579,8 +580,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
                     required
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                    className="w-full pl-9 pr-9 py-2 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

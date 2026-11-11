@@ -16,11 +16,21 @@ import {
   Zap,
   Headphones,
   ArrowRight,
+  ArrowLeft,
   Megaphone,
   Repeat,
   Crown,
   Shield,
   FileImage,
+  FileText,
+  Home,
+  Hourglass,
+  ClipboardList,
+  Hash,
+  Coins,
+  Calendar,
+  Layers,
+  Gauge,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -44,6 +54,7 @@ export interface ManualPaymentGatewayProps {
   backButtonLabel?: string;
   nextStepsText?: string;
   onTrackOrder?: () => void;
+  onViewOrders?: () => void;
   upiId?: string;
   payeeName?: string;
   qrImageUrl?: string;
@@ -51,6 +62,13 @@ export interface ManualPaymentGatewayProps {
   supportWhatsapp?: string;
   onSubmitProof: (utr: string, screenshotData: string) => Promise<boolean>;
   onComplete?: () => void;
+  issuedCode?: string | null;
+}
+
+function formatSubmissionTimestamp(date: Date): string {
+  const day = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${day}, ${time}`;
 }
 
 export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
@@ -67,13 +85,15 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   backButtonLabel = 'Back to Advertisement Plans',
   nextStepsText,
   onTrackOrder,
-  upiId = 'thevibofficial@okhdfcbank',
+  onViewOrders,
+  upiId = '',
   payeeName = 'VIB Digital Services Platform',
   qrImageUrl,
   instructions,
   supportWhatsapp = '+918099641606',
   onSubmitProof,
   onComplete,
+  issuedCode,
 }) => {
   const [utr, setUtr] = useState('');
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
@@ -82,20 +102,22 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedPayee, setCopiedPayee] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
+  const [copiedOrderRef, setCopiedOrderRef] = useState(false);
+  const [copiedPin, setCopiedPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const priceFormatted = formatCurrencyPrice(itemPrice, (currency as Currency) || 'INR');
 
-  // Default specs if none provided
+  // Default structural specs only when none provided
   const displaySpecs: PaymentGatewaySpec[] = specs || [
-    { label: 'Duration', value: '24 Hours' },
-    { label: 'Reach', value: '50K+ Community' },
-    { label: 'Placement', value: 'Instagram Story' },
-    { label: 'Processing', value: 'After Payment Verification' },
+    { label: 'Order Reference', value: orderId },
+    { label: 'Category', value: itemCategory },
+    { label: 'Verification', value: 'Manual Staff Review' },
   ];
 
   // Default instructions matching mockup
@@ -117,8 +139,25 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
       upiString
     )}`;
 
-  const copyToClipboard = (text: string, setter: (val: boolean) => void) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, setter: (val: boolean) => void) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      try {
+        const tmp = document.createElement('textarea');
+        tmp.value = text;
+        tmp.style.position = 'fixed';
+        tmp.style.opacity = '0';
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+      } catch {}
+    }
     setter(true);
     setTimeout(() => setter(false), 2000);
   };
@@ -177,7 +216,11 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     try {
       const ok = await onSubmitProof(utr.trim(), screenshotData || '');
       if (ok) {
+        setSubmittedAt(formatSubmissionTimestamp(new Date()));
         setIsSuccess(true);
+        try {
+          window.scrollTo(0, 0);
+        } catch {}
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Payment submission failed. Please try again.');
@@ -202,96 +245,362 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     }
   };
 
+  // Shared neon-bordered bottom trust banner rendered across payment & confirmation views
+  const renderTrustFooter = (whatsappText: string) => (
+    <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-[#130926] via-[#0e071c] to-[#190a2d] border border-purple-500/45 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-[0_0_28px_rgba(168,85,247,0.18)]">
+      <div className="flex items-center gap-3.5 text-center lg:text-left">
+        <span className="text-2xl sm:text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-indigo-400 font-rajdhani tracking-tight shrink-0">
+          VIB
+        </span>
+        <div className="space-y-0.5">
+          <div className="text-sm sm:text-base font-bold text-white font-rajdhani tracking-wide">
+            VIB Digital Services Platform
+          </div>
+          <div className="text-xs text-gray-400">
+            Your All-in-One Digital Services Platform.
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 sm:gap-8">
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <ShieldCheck className="w-5 h-5 text-purple-300" />
+          <span className="text-[11px] font-semibold text-gray-200">Secure Payments</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <Zap className="w-5 h-5 text-fuchsia-300" />
+          <span className="text-[11px] font-semibold text-gray-200">Reliable Process</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <Headphones className="w-5 h-5 text-purple-300" />
+          <span className="text-[11px] font-semibold text-gray-200">Dedicated Support</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-center gap-3.5 text-center lg:text-right">
+        <div>
+          <div className="text-xs font-bold text-white">Facing any issues?</div>
+          <div className="text-[11px] text-gray-400 leading-snug">
+            Contact our 24/7 WhatsApp Chat Executive for quick assistance.
+          </div>
+        </div>
+        <a
+          href={`https://wa.me/${supportWhatsapp.replace(/\+/g, '')}?text=${encodeURIComponent(whatsappText)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2.5 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+        >
+          <span>Chat on WhatsApp</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </div>
+  );
+
   // =========================================================================
-  // SUCCESS / CONFIRMATION VIEW
+  // SUCCESS / PAYMENT UNDER VERIFICATION VIEW
   // =========================================================================
   if (isSuccess) {
+    const viewOrdersHandler = onViewOrders || onTrackOrder || onBack;
+    const isAutoFulfilled = Boolean(issuedCode);
+    const displayTimestamp = submittedAt || formatSubmissionTimestamp(new Date());
+
     return (
-      <div className="w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-10 font-sans">
-        <div className="max-w-2xl mx-auto rounded-3xl bg-[#0d091e] border border-purple-500/40 p-6 sm:p-10 text-center space-y-6 shadow-[0_0_50px_rgba(168,85,247,0.25)] relative overflow-hidden">
-          <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400">
-            <CheckCircle2 className="w-10 h-10" />
-          </div>
+      <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white pb-20 font-sans min-h-screen relative overflow-x-clip">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,rgba(147,51,234,0.22),transparent_75%)]"
+        />
 
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-950/80 border border-purple-500/30 text-[11px] font-mono font-bold text-purple-300 uppercase">
-              <Clock className="w-3.5 h-3.5 text-purple-400" />
-              <span>Status: SUBMITTED_FOR_VERIFICATION</span>
-            </div>
-            <h2 className="text-2xl sm:text-4xl font-black text-white font-rajdhani uppercase tracking-wide">
-              Payment Evidence Submitted!
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-300 max-w-lg mx-auto leading-relaxed">
-              Your payment evidence has been securely registered with Order ID{' '}
-              <strong className="font-mono text-purple-300">{orderId}</strong>. Our finance desk is reviewing your transaction screenshot.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left text-xs space-y-2.5 max-w-md mx-auto">
-            <div className="flex justify-between items-center text-gray-400">
-              <span>Order ID:</span>
-              <span className="font-mono font-bold text-white">{orderId}</span>
-            </div>
-            <div className="flex justify-between items-center text-gray-400">
-              <span>Package:</span>
-              <span className="font-bold text-purple-300">{itemTitle}</span>
-            </div>
-            <div className="flex justify-between items-center text-gray-400">
-              <span>Amount Paid:</span>
-              <span className="font-black text-white text-sm font-rajdhani">{priceFormatted}</span>
-            </div>
-            {utr && (
-              <div className="flex justify-between items-center text-gray-400">
-                <span>UTR / Reference:</span>
-                <span className="font-mono text-emerald-300">{utr}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200 text-left">
-            <strong className="text-white block pb-1">What Happens Next?</strong>
-            <p className="text-gray-300 leading-relaxed">
-              {nextStepsText || (
-                <>
-                  Once approved, you will receive an official confirmation email at your registered address with a secure
-                  link: <em>&ldquo;Continue to Submit Advertisement Details&rdquo;</em> where you can upload your inventory
-                  screenshot and social handle.
-                </>
-              )}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            {onTrackOrder && (
-              <button
-                type="button"
-                onClick={onTrackOrder}
-                className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
-              >
-                Track Live Order
-              </button>
-            )}
+        <div className="relative max-w-[1140px] mx-auto px-4 sm:px-6 lg:px-8 pt-7 space-y-8">
+          {/* Breadcrumb */}
+          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
             <button
               type="button"
               onClick={onBack}
-              className={`px-6 py-3 rounded-xl font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer ${
-                onTrackOrder
-                  ? 'bg-white/10 hover:bg-white/15 border border-white/15 text-gray-200'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/30'
-              }`}
+              className="inline-flex items-center gap-1.5 hover:text-purple-300 transition-colors cursor-pointer"
             >
-              {backButtonLabel}
+              <Home className="w-3.5 h-3.5 text-purple-400" />
+              <span>Home</span>
             </button>
-            <a
-              href={`https://wa.me/${supportWhatsapp.replace(/\+/g, '')}?text=Hi%20VIB%20Team%2C%20I%20have%20submitted%20payment%20for%20order%20${encodeURIComponent(orderId)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+            <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+            <button
+              type="button"
+              onClick={onBack}
+              className="hover:text-purple-300 transition-colors cursor-pointer"
             >
-              <span>Chat on WhatsApp</span>
-              <ArrowRight className="w-4 h-4" />
-            </a>
+              {breadcrumbService}
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+            <span className="text-gray-200 font-medium">
+              {isAutoFulfilled ? 'Payment Verified' : 'Payment Verification'}
+            </span>
+          </nav>
+
+          {/* Centerpiece Hero Status Header */}
+          <div className="text-center space-y-4 pt-1 relative">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-4 h-24 flex items-center justify-center overflow-hidden"
+            >
+              <div className="w-[460px] h-14 bg-gradient-to-r from-transparent via-purple-600/25 to-transparent -rotate-6 blur-xl" />
+            </div>
+
+            <div className="relative w-24 h-20 mx-auto flex items-center justify-center">
+              <div
+                aria-hidden="true"
+                className={`absolute inset-1 rounded-full blur-2xl ${
+                  isAutoFulfilled ? 'bg-emerald-500/45' : 'bg-purple-500/50'
+                }`}
+              />
+              {isAutoFulfilled ? (
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-teal-900/40 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-[0_0_28px_rgba(16,185,129,0.35)]">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+              ) : (
+                <div className="relative w-20 h-20 flex items-center justify-center drop-shadow-[0_0_22px_rgba(168,85,247,0.7)]">
+                  <div className="w-14 h-16 -rotate-6 rounded-xl bg-gradient-to-br from-purple-400/35 via-fuchsia-500/25 to-indigo-900/60 border border-purple-300/65 flex flex-col justify-center gap-2 px-3 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+                    <span className="h-1.5 w-7 rounded-full bg-purple-100/90" />
+                    <span className="h-1.5 w-5 rounded-full bg-purple-200/70" />
+                  </div>
+                  <div className="absolute -bottom-0.5 right-0.5 w-10 h-10 rounded-full bg-[#1a0a36] border-2 border-purple-300/80 flex items-center justify-center shadow-[0_0_18px_rgba(192,132,252,0.8)]">
+                    <Clock className="w-5 h-5 text-fuchsia-200" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tight font-rajdhani">
+                {isAutoFulfilled ? (
+                  <>
+                    <span className="text-white">PAYMENT VERIFIED &amp; </span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-300 to-purple-400">
+                      CODE ISSUED
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white">PAYMENT UNDER </span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-pink-400">
+                      VERIFICATION
+                    </span>
+                  </>
+                )}
+              </h1>
+
+              <p className="text-xs sm:text-sm text-gray-300 max-w-xl mx-auto leading-relaxed">
+                {isAutoFulfilled ? (
+                  <>
+                    Your payment has been verified and your official Valorant Prepaid PIN is active below and saved in your Order Room.
+                  </>
+                ) : (
+                  <>
+                    Your payment details and transaction screenshot have been successfully submitted.
+                    <br className="hidden sm:inline" /> Our team will review your payment and notify you once verification is complete.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="pt-1">
+              {isAutoFulfilled ? (
+                <span className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-emerald-950/50 border border-emerald-500/45 text-emerald-300 text-xs sm:text-sm font-semibold shadow-[0_0_20px_rgba(16,185,129,0.18)]">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Payment Verified &amp; Fulfilled</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-950/45 border border-amber-500/45 text-amber-300 text-xs sm:text-sm font-semibold shadow-[0_0_20px_rgba(245,158,11,0.16)]">
+                  <Hourglass className="w-4 h-4 text-amber-400" />
+                  <span>Awaiting Admin Verification</span>
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Card 1: Order Details Split Card */}
+          <section className="rounded-2xl bg-[#0c081a]/95 border border-purple-500/25 overflow-hidden shadow-[0_0_35px_rgba(126,34,206,0.12)]">
+            <div className="px-6 py-4 border-b border-white/10 bg-white/[0.02] flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-purple-600/25 border border-purple-500/40 flex items-center justify-center text-purple-300">
+                <ClipboardList className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-bold text-white tracking-wide">Order Details</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12">
+              {/* Left Column: Selected Product / Service */}
+              <div className="md:col-span-5 p-6 flex items-center gap-5 border-b md:border-b-0 md:border-r border-white/10 min-w-0">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600/35 via-fuchsia-700/25 to-indigo-900/40 border border-purple-400/40 shadow-[0_0_24px_rgba(168,85,247,0.28)] flex items-center justify-center shrink-0">
+                  {renderItemIcon()}
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <h3 className="text-base sm:text-lg font-bold text-white leading-snug break-words">
+                    {itemTitle}
+                  </h3>
+                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-purple-600/25 border border-purple-500/40 text-purple-200 text-[11px] font-medium">
+                    {itemCategory}
+                  </span>
+                  {itemDescription && (
+                    <p className="text-xs text-gray-400 leading-relaxed line-clamp-3">
+                      {itemDescription}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Reference, Amount, UTR, Submission Date & Status */}
+              <div className="md:col-span-7 px-6 py-2 divide-y divide-white/[0.07] text-xs sm:text-sm min-w-0">
+                <div className="py-3.5 flex items-center justify-between gap-4">
+                  <span className="flex items-center gap-2.5 text-gray-400 shrink-0">
+                    <Hash className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Order Reference</span>
+                  </span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono font-bold text-white truncate">{orderId}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(orderId, setCopiedOrderRef)}
+                      aria-label="Copy Order Reference"
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                    >
+                      {copiedOrderRef ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </span>
+                </div>
+
+                <div className="py-3.5 flex items-center justify-between gap-4">
+                  <span className="flex items-center gap-2.5 text-gray-400 shrink-0">
+                    <Coins className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Amount Submitted</span>
+                  </span>
+                  <span className="font-bold text-white text-base font-rajdhani">{priceFormatted}</span>
+                </div>
+
+                <div className="py-3.5 flex items-center justify-between gap-4">
+                  <span className="flex items-center gap-2.5 text-gray-400 shrink-0">
+                    <Calendar className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Submission Date</span>
+                  </span>
+                  <span className="text-gray-200 font-medium text-right">{displayTimestamp}</span>
+                </div>
+
+                {utr && (
+                  <div className="py-3.5 flex items-center justify-between gap-4">
+                    <span className="flex items-center gap-2.5 text-gray-400 shrink-0">
+                      <CreditCard className="w-4 h-4 text-purple-400 shrink-0" />
+                      <span>UTR / Reference</span>
+                    </span>
+                    <span className="font-mono font-semibold text-gray-200 truncate">{utr}</span>
+                  </div>
+                )}
+
+                <div className="py-3.5 flex items-center justify-between gap-4">
+                  <span className="flex items-center gap-2.5 text-gray-400 shrink-0">
+                    <Layers className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Current Status</span>
+                  </span>
+                  {isAutoFulfilled ? (
+                    <span className="px-3.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/45 text-emerald-300 text-xs font-semibold">
+                      Payment Verified &amp; Issued
+                    </span>
+                  ) : (
+                    <span className="px-3.5 py-1 rounded-full bg-amber-950/60 border border-amber-500/45 text-amber-300 text-xs font-semibold">
+                      Awaiting Verification
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Card 2: Issued PIN Box OR Experiencing High Traffic Notice Banner */}
+          {isAutoFulfilled && issuedCode ? (
+            <section className="rounded-2xl bg-gradient-to-r from-emerald-950/60 via-[#0d1924] to-[#120b2a] border border-emerald-500/45 p-6 sm:p-7 shadow-[0_0_32px_rgba(16,185,129,0.16)] flex flex-col sm:flex-row items-center gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shrink-0">
+                <Zap className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left">
+                <h3 className="text-xl sm:text-2xl font-black font-rajdhani uppercase tracking-wide text-white">
+                  OFFICIAL VALORANT <span className="text-emerald-400">PREPAID PIN</span>
+                </h3>
+                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-black/50 border border-emerald-500/40 max-w-full">
+                  <span className="font-mono font-black text-lg text-white tracking-wider select-all truncate">
+                    {issuedCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(issuedCode, setCopiedPin)}
+                    aria-label="Copy PIN Code"
+                    className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 cursor-pointer shrink-0"
+                  >
+                    {copiedPin ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Open Valorant → VP icon → Prepaid Cards &amp; Codes to redeem. Also saved in your Order Room and Tax Invoice.
+                </p>
+              </div>
+            </section>
+          ) : (
+            <section className="relative rounded-2xl bg-gradient-to-r from-[#190a2d]/95 via-[#120822] to-[#1e0c36]/95 border border-purple-500/35 p-6 sm:p-7 shadow-[0_0_32px_rgba(168,85,247,0.16)] overflow-hidden">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -right-16 -top-16 w-64 h-64 rounded-full bg-fuchsia-600/10 blur-2xl"
+              />
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-7 text-center sm:text-left">
+                <div className="w-16 h-16 rounded-2xl bg-purple-600/15 border border-purple-400/35 flex items-center justify-center shrink-0">
+                  <Gauge className="w-9 h-9 text-purple-300 drop-shadow-[0_0_14px_rgba(192,132,252,0.75)]" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-xl sm:text-2xl font-black font-rajdhani uppercase tracking-wide text-white">
+                    EXPERIENCING{' '}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-pink-400">
+                      HIGH TRAFFIC
+                    </span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+                    We are currently experiencing high traffic, which may result in additional processing time.
+                  </p>
+                  <p className="text-xs sm:text-sm text-fuchsia-200 font-semibold leading-relaxed">
+                    Kindly sit back and relax. Our team will complete the payment verification process, and VIB will notify you once your payment has been approved.
+                  </p>
+                  <p className="text-xs text-gray-400 pt-1">
+                    {nextStepsText || 'Thank you for your patience and for choosing VIB Digital Services.'}
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Two Split Navigation Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full min-h-[48px] px-6 py-3.5 rounded-xl bg-[#0b0817] hover:bg-[#140e29] border border-white/15 hover:border-white/30 text-gray-200 hover:text-white font-semibold text-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              <span>{backButtonLabel}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={viewOrdersHandler}
+              className="w-full min-h-[48px] px-6 py-3.5 rounded-xl bg-[#0b0817] hover:bg-[#140e29] border border-purple-500/35 hover:border-purple-400/60 text-white font-semibold text-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+            >
+              <FileText className="w-4 h-4 text-purple-300 shrink-0" />
+              <span>View My Orders</span>
+            </button>
+          </div>
+
+          {/* Bottom Neon Footer Trust Banner */}
+          {renderTrustFooter(
+            `Hi VIB Team, I have submitted payment for order ${orderId}`
+          )}
         </div>
       </div>
     );
@@ -699,50 +1008,9 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
         {/* =================================================================== */}
         {/* FOOTER TRUST CARD (MATCHING MOCKUP)                                 */}
         {/* =================================================================== */}
-        <div className="p-6 rounded-2xl bg-gradient-to-r from-[#120a26] via-[#0e071e] to-[#090515] border border-purple-500/30 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-2xl">
-          {/* Left Brand */}
-          <div className="space-y-1 text-center lg:text-left">
-            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-400 font-rajdhani uppercase tracking-wider">
-              VIB Digital Services Platform
-            </div>
-            <div className="text-xs text-gray-400">
-              Your All-in-One Digital Services Platform.
-            </div>
-          </div>
-
-          {/* Middle 3 Trust Badges */}
-          <div className="flex items-center gap-6 sm:gap-8">
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <ShieldCheck className="w-5 h-5 text-purple-400" />
-              <span className="text-[11px] font-semibold text-gray-200">Secure Payments</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <Zap className="w-5 h-5 text-fuchsia-400" />
-              <span className="text-[11px] font-semibold text-gray-200">Verified Process</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <Headphones className="w-5 h-5 text-cyan-400" />
-              <span className="text-[11px] font-semibold text-gray-200">Dedicated Support</span>
-            </div>
-          </div>
-
-          {/* Right WhatsApp Support */}
-          <div className="flex flex-col sm:flex-row items-center gap-3 text-center lg:text-right">
-            <div>
-              <div className="text-xs font-bold text-white font-rajdhani">Facing any issues?</div>
-              <div className="text-[11px] text-gray-400">Contact our 24/7 WhatsApp Chat Executive.</div>
-            </div>
-            <a
-              href={`https://wa.me/${supportWhatsapp.replace(/\+/g, '')}?text=Hi%20VIB%20Team%2C%20I%20have%20a%20question%20about%20payment%20for%20order%20${encodeURIComponent(orderId)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 cursor-pointer flex-shrink-0"
-            >
-              <span>Chat on WhatsApp</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </a>
-          </div>
-        </div>
+        {renderTrustFooter(
+          `Hi VIB Team, I have a question about payment for order ${orderId}`
+        )}
       </div>
     </div>
   );

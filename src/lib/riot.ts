@@ -50,23 +50,24 @@ export async function verifyRiotIdOnServer(
     const data = await res.json().catch(() => null);
 
     if (res.ok && data?.exists) {
+      const isLiveVerified = Boolean(data.verified);
       return {
         exists: true,
-        verified: true,
+        verified: isLiveVerified,
         gameName: data.gameName,
         tagLine: data.tagLine,
         riotId: data.riotId,
         region: data.region,
         accountLevel: data.accountLevel,
         cardSmall: data.cardSmall,
-        message: data.message || 'Legitimate Valorant Riot ID verified.',
+        message: data.message || (isLiveVerified ? 'Valorant Riot ID verified.' : 'Valid Riot ID format.'),
         source: data.source,
       };
     }
 
     return {
       exists: false,
-      verified: true,
+      verified: Boolean(data?.verified),
       error: data?.error || 'Valorant account not found on official Riot servers.',
       message: data?.message,
     };

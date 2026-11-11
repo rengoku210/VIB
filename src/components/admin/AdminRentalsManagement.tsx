@@ -36,17 +36,17 @@ export const AdminRentalsManagement: React.FC = () => {
   // Create Listing Form
   const [formData, setFormData] = useState({
     title: '',
-    rank: 'Radiant #340',
+    rank: '',
     region: 'AP / Mumbai',
-    image_url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/27/largeicon.png',
-    account_identifier: 'RENT-RAD-01',
-    description: 'High-tier verified radiant account with full skin upgrades. Complete 2FA protection and live session tracking.',
-    price_24h: 399,
-    price_3d: 899,
-    price_7d: 1799,
-    price_30d: 5999,
-    security_deposit: 1500,
-    featured_skins: 'Kuronami Vandal, Primordium Vandal, Imperium Melee, Reaver Vandal',
+    image_url: '',
+    account_identifier: '',
+    description: '',
+    price_24h: 0,
+    price_3d: 0,
+    price_7d: 0,
+    price_30d: 0,
+    security_deposit: 0,
+    featured_skins: '',
     status: 'available',
   });
 
@@ -251,7 +251,13 @@ export const AdminRentalsManagement: React.FC = () => {
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
                           <img
-                            src={item.image_url || '/assets/skins/kuronami_vandal.png'}
+                            src={item.image_url || '/assets/hires/profiles/card1_exact.jpg'}
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (!img.src.endsWith('/assets/hires/profiles/card1_exact.jpg')) {
+                                img.src = '/assets/hires/profiles/card1_exact.jpg';
+                              }
+                            }}
                             alt={item.title}
                             className="w-10 h-10 rounded-lg object-contain bg-white/5 border border-white/10 p-1"
                           />

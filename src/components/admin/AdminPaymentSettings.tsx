@@ -346,7 +346,7 @@ export const AdminPaymentSettings: React.FC = () => {
                   required
                   value={settings.upi_id || ''}
                   onChange={(e) => setSettings({ ...settings, upi_id: e.target.value })}
-                  placeholder="thevibofficial@okhdfcbank"
+                  placeholder="merchant@bankupi"
                   className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white font-mono text-sm focus:ring-2 focus:ring-amber-400"
                 />
               </div>
@@ -421,7 +421,7 @@ export const AdminPaymentSettings: React.FC = () => {
                     type="email"
                     value={settings.support_email || ''}
                     onChange={(e) => setSettings({ ...settings, support_email: e.target.value })}
-                    placeholder="support@vib.gg"
+                    placeholder="thevibofficial@gmail.com"
                     className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white text-xs focus:ring-2 focus:ring-amber-400"
                   />
                 </div>

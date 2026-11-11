@@ -58,7 +58,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
   const [checkoutStage, setCheckoutStage] = useState<'details' | 'payment' | 'valuation_done'>('details');
 
   const [paymentSettings, setPaymentSettings] = useState({
-    upi_id: 'thevibofficial@okhdfcbank',
+    upi_id: '',
     payee_name: 'VIB Digital Services Platform',
     qr_image_url: '',
     instructions: '',
@@ -302,13 +302,14 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
         breadcrumbService={product.breadcrumbParent}
         onBack={() => onNavigate((sel.backPage as ClientPage) || 'home')}
         backButtonLabel={`Back to ${product.breadcrumbParent}`}
-        nextStepsText={`Once verified by our operations desk (typically within 5-15 minutes), your ${product.name} order will be fulfilled directly and your live order room will update automatically.`}
         onTrackOrder={() => onTrackOrder(createdOrder.id)}
+        onViewOrders={() => (user ? onNavigate('dashboard', 'tab:orders') : onTrackOrder(createdOrder.id))}
         upiId={paymentSettings.upi_id}
         payeeName={paymentSettings.payee_name}
         qrImageUrl={paymentSettings.qr_image_url}
         instructions={paymentSettings.instructions ? [paymentSettings.instructions] : undefined}
         supportWhatsapp={paymentSettings.support_whatsapp || '+918099641606'}
+        issuedCode={createdOrder?.issued_code || null}
         onSubmitProof={async (utr, screenshotData) => {
           const res = await fetch(`/api/orders/${encodeURIComponent(createdOrder.id)}/payment-evidence`, {
             method: 'POST',
@@ -558,11 +559,12 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
                 </div>
               )}
               {!isVerifyingRiot && riotVerification?.exists && (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                <div className={`flex items-center gap-1.5 text-xs font-mono ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    Legitimate Valorant ID Verified ({riotVerification.gameName || riotId}#
-                    {riotVerification.tagLine || tagline})
+                    {riotVerification.verified
+                      ? `Valorant ID Verified (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline})`
+                      : `Valid Riot ID format (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline}) — confirmed before delivery`}
                   </span>
                 </div>
               )}

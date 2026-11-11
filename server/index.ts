@@ -605,12 +605,17 @@ app.post('/api/auth/register-otp/send', async (req: Request, res: Response): Pro
     `).run(id, emailTrimmed, otpCode, expiresAt, now);
 
     const delivery = await sendRegistrationOtpEmail(emailTrimmed, otpCode, firstName);
-    console.log(`[Registration OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+    if (!delivery.success) {
+      db.prepare('DELETE FROM email_otps WHERE id = ?').run(id);
+      res.status(503).json({
+        error: delivery.error || 'Verification email could not be delivered. Please try again later.',
+      });
+      return;
+    }
 
     res.json({
       success: true,
       message: `Verification code sent to ${emailTrimmed}. Valid for 10 minutes.`,
-      testCode: !delivery.success ? otpCode : undefined,
     });
   } catch (err: any) {
     console.error('[Register OTP Send Error]:', err);
@@ -734,7 +739,7 @@ app.post('/api/auth/register-with-otp', async (req: Request, res: Response): Pro
     `).run(
       userId,
       'Verified VIB Member',
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      null,
       null,
       now
     );
@@ -829,12 +834,17 @@ app.post('/api/auth/login-otp/send', async (req: Request, res: Response): Promis
     `).run(id, emailTrimmed, otpCode, expiresAt, now);
 
     const delivery = await sendLoginOtpEmail(emailTrimmed, otpCode);
-    console.log(`[Login OTP] Dispatched code for ${emailTrimmed}: ${otpCode}`);
+    if (!delivery.success) {
+      db.prepare('DELETE FROM email_otps WHERE id = ?').run(id);
+      res.status(503).json({
+        error: delivery.error || 'Sign-in code email could not be delivered. Please try again later.',
+      });
+      return;
+    }
 
     res.json({
       success: true,
       message: `Sign-in code sent to ${emailTrimmed}. Valid for 10 minutes.`,
-      testCode: !delivery.success ? otpCode : undefined,
     });
   } catch (err: any) {
     console.error('[Login OTP Send Error]:', err);
@@ -972,12 +982,12 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
         return;
       }
       verifiedRiotId = riotCheck.riotId;
-      isRiotVerified = 1;
+      isRiotVerified = riotCheck.verified ? 1 : 0;
     }
 
     const userId = 'usr_' + crypto.randomBytes(8).toString('hex');
     const { hash, salt } = hashPassword(password);
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
     const now = new Date().toISOString();
 
     // Default public registrations are 'user' (NEVER admin)
@@ -1006,7 +1016,7 @@ app.post('/api/auth/register', async (req: Request, res: Response): Promise<void
     `).run(
       userId,
       'New VIB Member',
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      null,
       null,
       now
     );
@@ -1102,10 +1112,7 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
       return;
     }
 
-    let passwordValid = verifyPassword(password, userRow.password_hash, userRow.salt);
-    if (!passwordValid && userRow.email === 'admin@vib.gg' && (password === 'Admin@123' || password === 'AdminPassword@123')) {
-      passwordValid = true;
-    }
+    const passwordValid = verifyPassword(password, userRow.password_hash, userRow.salt);
     if (!passwordValid) {
       if (isLoginRateLimited(ip)) {
         res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
@@ -1173,19 +1180,95 @@ app.post('/api/auth/login', (req: Request, res: Response): void => {
   }
 });
 
-// 2b. Firebase Authentication & Google Login Bridge
-app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
-  try {
-    const { email, name, photoURL, avatar, uid, idToken } = req.body;
+async function verifyFirebaseIdToken(idToken: string): Promise<{ email: string; uid: string; name?: string; picture?: string } | null> {
+  if (!idToken || typeof idToken !== 'string') return null;
+  const parts = idToken.split('.');
+  if (parts.length !== 3) return null;
 
-    if (!email) {
-      res.status(400).json({ error: 'Valid email is required from Firebase authentication.' });
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!payload?.sub || !payload?.email) return null;
+    if (projectId && (payload.aud !== projectId || payload.iss !== `https://securetoken.google.com/${projectId}`)) {
+      return null;
+    }
+    if (!payload.exp || payload.exp * 1000 <= Date.now()) return null;
+
+    if (header?.kid) {
+      const certsRes = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
+      if (certsRes.ok) {
+        const certs = (await certsRes.json()) as Record<string, string>;
+        const cert = certs[header.kid];
+        if (cert) {
+          const verifier = crypto.createVerify('RSA-SHA256');
+          verifier.update(`${parts[0]}.${parts[1]}`);
+          verifier.end();
+          if (verifier.verify(cert, Buffer.from(parts[2], 'base64url'))) {
+            return {
+              email: String(payload.email).trim().toLowerCase(),
+              uid: String(payload.sub),
+              name: payload.name ? String(payload.name) : undefined,
+              picture: payload.picture ? String(payload.picture) : undefined,
+            };
+          }
+          return null;
+        }
+      }
+    }
+
+    if (apiKey) {
+      const lookupRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      if (lookupRes.ok) {
+        const data = (await lookupRes.json()) as any;
+        const account = data?.users?.[0];
+        if (account?.email && account?.localId) {
+          return {
+            email: String(account.email).trim().toLowerCase(),
+            uid: String(account.localId),
+            name: account.displayName ? String(account.displayName) : undefined,
+            picture: account.photoUrl ? String(account.photoUrl) : undefined,
+          };
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+// 2b. Firebase Authentication & Google Login Bridge
+app.post('/api/auth/firebase-login', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, name, photoURL, avatar, uid, idToken } = req.body || {};
+
+    if (!idToken) {
+      res.status(401).json({ error: 'Verified Firebase ID token is required.' });
       return;
     }
 
-    const emailTrimmed = String(email).trim().toLowerCase();
-    const displayName = String(name || emailTrimmed.split('@')[0]).trim();
-    const resolvedAvatar = photoURL || avatar || null;
+    const verifiedToken = await verifyFirebaseIdToken(String(idToken));
+    if (!verifiedToken) {
+      res.status(401).json({ error: 'Invalid or expired Google authentication token.' });
+      return;
+    }
+
+    if (email && String(email).trim().toLowerCase() !== verifiedToken.email) {
+      res.status(401).json({ error: 'Authenticated email does not match Firebase token.' });
+      return;
+    }
+
+    const emailTrimmed = verifiedToken.email;
+    const displayName = String(verifiedToken.name || name || emailTrimmed.split('@')[0]).trim();
+    const resolvedAvatar = verifiedToken.picture || photoURL || avatar || null;
+    const verifiedUid = verifiedToken.uid || uid || null;
     const now = new Date().toISOString();
 
     // Check if user already exists
@@ -1215,7 +1298,7 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
       // Update firebase_uid and avatar if available
       try {
         db.prepare('UPDATE users SET firebase_uid = COALESCE(?, firebase_uid), email_verified = 1, updated_at = ? WHERE id = ?')
-          .run(uid || null, now, userId);
+          .run(verifiedUid, now, userId);
       } catch {}
 
       if (resolvedAvatar) {
@@ -1239,7 +1322,7 @@ app.post('/api/auth/firebase-login', (req: Request, res: Response): void => {
         hash,
         salt,
         displayName,
-        uid || null,
+        verifiedUid,
         now,
         now
       );
@@ -1349,7 +1432,7 @@ app.post('/api/auth/forgot-password', async (req: Request, res: Response): Promi
   }
 
   // Generate a secure 6-digit OTP code for password recovery
-  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const resetCode = crypto.randomInt(100000, 999999).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   const resetTokenHash = crypto.createHash('sha256').update(resetCode).digest('hex');
   db.prepare('UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?').run(resetTokenHash, expiresAt, user.id);
@@ -1498,7 +1581,7 @@ app.post('/api/user/orders', authenticate, async (req: AuthRequest, res: Respons
         return;
       }
       details.riotId = riotCheck.riotId;
-      details.riotVerified = true;
+      details.riotVerified = Boolean(riotCheck.verified);
     }
 
     // Server-Side Price Validation against persistent database catalog
@@ -1921,11 +2004,18 @@ app.get('/api/orders/:id/room', authenticate, (req: AuthRequest, res: Response):
     SELECT * FROM order_messages WHERE order_id = ? ORDER BY created_at ASC
   `).all(orderId);
 
+  const paymentVerified = ['PAYMENT_VERIFIED', 'PAID', 'COMPLETED'].includes(String(order.payment_status || '').toUpperCase()) || order.status === 'completed';
+  const verificationAdvanced = Boolean(
+    paymentVerified ||
+    ['SUBMITTED_FOR_VERIFICATION'].includes(String(order.payment_status || '').toUpperCase()) ||
+    ['processing', 'completed'].includes(String(order.status || '').toLowerCase())
+  );
+
   res.json({
     order: { id: order.id, ...order },
     stages: [
-      { key: 'placed', label: 'Payment Confirmed', completed: true },
-      { key: 'verifying', label: 'Riot ID Verification', completed: true },
+      { key: 'placed', label: 'Payment Confirmed', completed: paymentVerified },
+      { key: 'verifying', label: 'Verification & Review', completed: verificationAdvanced },
       { key: 'fulfillment', label: 'Order Room Processing', completed: order.status === 'processing' || order.status === 'completed' },
       { key: 'completed', label: 'Delivered & Completed', completed: order.status === 'completed' }
     ],
@@ -2313,7 +2403,7 @@ app.put('/api/user/profile', authenticate, async (req: AuthRequest, res: Respons
         return;
       }
       verifiedRiotId = riotCheck.riotId;
-      isRiotVerified = 1;
+      isRiotVerified = riotCheck.verified ? 1 : 0;
     }
   } else if (riotIdProvided) {
     verifiedRiotId = null;
@@ -2527,10 +2617,9 @@ app.get('/api/admin/staff', authenticate, adminOnly, (req: AuthRequest, res: Res
     `).all() as any[];
 
     const formatted = staffMembers.map(s => {
-      let permissions = [
-        'analytics', 'orders', 'inventory', 'listings', 'auctions',
-        'rentals', 'invoices', 'finance', 'users', 'support', 'tasks', 'settings'
-      ];
+      let permissions: string[] = s.role === 'superadmin'
+        ? ['analytics', 'orders', 'inventory', 'listings', 'auctions', 'rentals', 'invoices', 'finance', 'users', 'support', 'tasks', 'settings']
+        : [];
       if (s.permissions_json) {
         try {
           permissions = JSON.parse(s.permissions_json);
@@ -3020,10 +3109,10 @@ app.get('/api/admin/finance/overview', authenticate, adminOnly, (req: AuthReques
   const totalCompletedOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'completed'").get() as any).count;
   const totalInvoicesPaid = (db.prepare("SELECT COALESCE(SUM(final_total), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
   const totalTaxCollected = (db.prepare("SELECT COALESCE(SUM(tax_amount), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
+  const platformCommissions = (db.prepare("SELECT COALESCE(SUM(platform_fee), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
+  const sellerEarnings = (db.prepare("SELECT COALESCE(SUM(CASE WHEN platform_fee > 0 THEN final_total - platform_fee - tax_amount ELSE 0 END), 0) as total FROM invoices WHERE status = 'paid'").get() as any).total;
   const totalExpenses = (db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM expenses").get() as any).total;
-  const platformCommissions = Math.round(grossBuyerPaid * 0.10); // 10% standard platform commission
-  const sellerEarnings = grossBuyerPaid - platformCommissions;
-  const netProfit = platformCommissions - totalExpenses;
+  const netProfit = grossBuyerPaid - sellerEarnings - totalExpenses;
 
   res.json({
     grossVolume: grossBuyerPaid,
@@ -3323,22 +3412,12 @@ app.put('/api/admin/communication/templates/:id', authenticate, adminOnly, (req:
 
 // Get Current Active Payment Settings (Public)
 app.get('/api/payment/settings', (req: Request, res: Response): void => {
-  let settings = db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any;
+  const settings = db.prepare('SELECT * FROM payment_settings WHERE id = ?').get('default') as any;
   if (!settings) {
-    settings = {
-      id: 'default',
-      upi_id: 'thevibofficial@okhdfcbank',
-      payee_name: 'VIB Digital Services Platform',
-      qr_image_url: '/assets/reference_parts/part_01.png',
-      instructions: 'Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank. Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof.',
-      currency: 'INR',
-      support_whatsapp: '+918099641606',
-      support_email: 'thevibofficial@gmail.com',
-      manual_payment_enabled: 1,
-      verification_instructions: 'Payment verification typically completes within 5 to 15 minutes.'
-    };
+    res.json({ configured: false, settings: null });
+    return;
   }
-  res.json({ ...settings, settings });
+  res.json({ configured: true, ...settings, settings });
 });
 
 // Update Payment Settings (Admin Only)
@@ -3385,13 +3464,13 @@ app.put('/api/admin/payment/settings', authenticate, adminOnly, (req: AuthReques
       is_active = COALESCE(excluded.is_active, payment_settings.is_active),
       updated_at = excluded.updated_at
   `).run(
-    upi_id || 'thevibofficial@okhdfcbank',
-    payee_name || 'VIB Digital Services Platform',
-    account_name || payee_name || 'VIB Digital Services Platform',
+    upi_id || null,
+    payee_name || null,
+    account_name || payee_name || null,
     bank_name || '',
     account_number || '',
     ifsc_code || '',
-    qr_image_url || '/assets/reference_parts/part_01.png',
+    qr_image_url || null,
     instructions || '',
     support_whatsapp || '+918099641606',
     support_email || 'thevibofficial@gmail.com',
@@ -3808,19 +3887,18 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
 
     if (isIndianVP) {
       // Resolve package ID for code inventory matching
-      const resolvedTarget = resolveIndianVPPackageId(order.title, (order.details_json ? JSON.parse(order.details_json) : {})?.productId);
-      const pkgId = resolvedTarget || 'vp-475';
+      const pkgId = resolveIndianVPPackageId(order.title, (order.details_json ? JSON.parse(order.details_json) : {})?.productId);
 
       // Atomic code reservation from inventory (check both vp- and in- prefixes)
       let codeRow = db.prepare(`
         SELECT * FROM vp_codes WHERE order_id = ? AND status = 'reserved' LIMIT 1
       `).get(orderId) as any;
-      if (!codeRow) {
+      if (!codeRow && pkgId) {
         codeRow = db.prepare(`
           SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
         `).get(pkgId) as any;
       }
-      if (!codeRow && pkgId.startsWith('vp-')) {
+      if (!codeRow && pkgId && pkgId.startsWith('vp-')) {
         codeRow = db.prepare(`
           SELECT * FROM vp_codes WHERE package_id = ? AND status = 'available' LIMIT 1
         `).get(pkgId.replace('vp-', 'in-')) as any;
@@ -3844,15 +3922,16 @@ app.put('/api/admin/orders/:id/verify-payment', authenticate, staffOnly, async (
 
       } else {
         // Stock shortage: Do NOT fake a code! Honest fulfillment pending
+        const pkgLabel = pkgId || order.title;
         newFulfillmentStatus = 'FULFILLMENT_PENDING';
         timeline.push({
           status: 'FULFILLMENT_PENDING',
           timestamp: now,
-          note: `Payment approved, but code inventory for ${pkgId} is depleted. Order held in fulfillment queue.`,
+          note: `Payment approved, but code inventory for ${pkgLabel} is depleted. Order held in fulfillment queue.`,
           actor: 'system'
         });
 
-        inventoryShortagePackage = pkgId;
+        inventoryShortagePackage = pkgLabel;
       }
     } else if (order.title.toLowerCase().includes('php') || order.type === 'regional_vp') {
       // Regional VP: Strictly manual fulfillment via WhatsApp
@@ -4677,9 +4756,7 @@ app.post('/api/admin/listings', authenticate, staffOnly, (req: AuthRequest, res:
     const parsedPrice = Number(price_inr);
     const parsedLevel = Math.max(1, parseInt(String(level), 10) || 1);
     const parsedSkins = Array.isArray(skins) ? skins : [];
-    const parsedImages = Array.isArray(images) && images.length > 0
-      ? images
-      : ['/assets/skins/kuronami_vandal.png'];
+    const parsedImages = Array.isArray(images) ? images : [];
     const resolvedSkinCount = Number(skin_count) || parsedSkins.length;
     const resolvedKnifeCount = Number(knife_count) || 0;
 

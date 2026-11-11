@@ -151,13 +151,13 @@ export const ClientCoachingPage: React.FC<ClientCoachingPageProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/10">
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-300 font-mono">
                 <span className="px-2.5 py-1 rounded-lg bg-purple-950/70 border border-purple-500/30 text-purple-300 text-[11px]">
-                  Top 500 Radiants Only
+                  1-on-1 Coaching Sessions
                 </span>
                 <span className="px-2.5 py-1 rounded-lg bg-fuchsia-950/70 border border-fuchsia-500/30 text-fuchsia-300 text-[11px]">
-                  VCT Analysis Methodology
+                  VOD &amp; Mechanics Review
                 </span>
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[11px]">
-                  98% Rank Improvement Rate
+                  Structured Practice Plans
                 </span>
               </div>
               <button
@@ -271,40 +271,6 @@ export const ClientCoachingPage: React.FC<ClientCoachingPageProps> = ({
         </div>
       </section>
 
-      {/* 4. TESTIMONIALS */}
-      <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#0c0a18] border border-white/10 space-y-3.5">
-          <div className="flex items-center gap-2 text-amber-400">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-4 h-4 fill-amber-400" />
-            ))}
-            <span className="text-xs font-mono text-gray-300 ml-2">4.9 / 5.0 Average Coaching Rating</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-            <div className="p-4 rounded-xl bg-[#090615] border border-white/5 space-y-2">
-              <p className="text-xs text-gray-300 italic">
-                &ldquo;Went from Gold 2 to Ascendant 3 in 3 weeks. The round-by-round VOD breakdowns and crosshair placement routines completely transformed my game sense.&rdquo;
-              </p>
-              <div className="text-[11px] font-mono text-purple-400 font-bold">— Aarav K. (Gold 2 &rarr; Ascendant 3)</div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#090615] border border-white/5 space-y-2">
-              <p className="text-xs text-gray-300 italic">
-                &ldquo;Coach pinpointed my bad peek timings within 15 minutes. Improved my K/D from 0.85 to 1.34 in competitive lobbies.&rdquo;
-              </p>
-              <div className="text-[11px] font-mono text-fuchsia-400 font-bold">— Rohan M. (Silver 3 &rarr; Diamond 2)</div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#090615] border border-white/5 space-y-2">
-              <p className="text-xs text-gray-300 italic">
-                &ldquo;The post-plant lineups and retake communication drills made ranking up feel effortless. Reached Immortal for the first time!&rdquo;
-              </p>
-              <div className="text-[11px] font-mono text-cyan-400 font-bold">— Priya S. (Platinum 1 &rarr; Immortal 1)</div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };

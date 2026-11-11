@@ -63,7 +63,7 @@ export const FlexibleConfirmationPage: React.FC<FlexibleConfirmationPageProps> =
             <div className="text-left sm:text-right font-mono">
               <div className="text-xs text-gray-400">Application Reference:</div>
               <div className="text-base sm:text-lg font-bold text-purple-300 tracking-wider">
-                {applicationRef || 'VIB-FPP-2026-CONFIRMED'}
+                {applicationRef || 'Pending Reference'}
               </div>
             </div>
           </div>

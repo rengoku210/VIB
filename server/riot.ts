@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 export interface RiotVerificationResult {
   exists: boolean;
   verified: boolean;
+  syntaxOnly?: boolean;
   gameName: string;
   tagLine: string;
   riotId: string;
@@ -11,7 +12,7 @@ export interface RiotVerificationResult {
   region?: string;
   accountLevel?: number;
   cardSmall?: string;
-  source: 'riot_official_api' | 'henrik_api' | 'verified_registry' | 'format_heuristics';
+  source: 'riot_official_api' | 'henrik_api' | 'verified_registry' | 'format_validation' | 'format_heuristics';
   message: string;
   error?: string;
 }
@@ -54,7 +55,7 @@ export function parseRiotId(rawName: string, rawTag?: string): {
     return { gameName, tagLine, riotId, validSyntax: false, error: 'Riot username (gameName) is required.' };
   }
 
-  if (gameName.length < 3 || gameName.length > 24) {
+  if (gameName.length < 3 || gameName.length > 16) {
     return {
       gameName,
       tagLine,
@@ -332,37 +333,16 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
     }
   } catch {}
 
-  // 5. Intelligent Riot Structural Verification Engine (Fallback when external API keys are omitted)
-  // Ensures legitimate format, region prefix recognition, and non-random generation
-  const knownRegionPrefixes = ['ind', 'ap', 'na', 'eu', 'kr', 'br', 'latam', 'oce', 'sea', 'lan', 'las', 'tr', 'ru'];
-  const hasRegionTag = knownRegionPrefixes.some(p => lowerTag.startsWith(p));
-
-  const regionInferred = hasRegionTag
-    ? (lowerTag.startsWith('ind') || lowerTag.startsWith('ap') || lowerTag.startsWith('sea') ? 'ap'
-      : lowerTag.startsWith('na') ? 'na'
-      : lowerTag.startsWith('eu') || lowerTag.startsWith('tr') ? 'eu' : 'global')
-    : 'ap';
-
-  const generatedPuuid = 'puuid_' + crypto.createHash('sha256').update(riotId.toLowerCase()).digest('hex').substring(0, 32);
-  const recordId = 'riot_' + crypto.createHash('md5').update(riotId.toLowerCase()).digest('hex').substring(0, 12);
-
-  try {
-    db.prepare(`
-      INSERT OR REPLACE INTO riot_accounts (id, game_name, tag_line, riot_id, puuid, region, account_level, card_small, verified, source, verified_at, last_checked_at)
-      VALUES (?, ?, ?, ?, ?, ?, 50, NULL, 1, 'format_heuristics', ?, ?)
-    `).run(recordId, gameName, tagLine, riotId, generatedPuuid, regionInferred, now, now);
-  } catch {}
-
+  // 5. No external Riot / Henrik API key configured or upstream unreachable:
+  // Only confirm valid Name#Tag syntax; never fabricate a PUUID, level, or persist fake verification.
   return {
     exists: true,
-    verified: true,
+    verified: false,
+    syntaxOnly: true,
     gameName,
     tagLine,
     riotId,
-    puuid: generatedPuuid,
-    region: regionInferred,
-    accountLevel: 50,
-    source: 'format_heuristics',
-    message: `Legitimate Valorant Riot ID confirmed (${gameName}#${tagLine} • ${regionInferred.toUpperCase()}).`
+    source: 'format_validation',
+    message: 'Riot ID format valid (live Riot API check unavailable).',
   };
 }

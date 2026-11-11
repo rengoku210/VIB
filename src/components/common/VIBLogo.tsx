@@ -40,7 +40,7 @@ export const VIBLogo: React.FC<VIBLogoProps> = ({
             DIGITAL SERVICES
           </span>
           <span className="text-[9px] font-mono tracking-wider text-white/50 leading-tight">
-            EST. 2024 • MSME VERIFIED
+            DIGITAL MARKETPLACE &amp; ESCROW
           </span>
         </div>
       )}

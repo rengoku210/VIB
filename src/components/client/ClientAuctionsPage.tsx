@@ -76,16 +76,16 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
   const [timeLeft, setTimeLeft] = useState(() => (isAuctionActive ? getAuctionTimeLeft(auctionEndsAt) : { days: 0, hours: 0, minutes: 0, seconds: 0 }));
   const isAuctionExpired = !isAuctionActive;
 
-  const currentBid = Number(selectedLot?.current_bid) || Number(selectedLot?.starting_bid) || 1000;
-  const bidIncrement = Number(selectedLot?.bid_increment) || 150;
+  const currentBid = Number(selectedLot?.current_bid ?? selectedLot?.starting_bid ?? 0);
+  const bidIncrement = Number(selectedLot?.bid_increment ?? 0);
   const minRequiredBid = currentBid + bidIncrement;
-  const depositPct = Number(selectedLot?.deposit_pct) || 50;
+  const depositPct = Number(selectedLot?.deposit_pct ?? 50);
 
   // Real-time calculations as user types
   const parsedBid = parseInt(userBidInput, 10);
   const isValidBidAmount = !isNaN(parsedBid) && parsedBid >= minRequiredBid;
   const calculatedDeposit = isValidBidAmount
-    ? Math.max(Number(selectedLot?.min_deposit_amount) || 500, Math.round(parsedBid * (depositPct / 100)))
+    ? Math.max(Number(selectedLot?.min_deposit_amount ?? 0), Math.round(parsedBid * (depositPct / 100)))
     : 0;
 
   // Fetch all active lots
@@ -415,9 +415,9 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                     Account Specifications &amp; Transfer
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-gray-300">
-                    <div>Region: <strong className="text-white">{selectedLot.server_region || 'AP / Mumbai'}</strong></div>
-                    <div>Account Level: <strong className="text-white">{selectedLot.account_level || 150}</strong></div>
-                    <div>Delivery: <strong className="text-white">{selectedLot.delivery_eta || 'Within 2 Hours'}</strong></div>
+                    <div>Region: <strong className="text-white">{selectedLot.server_region || 'Not specified'}</strong></div>
+                    <div>Account Level: <strong className="text-white">{selectedLot.account_level ?? '—'}</strong></div>
+                    <div>Delivery: <strong className="text-white">{selectedLot.delivery_eta || 'Standard Escrow Transfer'}</strong></div>
                     <div>Deposit Required: <strong className="text-fuchsia-300">{depositPct}% of your bid</strong></div>
                   </div>
                   {selectedLot.included_benefits && (

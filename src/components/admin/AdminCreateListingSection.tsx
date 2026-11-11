@@ -69,19 +69,19 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priceINR, setPriceINR] = useState<number | ''>('');
-  const [rank, setRank] = useState('Ascendant 1');
-  const [peakRank, setPeakRank] = useState('Ascendant 3');
-  const [level, setLevel] = useState<number>(120);
+  const [rank, setRank] = useState(VALORANT_RANKS[0]?.name || 'Unranked');
+  const [peakRank, setPeakRank] = useState(VALORANT_RANKS[0]?.name || 'Unranked');
+  const [level, setLevel] = useState<number>(1);
   const [region, setRegion] = useState('Asia Pacific (Mumbai)');
   const [guaranteeType, setGuaranteeType] = useState<'guaranteed' | 'escrow_protected'>('escrow_protected');
-  const [sellerName, setSellerName] = useState('VIB Official Vault');
+  const [sellerName, setSellerName] = useState('');
   const [featured, setFeatured] = useState(false);
   const [status, setStatus] = useState<'published' | 'draft'>('published');
-  const [selectedThumbnail, setSelectedThumbnail] = useState('/assets/items/vandal-prime.png');
+  const [selectedThumbnail, setSelectedThumbnail] = useState('');
   const [customThumbnail, setCustomThumbnail] = useState('');
-  const [selectedSkins, setSelectedSkins] = useState<string[]>(['Kuronami Vandal', 'Prime Axe']);
+  const [selectedSkins, setSelectedSkins] = useState<string[]>([]);
   const [newSkinInput, setNewSkinInput] = useState('');
-  const [knifeCount, setKnifeCount] = useState<number>(1);
+  const [knifeCount, setKnifeCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
           featured,
           skin_count: selectedSkins.length,
           knife_count: Number(knifeCount) || 0,
-          images: [finalImage],
+          images: finalImage ? [finalImage] : [],
           skins: selectedSkins,
           status,
         }),
@@ -170,7 +170,7 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
       setTitle('');
       setDescription('');
       setPriceINR('');
-      setSelectedSkins(['Kuronami Vandal', 'Prime Axe']);
+      setSelectedSkins([]);
       setCustomThumbnail('');
 
       if (onSuccess) {
@@ -336,7 +336,7 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
               </label>
               <input
                 type="number"
-                min={1}
+                min={0}
                 value={level}
                 onChange={(e) => setLevel(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/15 focus:border-purple-400 text-white text-xs font-mono focus:outline-none"

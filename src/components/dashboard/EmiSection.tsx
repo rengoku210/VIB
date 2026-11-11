@@ -463,7 +463,7 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
                       <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
                       <div>
                         <div className="font-bold text-white text-xs font-mono">
-                          Agreement: {app.agreementRef || 'VIB-FPP-2026'}
+                          Agreement: {app.agreementRef || app.id}
                         </div>
                         <div className="text-[10px] text-gray-400 font-mono">
                           Official electronic contract binding this payment plan

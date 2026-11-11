@@ -138,7 +138,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
                   </p>
 
                   <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-cyan-200">
-                    <span className="px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20">Top 500 Radiants</span>
+                    <span className="px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20">Verified Boosters</span>
                     <span className="px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20">Offline Invisible</span>
                     <span className="px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20">Solo &amp; Duo Queue</span>
                   </div>
@@ -222,7 +222,7 @@ export const ClientRankupPage: React.FC<ClientRankupPageProps> = ({
               </div>
               <div>
                 <div className="font-bold text-xs text-white">Radiant Boosters</div>
-                <div className="text-[10px] text-gray-400">Top 500 verified players only</div>
+                <div className="text-[10px] text-gray-400">Verified competitive boosters</div>
               </div>
             </div>
 

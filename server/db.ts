@@ -1032,11 +1032,11 @@ export function seedDatabase() {
     `).run(
       adminId,
       'Chief Operations & Security Officer for VIB Digital Services Platform.',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      'VIB_Director#0001',
-      50000.0,
+      null,
+      null,
+      0.0,
       'verified',
-      128,
+      0,
       now
     );
 
@@ -1088,7 +1088,7 @@ export function seedCatalogAndBilling() {
       { id: 'fade', title: '3,650 VP (Fade Edition)', category: 'vp', price: 3499, orig: 4199, badge: 'BEST VALUE', desc: '3,650 Valorant Points instant top-up pack.', details: { vp: 3650, agent: 'FADE' } },
       { id: 'jett', title: '5,350 VP (Jett Edition)', category: 'vp', price: 4999, orig: 5999, badge: 'EPIC', desc: '5,350 Valorant Points instant top-up pack.', details: { vp: 5350, agent: 'JETT' } },
       { id: 'iso', title: '11,000 VP (Iso Edition)', category: 'vp', price: 9499, orig: 11999, badge: 'ULTIMATE', desc: '11,000 Valorant Points instant top-up pack.', details: { vp: 11000, agent: 'ISO' } },
-      { id: 'coaching-radiant-duo', title: 'Radiant Masterclass & Live Match Review', category: 'coaching', price: 1499, orig: 1999, badge: 'VERIFIED', desc: '1-on-1 private coaching session with tier-1 Radiant analyst, vod review, aim training schedule, and position playbook.', details: { durationHours: 2, coach: 'RadiantCoach#VIB', discordSession: true } },
+      { id: 'coaching-radiant-duo', title: 'Radiant Masterclass & Live Match Review', category: 'coaching', price: 1499, orig: 1999, badge: 'VERIFIED', desc: '1-on-1 private coaching session with tier-1 Radiant analyst, vod review, aim training schedule, and position playbook.', details: { durationHours: 2, coach: 'Assigned Radiant Analyst', discordSession: true } },
       { id: 'rankup-plat-to-dia', title: 'Platinum to Diamond Rankup Journey', category: 'rankup', price: 2999, orig: 3999, badge: 'FAST', desc: 'Professional duo queue assistance from Platinum to Diamond with guaranteed win rate and middleman safety.', details: { guaranteed: true, duoMode: true, streamAvailable: true } }
     ];
 
@@ -1551,7 +1551,7 @@ export function seedCatalogAndBilling() {
         priority_placement: 0,
         dedicated_agent: 0,
         lifetime_guaranteed: 0,
-        benefits: ['24-Hour Instagram Story Promotion', 'Reaches 50k+ Active Community Members', 'Direct Seller Tag & Link in Story', 'Fast 15-Minute Queue Scheduling'],
+        benefits: ['24-Hour Instagram Story Promotion', 'Shared across VIB Instagram Community', 'Direct Seller Tag & Link in Story', 'Fast 15-Minute Queue Scheduling'],
       },
       {
         id: 'ad-story-highlight-150',
@@ -1814,67 +1814,7 @@ export function seedCatalogAndBilling() {
     }
   }
 
-  // 13. Ensure Authentic Active Auction Lot is Present and Synced
-  const activeAuctionCount = (db.prepare("SELECT COUNT(*) as count FROM auction_lots WHERE status = 'active'").get() as any).count;
-  if (activeAuctionCount === 0) {
-    const existing = db.prepare("SELECT id FROM auction_lots WHERE id = 'lot_1938918fb9d6'").get() as any;
-    const futureDate = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString();
-    if (existing) {
-      db.prepare(`
-        UPDATE auction_lots SET
-          status = 'active',
-          lot_number = 'LOT #0881',
-          title = 'Kuronami Vandal & Radiant Gun Buddy Account',
-          starting_bid = 2000,
-          current_bid = 2400,
-          bid_increment = 150,
-          bid_count = 1,
-          highest_bidder_id = 'usr_bfafac0357170e62',
-          highest_bidder_name = 'Customer Test',
-          ends_at = ?,
-          winner_user_id = NULL,
-          winner_name = NULL,
-          winning_bid_amount = NULL,
-          winner_payment_status = NULL,
-          updated_at = ?
-        WHERE id = 'lot_1938918fb9d6'
-      `).run(futureDate, now);
-    } else {
-      db.prepare(`
-        INSERT INTO auction_lots (
-          id, lot_number, title, description, starting_bid, current_bid, bid_increment,
-          bid_count, highest_bidder_id, highest_bidder_name, ends_at, image_url,
-          status, created_at, updated_at, category, account_type, visibility,
-          account_name, server_region, account_level, inventory_details,
-          included_benefits, restrictions, transfer_info, additional_info_json,
-          gallery_images_json, starts_at, reserve_price, instant_buy_price,
-          deposit_pct, min_deposit_amount, winner_payment_deadline_hours,
-          winner_payment_deadline, currency, tax_rate_pct, platform_fee_pct,
-          delivery_method, delivery_eta, transfer_instructions, delivery_conditions,
-          min_eligibility, verification_required, allow_bid_raise, allow_cancellation,
-          deposit_refund_rules, forfeiture_rules, winner_user_id, winner_name,
-          winning_bid_amount, winner_payment_status, delivery_status
-        ) VALUES (
-          'lot_1938918fb9d6', 'LOT #0881', 'Kuronami Vandal & Radiant Gun Buddy Account',
-          'Premier competitive account with Kuronami Vandal (Max Level + All Colors), Champions 2024 Vandal & Blade, Reaver 2.0 Karambit, 1,200 VP Balance.',
-          2000, 2400, 150, 1, 'usr_bfafac0357170e62', 'Customer Test', ?,
-          '/assets/skins/kuronami_vandal.png', 'active', ?, ?, 'Valorant High Tier',
-          'radiant_full_access', 'public', 'VIB Competitive Vault', 'Asia Pacific (Mumbai)',
-          165, '', 'Full email access, OG transaction receipt, zero ban history',
-          'None. 100% clean standing.', 'Instant automated credential transfer upon payment settlement.',
-          '{}', '[]', ?, 0, 0, 50, 1000, 24, NULL, 'INR', 0, 0,
-          'Direct Escrow Transfer', 'Within 2 hours of payment settlement',
-          'Log in via Riot Client and configure two-factor authentication.',
-          'Customer must confirm receipt within 24 hours of delivery.',
-          'Verified VIB account with confirmed phone number', 1, 1, 0,
-          '100% automatic refund to losing bidders within 2 hours of auction closing.',
-          'If the winning bidder defaults after 24 hours, their security deposit is forfeited and the lot offered to next eligible bidder.',
-          NULL, NULL, NULL, NULL, 'pending'
-        )
-      `).run(futureDate, now, now, now);
-    }
-  }
-
+  // 13. Do not auto-seed demo auctions; auction lots must be created cleanly by staff.
   // The profile count is a cached aggregate. Repair it from persisted orders so
   // legacy/demo counts never appear as customer order history in CRM or dashboards.
   db.prepare(`

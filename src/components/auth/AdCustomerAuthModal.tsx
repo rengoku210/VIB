@@ -51,7 +51,6 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [debugOtp, setDebugOtp] = useState<string | null>(null);
 
   // Existing Customer Login State
   const [loginEmail, setLoginEmail] = useState('');
@@ -129,9 +128,6 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
       setOtpSent(true);
       setCooldown(60);
       setSuccessMessage(`A 6-digit verification code was sent to ${email.trim()}.`);
-      if (data.testCode) {
-        setDebugOtp(data.testCode);
-      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to send OTP. Please check your details.');
     } finally {
@@ -214,9 +210,6 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
       setLoginOtpSent(true);
       setLoginCooldown(60);
       setSuccessMessage(`Sign-in code sent to ${loginEmail.trim()}.`);
-      if (data.testCode) {
-        setDebugOtp(data.testCode);
-      }
     } catch (err: any) {
       setErrorMessage(err.message || 'No account found with this email. Please create an account.');
     } finally {
@@ -342,21 +335,6 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
             <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs flex items-start gap-2 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
               <span>{successMessage}</span>
-            </div>
-          )}
-          {debugOtp && (
-            <div className="mt-2 p-2 rounded-lg bg-purple-950/50 border border-purple-500/30 text-[11px] font-mono text-purple-300 flex items-center justify-between">
-              <span>Test OTP code: <strong>{debugOtp}</strong></span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (mode === 'register') setRegisterOtp(debugOtp);
-                  else setLoginOtp(debugOtp);
-                }}
-                className="text-[10px] text-purple-200 underline font-bold hover:text-white"
-              >
-                Auto-fill
-              </button>
             </div>
           )}
         </div>

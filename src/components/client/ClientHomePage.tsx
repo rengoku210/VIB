@@ -87,48 +87,59 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     }
   };
 
-  const [featuredLotId, setFeaturedLotId] = useState<string>('lot_1938918fb9d6');
+  const [featuredLot, setFeaturedLot] = useState<any | null>(null);
   const [auctionEndsAt, setAuctionEndsAt] = useState<string | null>(null);
-  const [auctionStatus, setAuctionStatus] = useState<'active' | 'paused' | 'ended'>('active');
+  const [auctionStatus, setAuctionStatus] = useState<'active' | 'paused' | 'ended'>('ended');
   const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(null));
-  const [currentBid, setCurrentBid] = useState(4850);
-  const [bidCount, setBidCount] = useState(18);
-  const [userBidInput, setUserBidInput] = useState('5000');
+  const [isAuctionLoading, setIsAuctionLoading] = useState(true);
+  const [isAuctionUnavailable, setIsAuctionUnavailable] = useState(false);
+  const [currentBid, setCurrentBid] = useState(0);
+  const [bidCount, setBidCount] = useState(0);
+  const [userBidInput, setUserBidInput] = useState('');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
   const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const bidIncrement = Number(featuredLot?.bid_increment ?? 150);
   const isAuctionActive = Boolean(
+    featuredLot &&
     auctionStatus === 'active' &&
     auctionEndsAt &&
     Date.parse(auctionEndsAt) > Date.now()
   );
-  const isAuctionExpired = !isAuctionActive;
 
   const fetchFeaturedAuction = async () => {
     try {
       const response = await fetch('/api/auctions');
-      if (!response.ok) return;
+      if (!response.ok) {
+        setFeaturedLot(null);
+        setIsAuctionUnavailable(true);
+        return;
+      }
       const data = await response.json();
       const lots = Array.isArray(data.lots) ? data.lots : [];
       const activeLot = lots.find((l: any) => l.status === 'active') || null;
-      if (activeLot) {
-        setFeaturedLotId(activeLot.id || 'lot_1938918fb9d6');
-        setCurrentBid(Number(activeLot.current_bid || 4850));
-        setBidCount(Number(activeLot.bid_count || 0));
-        setAuctionEndsAt(String(activeLot.ends_at || ''));
-        setAuctionStatus(activeLot.status || 'active');
+      const lot = activeLot || (lots.length > 0 ? lots[0] : null) || data.lot || null;
+      if (lot) {
+        setFeaturedLot(lot);
+        setCurrentBid(Number(lot.current_bid ?? lot.starting_bid ?? 0));
+        setBidCount(Number(lot.bid_count ?? 0));
+        setAuctionEndsAt(String(lot.ends_at || ''));
+        setAuctionStatus(lot.status || 'ended');
+        setIsAuctionUnavailable(false);
       } else {
-        const fallbackLot = (lots.length > 0 ? lots[0] : null) || data.lot || null;
-        if (fallbackLot) {
-          setFeaturedLotId(fallbackLot.id);
-          setCurrentBid(Number(fallbackLot.current_bid || 4850));
-          setBidCount(Number(fallbackLot.bid_count || 0));
-          setAuctionEndsAt(String(fallbackLot.ends_at || ''));
-          setAuctionStatus(fallbackLot.status || 'ended');
-        }
+        setFeaturedLot(null);
+        setCurrentBid(0);
+        setBidCount(0);
+        setAuctionEndsAt(null);
+        setAuctionStatus('ended');
+        setIsAuctionUnavailable(false);
       }
     } catch (error) {
       console.warn('Could not fetch featured auction:', error);
+      setFeaturedLot(null);
+      setIsAuctionUnavailable(true);
+    } finally {
+      setIsAuctionLoading(false);
     }
   };
 
@@ -152,7 +163,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
     setBidErrorMessage(null);
     setBidSuccessMessage(null);
     const bidVal = parseInt(userBidInput, 10);
-    const minRequired = currentBid + 150;
+    const minRequired = currentBid + bidIncrement;
     if (!Number.isFinite(bidVal) || bidVal < minRequired) {
       setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()}.`);
       return;
@@ -236,24 +247,16 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
       return { img, border };
     });
 
-    if (weaponPreviews.length === 0) {
-      weaponPreviews.push(
-        { img: '/assets/items/vandal-prime.png', border: 'border-amber-500/40' },
-        { img: '/assets/items/vandal-rgx.png', border: 'border-emerald-500/40' },
-        { img: '/assets/items/phantom-rgx.png', border: 'border-cyan-500/40' },
-      );
-    }
-
     return {
       id: item.id,
       badge: item.featured ? 'FEATURED' : 'VERIFIED',
       title: item.title,
-      sub: `Level ${item.level || 1} • ${item.skin_count || (skins.length > 0 ? skins.length : 20)}+ Skins`,
+      sub: `Level ${item.level || 1} • ${Number(item.skin_count ?? skins.length)} Skins`,
       rankName: rankStr,
       rankIcon: `/assets/hires/ranks/${rankFirstWord}.png`,
       slot1RankGlow: rankGlowMap[rankFirstWord] || 'border-cyan-400/40 shadow-[0_0_8px_rgba(6,182,212,0.3)]',
       priceINR: Number(item.price_inr),
-      originalPriceINR: Math.round(Number(item.price_inr) * 1.3),
+      originalPriceINR: item.original_price_inr ? Number(item.original_price_inr) : null,
       avatarImg,
       weapons: weaponPreviews,
     };
@@ -302,7 +305,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               </div>
               <div className="px-3 py-1.5 rounded-full bg-[#120f24]/80 backdrop-blur-sm border border-purple-500/35 text-xs text-gray-200 flex items-center gap-2">
                 <Users className="w-3.5 h-3.5 text-purple-400" />
-                <span className="font-medium text-[11px]">50,000+ Community</span>
+                <span className="font-medium text-[11px]">Escrow Protected</span>
               </div>
               <div className="px-3 py-1.5 rounded-full bg-[#120f24]/80 backdrop-blur-sm border border-purple-500/35 text-xs text-gray-200 flex items-center gap-2">
                 <Headphones className="w-3.5 h-3.5 text-purple-400" />
@@ -676,9 +679,11 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                     <span className="text-base font-black text-[#ff2ebb] font-rajdhani">
                       {formatCurrencyPrice(p.priceINR, currency)}
                     </span>
-                    <span className="text-[10px] text-gray-400 line-through font-mono">
-                      {formatCurrencyPrice(p.originalPriceINR, currency)}
-                    </span>
+                    {p.originalPriceINR && p.originalPriceINR > p.priceINR && (
+                      <span className="text-[10px] text-gray-400 line-through font-mono">
+                        {formatCurrencyPrice(p.originalPriceINR, currency)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -759,15 +764,14 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                     <Star className="w-3 h-3 text-pink-400" /> Fun Events
                   </span>
                 </div>
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => onNavigate('community')}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-800 via-pink-700 to-rose-600 hover:from-purple-700 hover:via-pink-600 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(236,72,153,0.35)] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Follow Us on Instagram</span>
+                  <span>Connect With Community Desk</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -1449,24 +1453,20 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
 
         <div className="p-5 rounded-xl bg-[#0a0717] border border-purple-500/15 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
           <div>
-            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-fuchsia-400 font-rajdhani">50,000+</div>
-            <div className="text-[11px] text-gray-400">Community Members</div>
+            <div className="text-base font-black text-purple-300 font-rajdhani uppercase">Manual Escrow</div>
+            <div className="text-[11px] text-gray-400">Staff-verified order handling</div>
           </div>
           <div>
-            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">1L+</div>
-            <div className="text-[11px] text-gray-400">Successful Transactions</div>
+            <div className="text-base font-black text-fuchsia-300 font-rajdhani uppercase">Transparent Pricing</div>
+            <div className="text-[11px] text-gray-400">Clear INR catalog rates</div>
           </div>
           <div>
-            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 font-rajdhani">99%</div>
-            <div className="text-[11px] text-gray-400">Positive Reviews</div>
+            <div className="text-base font-black text-emerald-300 font-rajdhani uppercase">Direct Support</div>
+            <div className="text-[11px] text-gray-400">Official WhatsApp assistance</div>
           </div>
-          <div className="flex flex-col items-center justify-center gap-1">
-            <div className="flex items-center gap-0.5">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Star key={i} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              ))}
-            </div>
-            <div className="text-[10px] text-gray-400">Trusted by a growing community of players across India.</div>
+          <div>
+            <div className="text-base font-black text-cyan-300 font-rajdhani uppercase">Live Order Room</div>
+            <div className="text-[11px] text-gray-400">Step-by-step fulfillment tracking</div>
           </div>
         </div>
       </section>
@@ -1728,10 +1728,10 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090615] border border-fuchsia-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-3.5 shadow-xl w-full md:w-auto">
               <div className="text-left sm:text-right">
                 <div className="text-[9px] font-mono text-fuchsia-300 uppercase font-bold tracking-wider">
-                  {isAuctionActive ? 'PRIMARY LOT CLOSES IN' : 'PRIMARY LOT STATUS'}
+                  {isAuctionActive ? 'PRIMARY LOT CLOSES IN' : 'AUCTION STATUS'}
                 </div>
                 <div className="text-xs text-gray-400 font-mono">
-                  {isAuctionActive ? 'Live Clock Sync' : auctionStatus === 'paused' ? 'Temporarily paused' : 'Bidding concluded'}
+                  {isAuctionLoading ? 'Syncing auctions…' : isAuctionUnavailable ? 'Auction service unavailable' : !featuredLot ? 'No active lot scheduled' : isAuctionActive ? 'Live Clock Sync' : auctionStatus === 'paused' ? 'Temporarily paused' : 'Bidding concluded'}
                 </div>
               </div>
               {isAuctionActive ? (
@@ -1753,7 +1753,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                 </div>
               ) : (
                 <div className="px-3.5 py-1.5 rounded-lg bg-fuchsia-950/60 border border-fuchsia-500/30 text-fuchsia-300 font-mono font-bold text-xs uppercase">
-                  {auctionStatus === 'paused' ? 'Paused' : 'Concluded'}
+                  {isAuctionLoading ? 'Loading' : !featuredLot ? 'Idle' : auctionStatus === 'paused' ? 'Paused' : 'Concluded'}
                 </div>
               )}
             </div>
@@ -1769,120 +1769,140 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a0717] via-[#0a0717]/85 to-[#0a0717]/15 z-[1]" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0717] via-transparent to-transparent z-[1]" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
-            {/* Glass Showcase Item */}
-            <div className="lg:col-span-6 p-6 rounded-2xl bg-gradient-to-b from-[#1c103b]/90 to-[#0d081e]/90 backdrop-blur-md border border-fuchsia-500/40 space-y-4 shadow-xl group relative overflow-hidden">
-              {/* Full-bleed Reference Part 20 weapon showcase backdrop */}
-              <img
-                src="/assets/reference_parts/part_20.png"
-                alt="Floating Weapon Showcase"
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 opacity-80"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0d081e] via-[#0d081e]/50 to-transparent z-[1]" />
-
-              <div className="flex items-center justify-between relative z-10">
-                <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-200 border border-fuchsia-500/40 uppercase">
-                  LOT #0881 • VAULTED COLLECTION
-                </span>
-                <div className="flex items-center gap-1 text-xs text-emerald-400 font-mono">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Verified Clean Account</span>
-                </div>
-              </div>
-
-              <div className="py-8 flex items-center justify-center relative z-10">
-                <div className="absolute inset-0 bg-fuchsia-600/15 rounded-full blur-3xl pointer-events-none" />
-                <img
-                  src="/assets/items/vandal-prime.png"
-                  alt="Kuronami Vandal Showcase"
-                  className="w-[88%] max-h-[220px] object-contain filter drop-shadow-[0_0_30px_rgba(217,70,239,0.7)] group-hover:scale-105 transition-transform duration-300 relative z-10"
-                />
-              </div>
-
-              <div className="space-y-1 pt-2 border-t border-white/10">
-                <h2 className="text-2xl font-black text-white font-rajdhani uppercase tracking-wide">
-                  KURONAMI VANDAL + CHAMPIONS 2024 COMBO
-                </h2>
-                <p className="text-xs text-gray-300">
-                  Includes Kuronami Vandal (Max Level + All Variants), Champions 2024 Vandal &amp; Blade, Reaver 2.0 Karambit, 1,200 VP Balance. Original Owner with First-Email.
-                </p>
-              </div>
+          {isAuctionLoading ? (
+            <div className="relative z-10 p-10 text-center text-xs font-mono text-gray-400">
+              Loading persisted auction schedule…
             </div>
-
-            {/* Bidding Controls & Form */}
-            <div className="lg:col-span-6 p-6 sm:p-7 rounded-2xl bg-[#090616] border border-white/10 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-[#120c2b] border border-white/5 space-y-1">
-                  <div className="text-[10px] font-mono text-gray-400 uppercase">CURRENT HIGHEST BID</div>
-                  <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">
-                    ₹{currentBid.toLocaleString()}
+          ) : !featuredLot ? (
+            <div className="relative z-10 p-8 sm:p-10 rounded-2xl bg-[#090616]/90 border border-white/10 text-center space-y-4">
+              <div className="text-xs font-mono uppercase tracking-widest text-fuchsia-300 font-bold">
+                VIB Auctions Vault
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white font-rajdhani uppercase">
+                No Active Auction Currently Scheduled
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-400 max-w-lg mx-auto">
+                Auction lots appear here once published by VIB administrators. Visit the Auctions board to inspect past or upcoming verified lots.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate('auctions')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider cursor-pointer"
+              >
+                <span>Open Auctions Board</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+              {/* Showcase Item */}
+              <div className="lg:col-span-6 p-6 rounded-2xl bg-gradient-to-b from-[#1c103b]/90 to-[#0d081e]/90 backdrop-blur-md border border-fuchsia-500/40 space-y-4 shadow-xl group relative overflow-hidden">
+                <div className="flex items-center justify-between relative z-10">
+                  <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-200 border border-fuchsia-500/40 uppercase">
+                    {featuredLot.lot_number} • {featuredLot.category || 'FEATURED LOT'}
+                  </span>
+                  <div className="flex items-center gap-1 text-xs text-emerald-400 font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{featuredLot.account_name || 'Verified Vault Lot'}</span>
                   </div>
-                  <div className="text-[11px] font-mono text-emerald-400">{bidCount} total bids placed</div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-[#120c2b] border border-white/5 space-y-1">
-                  <div className="text-[10px] font-mono text-gray-400 uppercase">MINIMUM NEXT BID</div>
-                  <div className="text-3xl font-black text-white font-rajdhani">
-                    ₹{(currentBid + 150).toLocaleString()}
+                {featuredLot.image_url && (
+                  <div className="py-8 flex items-center justify-center relative z-10">
+                    <div className="absolute inset-0 bg-fuchsia-600/15 rounded-full blur-3xl pointer-events-none" />
+                    <img
+                      src={featuredLot.image_url}
+                      alt={featuredLot.title}
+                      className="w-[88%] max-h-[220px] object-contain filter drop-shadow-[0_0_30px_rgba(217,70,239,0.7)] group-hover:scale-105 transition-transform duration-300 relative z-10"
+                    />
                   </div>
-                  <div className="text-[11px] font-mono text-fuchsia-300">+₹150 minimum increment</div>
+                )}
+
+                <div className="space-y-1 pt-2 border-t border-white/10">
+                  <h2 className="text-2xl font-black text-white font-rajdhani uppercase tracking-wide">
+                    {featuredLot.title}
+                  </h2>
+                  {featuredLot.description && (
+                    <p className="text-xs text-gray-300">{featuredLot.description}</p>
+                  )}
                 </div>
               </div>
 
-              {bidSuccessMessage && (
-                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>{bidSuccessMessage}</span>
-                </div>
-              )}
-              {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
+              {/* Bidding Controls & Form */}
+              <div className="lg:col-span-6 p-6 sm:p-7 rounded-2xl bg-[#090616] border border-white/10 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-[#120c2b] border border-white/5 space-y-1">
+                    <div className="text-[10px] font-mono text-gray-400 uppercase">CURRENT HIGHEST BID</div>
+                    <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">
+                      ₹{currentBid.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-mono text-emerald-400">{bidCount} total bids placed</div>
+                  </div>
 
-              <form onSubmit={handlePlaceBid} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-gray-300 font-bold uppercase">
-                    Enter Your Maximum Bid (INR)
-                  </label>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold">
-                        ₹
-                      </span>
-                      <input
-                        type="number"
-                        value={userBidInput}
-                        onChange={(e) => setUserBidInput(e.target.value)}
-                        min={currentBid + 150}
-                        className="w-full pl-8 pr-4 py-3 sm:py-3.5 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
-                        placeholder="Enter amount"
-                      />
+                  <div className="p-4 rounded-xl bg-[#120c2b] border border-white/5 space-y-1">
+                    <div className="text-[10px] font-mono text-gray-400 uppercase">MINIMUM NEXT BID</div>
+                    <div className="text-3xl font-black text-white font-rajdhani">
+                      ₹{(currentBid + bidIncrement).toLocaleString()}
+                    </div>
+                    <div className="text-[11px] font-mono text-fuchsia-300">+₹{bidIncrement} minimum increment</div>
+                  </div>
+                </div>
+
+                {bidSuccessMessage && (
+                  <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span>{bidSuccessMessage}</span>
+                  </div>
+                )}
+                {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
+
+                <form onSubmit={handlePlaceBid} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-mono text-gray-300 font-bold uppercase">
+                      Enter Your Maximum Bid (INR)
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          value={userBidInput}
+                          onChange={(e) => setUserBidInput(e.target.value)}
+                          min={currentBid + bidIncrement}
+                          className="w-full pl-8 pr-4 py-3 sm:py-3.5 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
+                          placeholder="Enter amount"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isPlacingBid || !isAuctionActive}
+                        className="min-h-[44px] px-8 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:opacity-50"
+                      >
+                        {isPlacingBid ? 'OPENING AUCTION…' : !isAuctionActive ? 'AUCTION CONCLUDED' : 'PLACE BID'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-purple-400" />
+                      <span>Guaranteed Escrow Protection</span>
                     </div>
                     <button
-                      type="submit"
-                      disabled={isPlacingBid || !isAuctionActive}
-                      className="min-h-[44px] px-8 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:opacity-50"
+                      type="button"
+                      onClick={() => onNavigate('auctions')}
+                      className="text-fuchsia-400 hover:text-fuchsia-300 font-bold font-rajdhani uppercase flex items-center gap-1 cursor-pointer"
                     >
-                      {isPlacingBid ? 'OPENING AUCTION…' : !isAuctionActive ? 'AUCTION CONCLUDED' : 'PLACE BID'}
+                      <span>View All Active Lots</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
-                  <div className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-purple-400" />
-                    <span>Guaranteed Escrow Protection</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('auctions')}
-                    className="text-fuchsia-400 hover:text-fuchsia-300 font-bold font-rajdhani uppercase flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>View All Active Lots</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </form>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -1938,45 +1958,6 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2.5">
-                <a
-                  href="https://discord.gg"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#5865F2]/20 border border-[#5865F2]/40 flex items-center justify-center text-[#5865F2] hover:bg-[#5865F2] hover:text-white transition-all shadow-sm"
-                  title="Discord"
-                >
-                  <Discord className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#E1306C]/20 border border-[#E1306C]/40 flex items-center justify-center text-[#E1306C] hover:bg-[#E1306C] hover:text-white transition-all shadow-sm"
-                  title="Instagram"
-                >
-                  <Instagram className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://t.me"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#229ED9]/20 border border-[#229ED9]/40 flex items-center justify-center text-[#229ED9] hover:bg-[#229ED9] hover:text-white transition-all shadow-sm"
-                  title="Telegram"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </a>
-                <a
-                  href="https://youtube.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-lg bg-[#FF0000]/20 border border-[#FF0000]/40 flex items-center justify-center text-[#FF0000] hover:bg-[#FF0000] hover:text-white transition-all shadow-sm"
-                  title="YouTube"
-                >
-                  <Youtube className="w-4 h-4" />
-                </a>
-              </div>
-
               <button
                 onClick={() => onNavigate('community')}
                 className="px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer shadow-lg flex items-center gap-2 whitespace-nowrap"
@@ -1985,7 +1966,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                   boxShadow: '0 0 20px rgba(168, 85, 247, 0.45)',
                 }}
               >
-                <span>Join Now</span>
+                <span>Join Community Desk</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

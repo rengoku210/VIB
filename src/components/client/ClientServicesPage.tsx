@@ -60,59 +60,58 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
   // ---------------------------------------------------------------------------
   // LIVE AUCTION COUNTDOWN TIMER (Real-time ticking state)
   // ---------------------------------------------------------------------------
-  const [featuredLotId, setFeaturedLotId] = useState<string>('lot_1938918fb9d6');
+  const [featuredLot, setFeaturedLot] = useState<any | null>(null);
   const [auctionEndsAt, setAuctionEndsAt] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(() => getAuctionTimeLeft(null));
   const [isAuctionLoading, setIsAuctionLoading] = useState(true);
   const [isAuctionUnavailable, setIsAuctionUnavailable] = useState(false);
   const [currentBid, setCurrentBid] = useState(0);
   const [bidCount, setBidCount] = useState(0);
-  const [auctionStatus, setAuctionStatus] = useState<'active' | 'paused' | 'ended'>('active');
+  const [auctionStatus, setAuctionStatus] = useState<'active' | 'paused' | 'ended'>('ended');
   const [userBidInput, setUserBidInput] = useState('');
   const [bidSuccessMessage, setBidSuccessMessage] = useState<string | null>(null);
   const [bidErrorMessage, setBidErrorMessage] = useState<string | null>(null);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const bidIncrement = Number(featuredLot?.bid_increment ?? 150);
   const isAuctionActive = Boolean(
     !isAuctionLoading &&
     !isAuctionUnavailable &&
+    featuredLot &&
     auctionStatus === 'active' &&
     auctionEndsAt &&
     Date.parse(auctionEndsAt) > Date.now()
   );
-  const isAuctionExpired = !isAuctionLoading && !isAuctionActive;
 
   const fetchFeaturedAuction = async () => {
     try {
       const response = await fetch('/api/auctions');
       if (!response.ok) {
+        setFeaturedLot(null);
         setIsAuctionUnavailable(true);
         return;
       }
       const data = await response.json();
       const lots = Array.isArray(data.lots) ? data.lots : [];
       const activeLot = lots.find((l: any) => l.status === 'active') || null;
-      if (activeLot) {
-        setFeaturedLotId(activeLot.id || 'lot_1938918fb9d6');
-        setCurrentBid(Number(activeLot.current_bid || 0));
-        setBidCount(Number(activeLot.bid_count || 0));
-        setAuctionEndsAt(String(activeLot.ends_at || ''));
-        setAuctionStatus(activeLot.status || 'active');
+      const lot = activeLot || (lots.length > 0 ? lots[0] : null) || data.lot || null;
+      if (lot) {
+        setFeaturedLot(lot);
+        setCurrentBid(Number(lot.current_bid ?? lot.starting_bid ?? 0));
+        setBidCount(Number(lot.bid_count ?? 0));
+        setAuctionEndsAt(String(lot.ends_at || ''));
+        setAuctionStatus(lot.status || 'ended');
         setIsAuctionUnavailable(false);
       } else {
-        const fallbackLot = (lots.length > 0 ? lots[0] : null) || data.lot || null;
-        if (fallbackLot) {
-          setFeaturedLotId(fallbackLot.id);
-          setCurrentBid(Number(fallbackLot.current_bid || 0));
-          setBidCount(Number(fallbackLot.bid_count || 0));
-          setAuctionEndsAt(String(fallbackLot.ends_at || ''));
-          setAuctionStatus(fallbackLot.status || 'ended');
-          setIsAuctionUnavailable(false);
-        } else {
-          setIsAuctionUnavailable(true);
-        }
+        setFeaturedLot(null);
+        setCurrentBid(0);
+        setBidCount(0);
+        setAuctionEndsAt(null);
+        setAuctionStatus('ended');
+        setIsAuctionUnavailable(false);
       }
     } catch (error) {
       console.warn('Could not fetch featured auction:', error);
+      setFeaturedLot(null);
       setIsAuctionUnavailable(true);
     } finally {
       setIsAuctionLoading(false);
@@ -169,7 +168,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
     setBidErrorMessage(null);
     setBidSuccessMessage(null);
     const bidVal = parseInt(userBidInput, 10);
-    const minRequired = currentBid + 150;
+    const minRequired = currentBid + bidIncrement;
     if (!Number.isFinite(bidVal) || bidVal < minRequired) {
       setBidErrorMessage(`Bid must be at least ₹${minRequired.toLocaleString()}.`);
       return;
@@ -953,20 +952,6 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
             })}
           </div>
 
-          {/* Testimonial Quote */}
-          <div className="p-4 rounded-xl bg-[#090615] border border-purple-500/20 relative z-10 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center text-white font-black text-sm font-rajdhani flex-shrink-0">
-              AK
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs sm:text-sm text-gray-200 italic">
-                &ldquo;Went from Gold 2 to Ascendant 3 in 3 weeks. The round-by-round VOD breakdowns and crosshair placement routines completely transformed my game sense.&rdquo;
-              </p>
-              <div className="text-[11px] font-mono text-purple-400 font-bold">
-                — Aarav K. • Verified VIB Student (Gold 2 &rarr; Ascendant 3)
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1035,104 +1020,130 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
           </div>
 
           {/* Featured Live Auction Item Showpiece */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center relative z-10">
-            {/* Left Glass Showcase Display */}
-            <div className="lg:col-span-6 p-6 rounded-2xl bg-gradient-to-b from-[#180e33] to-[#0b0718] border border-fuchsia-500/40 relative overflow-hidden group shadow-xl">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-200 border border-fuchsia-500/40 uppercase">
-                  LOT #0881 • ULTRA RARE
-                </span>
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Verified Vaulted Item</span>
-                </div>
-              </div>
-
-              {/* Weapon Render */}
-              <div className="py-6 flex items-center justify-center relative">
-                <div className="absolute inset-0 bg-fuchsia-600/10 rounded-full blur-2xl pointer-events-none" />
-                <img
-                  src="/assets/items/vandal-prime.png"
-                  alt="Auction Showcase Vandal"
-                  className="w-[85%] max-h-[180px] object-contain filter drop-shadow-[0_0_25px_rgba(217,70,239,0.6)] group-hover:scale-105 transition-transform duration-300 relative z-10"
-                />
-              </div>
-
-              <div className="space-y-1 pt-2 border-t border-white/10">
-                <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide">
-                  KURONAMI VANDAL + CHAMPIONS 2024 COMBO
-                </h3>
-                <p className="text-xs text-gray-300">
-                  Includes Kuronami Vandal (Max Level + All Colors), Champions 2024 Vandal &amp; Blade, Reaver 2.0 Karambit, 1,200 VP Balance.
-                </p>
-              </div>
+          {isAuctionLoading ? (
+            <div className="relative z-10 p-10 text-center text-xs font-mono text-gray-400">
+              Syncing live auction catalog…
             </div>
-
-            {/* Right Bidding Controls */}
-            <div className="lg:col-span-6 p-6 rounded-2xl bg-[#0a0717] border border-white/10 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3.5 rounded-xl bg-[#110c26] border border-white/5 space-y-1">
-                  <div className="text-[10px] font-mono text-gray-400 uppercase">CURRENT HIGHEST BID</div>
-                  <div className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">
-                    ₹{currentBid.toLocaleString()}
+          ) : !featuredLot ? (
+            <div className="relative z-10 p-8 rounded-2xl bg-[#090616]/90 border border-white/10 text-center space-y-4">
+              <div className="text-xs font-mono uppercase tracking-widest text-fuchsia-300 font-bold">
+                VIB Auctions Vault
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white font-rajdhani uppercase">
+                No Active Auction Lots Available
+              </h3>
+              <p className="text-xs text-gray-400 max-w-md mx-auto">
+                There are currently no active timed auction lots published. Check back later or open the Auctions page.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate('auctions')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider cursor-pointer"
+              >
+                <span>Open Auctions Board</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center relative z-10">
+              {/* Left Showcase Display */}
+              <div className="lg:col-span-6 p-6 rounded-2xl bg-gradient-to-b from-[#180e33] to-[#0b0718] border border-fuchsia-500/40 relative overflow-hidden group shadow-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-200 border border-fuchsia-500/40 uppercase">
+                    {featuredLot.lot_number} • {featuredLot.category || 'AUCTION LOT'}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{featuredLot.account_name || 'Verified Vault Lot'}</span>
                   </div>
-                  <div className="text-[10px] font-mono text-emerald-400">{bidCount} total bids placed</div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-[#110c26] border border-white/5 space-y-1">
-                  <div className="text-[10px] font-mono text-gray-400 uppercase">MINIMUM NEXT BID</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white font-rajdhani">
-                    ₹{(currentBid + 150).toLocaleString()}
+                {featuredLot.image_url && (
+                  <div className="py-6 flex items-center justify-center relative">
+                    <div className="absolute inset-0 bg-fuchsia-600/10 rounded-full blur-2xl pointer-events-none" />
+                    <img
+                      src={featuredLot.image_url}
+                      alt={featuredLot.title}
+                      className="w-[85%] max-h-[180px] object-contain filter drop-shadow-[0_0_25px_rgba(217,70,239,0.6)] group-hover:scale-105 transition-transform duration-300 relative z-10"
+                    />
                   </div>
-                  <div className="text-[10px] font-mono text-fuchsia-300">+₹150 minimum step</div>
+                )}
+
+                <div className="space-y-1 pt-2 border-t border-white/10">
+                  <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide">
+                    {featuredLot.title}
+                  </h3>
+                  {featuredLot.description && (
+                    <p className="text-xs text-gray-300">{featuredLot.description}</p>
+                  )}
                 </div>
               </div>
 
-              {/* Bid Success Toast */}
-              {bidSuccessMessage && (
-                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>{bidSuccessMessage}</span>
-                </div>
-              )}
-              {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
-
-              {/* Interactive Bid Form */}
-              <form onSubmit={handlePlaceBid} className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-mono text-gray-300 font-bold uppercase">
-                    Enter Your Maximum Bid (INR)
-                  </label>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold">
-                        ₹
-                      </span>
-                      <input
-                        type="number"
-                        value={userBidInput}
-                        onChange={(e) => setUserBidInput(e.target.value)}
-                        min={currentBid + 150}
-                        className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
-                        placeholder="Enter amount"
-                      />
+              {/* Right Bidding Controls */}
+              <div className="lg:col-span-6 p-6 rounded-2xl bg-[#0a0717] border border-white/10 space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3.5 rounded-xl bg-[#110c26] border border-white/5 space-y-1">
+                    <div className="text-[10px] font-mono text-gray-400 uppercase">CURRENT HIGHEST BID</div>
+                    <div className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-amber-300 font-rajdhani">
+                      ₹{currentBid.toLocaleString()}
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isPlacingBid || isAuctionLoading || isAuctionUnavailable || !isAuctionActive}
-                      className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center disabled:opacity-50"
-                    >
-                      {isPlacingBid ? 'OPENING AUCTION…' : isAuctionLoading ? 'LOADING…' : isAuctionUnavailable ? 'UNAVAILABLE' : !isAuctionActive ? 'AUCTION CONCLUDED' : 'PLACE BID'}
-                    </button>
+                    <div className="text-[10px] font-mono text-emerald-400">{bidCount} total bids placed</div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#110c26] border border-white/5 space-y-1">
+                    <div className="text-[10px] font-mono text-gray-400 uppercase">MINIMUM NEXT BID</div>
+                    <div className="text-2xl sm:text-3xl font-black text-white font-rajdhani">
+                      ₹{(currentBid + bidIncrement).toLocaleString()}
+                    </div>
+                    <div className="text-[10px] font-mono text-fuchsia-300">+₹{bidIncrement} minimum step</div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-gray-400">
-                  <span>Guaranteed Escrow Protection</span>
-                  <span>Instant SMS/WhatsApp Notification</span>
-                </div>
-              </form>
+
+                {/* Bid Success Toast */}
+                {bidSuccessMessage && (
+                  <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span>{bidSuccessMessage}</span>
+                  </div>
+                )}
+                {bidErrorMessage && <p role="alert" className="text-xs text-red-300">{bidErrorMessage}</p>}
+
+                {/* Interactive Bid Form */}
+                <form onSubmit={handlePlaceBid} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-300 font-bold uppercase">
+                      Enter Your Maximum Bid (INR)
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          value={userBidInput}
+                          onChange={(e) => setUserBidInput(e.target.value)}
+                          min={currentBid + bidIncrement}
+                          className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#150f2e] border border-white/15 focus:border-fuchsia-500 focus:outline-none text-white font-mono font-bold text-base"
+                          placeholder="Enter amount"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isPlacingBid || isAuctionLoading || isAuctionUnavailable || !isAuctionActive}
+                        className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-black font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center disabled:opacity-50"
+                      >
+                        {isPlacingBid ? 'OPENING AUCTION…' : isAuctionLoading ? 'LOADING…' : isAuctionUnavailable ? 'UNAVAILABLE' : !isAuctionActive ? 'AUCTION CONCLUDED' : 'PLACE BID'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                    <span>Guaranteed Escrow Protection</span>
+                    <span>Instant SMS/WhatsApp Notification</span>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Exclusive Deals Strip */}
           <div className="pt-2 border-t border-white/[0.08] relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

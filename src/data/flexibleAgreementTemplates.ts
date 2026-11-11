@@ -140,7 +140,7 @@ export function generateAccountAgreementHtml(data: AgreementData): string {
 
   <h2>2. PROFILE DETAILS & FINANCING SCHEDULE</h2>
   <table>
-    <tr><th>Profile Title</th><td>${data.service.title}</td><th>Listing ID</th><td>${data.service.listingId || 'LST-VERIFIED'}</td></tr>
+    <tr><th>Profile Title</th><td>${data.service.title}</td><th>Listing ID</th><td>${data.service.listingId || 'N/A'}</td></tr>
     <tr><th>Profile MRP</th><td>₹${data.financials.serviceCost.toLocaleString()}</td><th>Down Payment Due</th><td>₹${data.financials.downPayment.toLocaleString()} (${data.financials.downPaymentPct || 40}%)</td></tr>
     <tr><th>Financed Balance</th><td>₹${data.financials.principalBalance.toLocaleString()}</td><th>Fixed Profit Margin</th><td>₹${data.financials.fixedProfit.toLocaleString()}</td></tr>
     <tr><th>Total Payable</th><td><strong>₹${data.financials.totalPayable.toLocaleString()}</strong></td><th>Payment Cadence</th><td>${data.financials.paymentFrequency.toUpperCase()}</td></tr>

@@ -249,8 +249,8 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
               <div className="pt-2">
                 <button
                   onClick={() => {
-                    const el = document.getElementById('php-packs-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    const el = document.getElementById('php-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                   className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-600 hover:to-cyan-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.4)] flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
@@ -1121,9 +1121,9 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             </div>
             <div>
               <div className="font-extrabold text-xs sm:text-sm text-white font-rajdhani">
-                Trusted by 50,000+ Users
+                Community Trusted
               </div>
-              <div className="text-[11px] text-gray-400">A growing community</div>
+              <div className="text-[11px] text-gray-400">Transparent delivery &amp; escrow</div>
             </div>
           </div>
         </div>

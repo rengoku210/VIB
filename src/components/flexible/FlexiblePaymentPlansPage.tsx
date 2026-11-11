@@ -143,7 +143,8 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
     const downPayment = Math.round(priceINR * (downPaymentPct / 100));
     const financed = priceINR - downPayment;
     const fixedProfit = slab.fixedProfit;
-    const totalPayable = financed + fixedProfit;
+    const remainingPayable = financed + fixedProfit;
+    const totalPayable = downPayment + remainingPayable;
 
     const matchingOpts = (slab.options || []).filter((o: any) => o.frequency === frequency);
     const availableOptions = matchingOpts.length > 0 ? matchingOpts : slab.options || [];
@@ -151,7 +152,7 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
     const matchedOpt = availableOptions[chosenIdx] || availableOptions[0];
     const totalInstallments = matchedOpt?.installments ?? (frequency === 'weekly' ? 4 : 3);
     const actualFreq = (matchedOpt?.frequency || frequency) as 'weekly' | 'monthly';
-    const installmentAmount = Math.round(totalPayable / totalInstallments);
+    const installmentAmount = Math.round(remainingPayable / totalInstallments);
 
     return {
       priceINR,

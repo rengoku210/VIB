@@ -51,25 +51,25 @@ export const AdminAuctionsManagement: React.FC = () => {
     category: 'valorant_account',
     account_type: 'radiant_full_access',
     description: '',
-    image_url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/27/largeicon.png',
+    image_url: '',
     gallery_images_json: '[]',
     visibility: 'public',
     status: 'draft',
     // Account details
-    account_name: 'VIB Radiant Vault Asset',
+    account_name: '',
     server_region: 'ap_mumbai',
-    account_level: 220,
-    inventory_details: 'Kuronami Vandal (Max Level, all variants), Singularity Phantom, Imperium Melee, Champions 2023 Bundle',
-    included_benefits: 'OG email access, clean behavioral standing, zero third-party flag history',
-    restrictions: 'None. Permanent lifetime warranty through VIB escrow guarantee.',
-    transfer_info: 'Direct automated vault credential issuance upon payment clearance.',
+    account_level: 0,
+    inventory_details: '',
+    included_benefits: '',
+    restrictions: '',
+    transfer_info: '',
     // Pricing
-    starting_bid: 5000,
+    starting_bid: 0,
     bid_increment: 500,
-    reserve_price: 10000,
-    instant_buy_price: 35000,
+    reserve_price: 0,
+    instant_buy_price: 0,
     deposit_pct: 50.0,
-    min_deposit_amount: 1000,
+    min_deposit_amount: 0,
     starts_at: new Date().toISOString().slice(0, 16),
     ends_at: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 16),
     winner_payment_deadline_hours: 24,
@@ -352,7 +352,13 @@ export const AdminAuctionsManagement: React.FC = () => {
                     <td className="p-3.5">
                       <div className="flex items-center gap-3">
                         <img
-                          src={lot.image_url || '/assets/skins/kuronami_vandal.png'}
+                          src={lot.image_url || '/assets/hires/profiles/card1_exact.jpg'}
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (!img.src.endsWith('/assets/hires/profiles/card1_exact.jpg')) {
+                              img.src = '/assets/hires/profiles/card1_exact.jpg';
+                            }
+                          }}
                           alt={lot.title}
                           className="w-10 h-10 rounded-lg object-contain bg-white/5 border border-white/10 p-1"
                         />

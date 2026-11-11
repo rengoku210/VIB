@@ -70,26 +70,25 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
   }, []);
   const [popularOnly, setPopularOnly] = useState(false);
   const [bestValueOnly, setBestValueOnly] = useState(false);
-  const [discountedOnly, setDiscountedOnly] = useState(false);
   const [priceMax, setPriceMax] = useState(200000);
   const [sortBy, setSortBy] = useState('recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-  // Exact 13 VP packs matching Reference 2
+  // Catalog VP packs (pricing sourced from server products table)
   const vpPacks = [
-    { id: 'in-475', vp: '475 VP', priceINR: 499, originalINR: 599, badge: null },
-    { id: 'in-1000', vp: '1,000 VP', priceINR: 999, originalINR: 1199, badge: null },
-    { id: 'in-2050', vp: '2,050 VP', priceINR: 1899, originalINR: 2199, badge: null },
-    { id: 'in-3650', vp: '3,650 VP', priceINR: 3199, originalINR: 3799, badge: 'POPULAR', badgeType: 'amber' },
-    { id: 'in-5350', vp: '5,350 VP', priceINR: 4499, originalINR: 5199, badge: null },
-    { id: 'in-7400', vp: '7,400 VP', priceINR: 6199, originalINR: 7199, badge: null },
-    { id: 'in-11000', vp: '11,000 VP', priceINR: 8999, originalINR: 10499, badge: 'BEST VALUE', badgeType: 'amber' },
-    { id: 'in-14650', vp: '14,650 VP', priceINR: 11999, originalINR: 13999, badge: null },
-    { id: 'in-22000', vp: '22,000 VP', priceINR: 17999, originalINR: 20999, badge: null },
-    { id: 'in-44000', vp: '44,000 VP', priceINR: 34999, originalINR: 41999, badge: null },
-    { id: 'in-66000', vp: '66,000 VP', priceINR: 49999, originalINR: 59999, badge: null },
-    { id: 'in-110000', vp: '110,000 VP', priceINR: 79999, originalINR: 96999, badge: null },
-    { id: 'in-220000', vp: '220,000 VP', priceINR: 149999, originalINR: 189999, badge: 'EXCLUSIVE', badgeType: 'cyan' },
+    { id: 'in-475', vp: '475 VP', priceINR: 499, badge: null },
+    { id: 'in-1000', vp: '1,000 VP', priceINR: 999, badge: null },
+    { id: 'in-2050', vp: '2,050 VP', priceINR: 1899, badge: null },
+    { id: 'in-3650', vp: '3,650 VP', priceINR: 3199, badge: 'POPULAR', badgeType: 'amber' },
+    { id: 'in-5350', vp: '5,350 VP', priceINR: 4499, badge: null },
+    { id: 'in-7400', vp: '7,400 VP', priceINR: 6199, badge: null },
+    { id: 'in-11000', vp: '11,000 VP', priceINR: 8999, badge: 'BEST VALUE', badgeType: 'amber' },
+    { id: 'in-14650', vp: '14,650 VP', priceINR: 11999, badge: null },
+    { id: 'in-22000', vp: '22,000 VP', priceINR: 17999, badge: null },
+    { id: 'in-44000', vp: '44,000 VP', priceINR: 34999, badge: null },
+    { id: 'in-66000', vp: '66,000 VP', priceINR: 49999, badge: null },
+    { id: 'in-110000', vp: '110,000 VP', priceINR: 79999, badge: null },
+    { id: 'in-220000', vp: '220,000 VP', priceINR: 149999, badge: 'EXCLUSIVE', badgeType: 'cyan' },
   ];
 
   const handleBuy = (pack: typeof vpPacks[0]) => {
@@ -115,7 +114,6 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
     if (p.priceINR > priceMax) return false;
     if (popularOnly && p.badge !== 'POPULAR') return false;
     if (bestValueOnly && p.badge !== 'BEST VALUE') return false;
-    if (discountedOnly && !p.originalINR) return false;
     const pkgId = 'vp-' + p.id.replace('in-', '');
     const available = stockMap[pkgId] ?? 0;
     if (inStockOnly && available <= 0) return false;
@@ -303,7 +301,7 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                   className="w-full accent-purple-500 cursor-pointer h-1.5 bg-white/10 rounded-lg"
                 />
                 <div className="text-[11px] font-mono text-purple-300">
-                  ₹0 – ₹{priceMax >= 150000 ? '20,000+' : priceMax.toLocaleString('en-IN')}
+                  ₹0 – ₹{priceMax >= 150000 ? '1,50,000+' : priceMax.toLocaleString('en-IN')}
                 </div>
               </div>
 
@@ -354,15 +352,6 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                     className="accent-purple-500 rounded cursor-pointer"
                   />
                   <span>Best Value</span>
-                </label>
-                <label className="flex items-center gap-2.5 text-xs text-gray-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discountedOnly}
-                    onChange={(e) => setDiscountedOnly(e.target.checked)}
-                    className="accent-purple-500 rounded cursor-pointer"
-                  />
-                  <span>Discounted</span>
                 </label>
               </div>
             </div>
@@ -461,8 +450,8 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
               <div className="flex items-center gap-2.5 text-xs font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/25 px-3 py-1.5 rounded-xl whitespace-nowrap self-start sm:self-center shadow-sm">
                 <Crown className="w-4 h-4 text-amber-400" />
                 <div className="text-left">
-                  <div className="text-[10px] text-gray-400 font-mono">Trusted by</div>
-                  <div className="font-extrabold text-white text-xs">50,000+ Users</div>
+                  <div className="text-[10px] text-gray-400 font-mono">Official</div>
+                  <div className="font-extrabold text-white text-xs">Riot PIN Vault</div>
                 </div>
               </div>
             </div>
@@ -506,9 +495,6 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                       </div>
                       <div className="font-extrabold text-xs text-purple-300 font-rajdhani">
                         {formatCurrencyPrice(pack.priceINR, currency)}
-                      </div>
-                      <div className="text-[10px] text-gray-500 line-through font-mono">
-                        {formatCurrencyPrice(pack.originalINR, currency)}
                       </div>
                       <div className="text-[10px] font-mono pt-1">
                         {available > 0 ? (

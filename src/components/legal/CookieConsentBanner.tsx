@@ -26,9 +26,12 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onNavi
       setIsVisible(false);
 
       // Record consent on backend under DPDPA 2023 compliance
+      const savedToken = localStorage.getItem('vib_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (savedToken) headers.Authorization = `Bearer ${savedToken}`;
       await fetch('/api/legal/consent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           policy_slug: 'cookie-policy',
           policy_version: '1.0',

@@ -57,19 +57,19 @@ export function registerOverhaulRoutes(
 
       const { duration, paymentMethod = 'UPI_QR', transactionRef = '' } = req.body || {};
       const validDurations: Record<string, number> = {
-        '24h': Number(listing.price_24h) || 299,
-        '3d': Number(listing.price_3d) || 699,
-        '7d': Number(listing.price_7d) || 1299,
-        '30d': Number(listing.price_30d) || 3999,
+        '24h': Number(listing.price_24h ?? 0),
+        '3d': Number(listing.price_3d ?? 0),
+        '7d': Number(listing.price_7d ?? 0),
+        '30d': Number(listing.price_30d ?? 0),
       };
 
-      if (!validDurations[duration]) {
+      if (!(duration in validDurations) || !Number.isFinite(validDurations[duration])) {
         res.status(400).json({ error: 'Invalid rental duration selected. Must be 24h, 3d, 7d, or 30d.' });
         return;
       }
 
       const priceINR = validDurations[duration];
-      const depositINR = Number(listing.security_deposit) || 500;
+      const depositINR = Number(listing.security_deposit ?? 0);
       const totalPaid = priceINR + depositINR;
 
       const bookingId = 'rent_book_' + crypto.randomBytes(6).toString('hex');
@@ -233,9 +233,9 @@ export function registerOverhaulRoutes(
         id,
         title.trim(),
         description || '',
-        image_url || '/assets/skins/kuronami_vandal.png',
+        image_url || '',
         typeof gallery_json === 'string' ? gallery_json : JSON.stringify(gallery_json || []),
-        account_identifier || `VIB-ACC-${Date.now().toString().slice(-4)}`,
+        account_identifier || '',
         rank,
         region,
         typeof featured_skins_json === 'string' ? featured_skins_json : JSON.stringify(featured_skins_json || []),
@@ -345,11 +345,11 @@ export function registerOverhaulRoutes(
 
       const expiresAt = new Date(now.getTime() + hours * 3600 * 1000).toISOString();
       const vaultData = JSON.stringify({
-        username: loginUsername || 'vib_rent_user',
-        password: loginPassword || 'VIB_Temp_' + crypto.randomBytes(3).toString('hex'),
+        username: loginUsername ? String(loginUsername).trim() : null,
+        password: loginPassword ? String(loginPassword).trim() : null,
+        pendingManualHandover: !loginUsername || !loginPassword,
         issuedAt: startsAt,
         expiresAt,
-        supportDesk: 'Active Discord Screen Access'
       });
 
       db.prepare(`
@@ -566,8 +566,8 @@ export function registerOverhaulRoutes(
         return;
       }
 
-      const currentBid = Number(lot.current_bid) || Number(lot.starting_bid) || 1000;
-      const increment = Number(lot.bid_increment) || 150;
+      const currentBid = Number(lot.current_bid ?? lot.starting_bid ?? 0);
+      const increment = Number(lot.bid_increment ?? 0);
       const minNextBid = currentBid + increment;
 
       if (numBid < minNextBid) {
@@ -578,8 +578,8 @@ export function registerOverhaulRoutes(
       }
 
       // Calculate deposit requirements
-      const depositPct = Number(lot.deposit_pct) || 50;
-      const minDeposit = Number(lot.min_deposit_amount) || 500;
+      const depositPct = Number(lot.deposit_pct ?? 50);
+      const minDeposit = Number(lot.min_deposit_amount ?? 0);
       const requiredDeposit = Math.max(minDeposit, Math.round(numBid * (depositPct / 100)));
 
       // Calculate previously paid active security deposits held for this exact user & auction
@@ -609,6 +609,8 @@ export function registerOverhaulRoutes(
         now
       );
 
+      const paymentCfg = db.prepare('SELECT upi_id, payee_name FROM payment_settings WHERE id = ?').get('default') as any;
+
       res.json({
         depositTxId,
         submittedBid: numBid,
@@ -617,8 +619,8 @@ export function registerOverhaulRoutes(
         previouslyPaid,
         additionalPayable,
         alreadyCovered: additionalPayable === 0,
-        upiId: process.env.VIB_UPI_ID || 'teamvibofficial@okaxis',
-        merchantName: 'VIB Esports Security Vault',
+        upiId: process.env.VIB_UPI_ID || paymentCfg?.upi_id || '',
+        merchantName: paymentCfg?.payee_name || 'VIB Digital Services Platform',
         refundPolicySummary: '100% refundable if you are outbid or do not win the lot. Winning bids have deposit credited against final purchase balance.'
       });
     } catch (err: any) {
@@ -654,7 +656,7 @@ export function registerOverhaulRoutes(
           payment_method = ?,
           settled_at = ?
         WHERE id = ?
-      `).run(gatewayRef || 'UTR_' + Date.now(), paymentMethod, now, deposit.id);
+      `).run(gatewayRef ? String(gatewayRef).trim() : null, paymentMethod, now, deposit.id);
 
       res.json({
         success: true,
@@ -695,8 +697,8 @@ export function registerOverhaulRoutes(
         return;
       }
 
-      const currentBid = Number(lot.current_bid) || Number(lot.starting_bid) || 1000;
-      const increment = Number(lot.bid_increment) || 150;
+      const currentBid = Number(lot.current_bid ?? lot.starting_bid ?? 0);
+      const increment = Number(lot.bid_increment ?? 0);
       const minRequiredBid = currentBid + increment;
 
       if (numAmount < minRequiredBid) {
@@ -1031,10 +1033,10 @@ export function registerOverhaulRoutes(
         category = 'valorant_account',
         account_type = 'radiant_full_access',
         description = '',
-        image_url = '/assets/skins/kuronami_vandal.png',
+        image_url = '',
         gallery_images_json = '[]',
         visibility = 'public',
-        account_name = 'VIB Competitive Vault',
+        account_name = '',
         server_region = 'ap_mumbai',
         account_level = 150,
         inventory_details = '',
@@ -1445,17 +1447,23 @@ export function registerOverhaulRoutes(
   });
 
   // 3.4 Record User Legal Consent (Part 7: explicit audit logs)
-  // P2-F6: authentication is required, and consent is always attributed to the
-  // authenticated user (req.user.id). Client-supplied userId is ignored.
-  app.post('/api/legal/consent', authenticate, (req: any, res: Response): void => {
+  // P2-F6: authentication is required for checkout/account consents; anonymous
+  // visitors may record cookie_banner preference without triggering 401 console errors.
+  app.post('/api/legal/consent', (req: any, res: Response, next: any) => {
+    const contextType = req.body?.contextType || req.body?.context_type;
+    const hasAuthHeader = Boolean(req.headers?.authorization);
+    if (contextType === 'cookie_banner' && !hasAuthHeader) {
+      return next();
+    }
+    return authenticate(req, res, next);
+  }, (req: any, res: Response): void => {
     try {
-      const {
-        policySlug,
-        version = '1.0',
-        consentType = 'explicit_checkbox',
-        contextType = 'web_consent',
-        contextId = ''
-      } = req.body || {};
+      const b = req.body || {};
+      const policySlug = b.policySlug || b.policy_slug;
+      const version = b.version || b.policy_version || '1.0';
+      const consentType = b.consentType || b.consent_type || 'explicit_checkbox';
+      const contextType = b.contextType || b.context_type || 'web_consent';
+      const contextId = b.contextId || b.context_id || '';
 
       let policyId = '';
       if (policySlug) {

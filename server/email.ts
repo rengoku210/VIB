@@ -20,7 +20,7 @@ export interface EmailLogEntry {
 const ADMIN_EMAIL = process.env.VIB_ADMIN_EMAIL || 'thevibofficial@gmail.com';
 const SUPPORT_WHATSAPP = '+91 80996 41606';
 const PLATFORM_NAME = 'VIB Digital Services';
-const SENDER_EMAIL = process.env.SMTP_FROM || 'support@vib.gg';
+const SENDER_EMAIL = process.env.SMTP_FROM || ADMIN_EMAIL;
 
 // Nodemailer transport initialization
 let transporter: Transporter | null = null;
@@ -71,7 +71,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
   const now = new Date().toISOString();
   const transport = getTransporter();
 
-  let status: 'delivered' | 'failed' | 'mock_logged' = 'mock_logged';
+  let status: 'delivered' | 'failed' = 'failed';
   let errorMessage: string | null = null;
 
   if (process.env.RESEND_API_KEY) {
@@ -137,9 +137,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       console.error(`[Email Service - SMTP] Failed to deliver email to ${options.to}:`, err);
     }
   } else {
-    // Graceful Diagnostic Mode (when neither Resend nor SMTP credentials provided)
-    status = 'mock_logged';
-    console.log(`[Email Service Mock] Logged email to ${options.to} [Template: ${options.templateName || 'custom'}]: ${options.subject}`);
+    status = 'failed';
+    errorMessage = 'Email delivery provider (Resend or SMTP) is not configured.';
+    console.warn(`[Email Service] Delivery skipped for ${options.to} [Template: ${options.templateName || 'custom'}]: ${errorMessage}`);
   }
 
   // Persist delivery log in SQLite database
@@ -161,7 +161,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     console.warn('[Email Service] Could not write email log to database:', err);
   }
 
-  return { success: status === 'delivered' || status === 'mock_logged', logId, error: errorMessage || undefined };
+  return { success: status === 'delivered', logId, error: errorMessage || undefined };
 }
 
 // ---------------------------------------------------------------------------
@@ -210,15 +210,16 @@ export async function sendOrderPendingVerificationEmail(order: any): Promise<voi
     </div>
   `;
 
-  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
-
-  await sendEmail({
-    to: targetEmail,
-    subject: `Order Received & Awaiting Verification: #${order.id}`,
-    html: customerHtml,
-    templateName: 'order_pending_verification',
-    context: { orderId: order.id, amount: order.amount, title: order.title, riotId },
-  });
+  const targetEmail = details.email || order.user_email || order.buyer_email;
+  if (targetEmail) {
+    await sendEmail({
+      to: targetEmail,
+      subject: `Order Received & Awaiting Verification: #${order.id}`,
+      html: customerHtml,
+      templateName: 'order_pending_verification',
+      context: { orderId: order.id, amount: order.amount, title: order.title, riotId },
+    });
+  }
 
   // 2. Notification to Administrator (thevibofficial@gmail.com)
   const adminHtml = `
@@ -296,7 +297,8 @@ export async function sendIndianVPCodeIssuedEmail(order: any, vpCode: string): P
     </div>
   `;
 
-  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
+  const targetEmail = details.email || order.user_email || order.buyer_email;
+  if (!targetEmail) return;
 
   await sendEmail({
     to: targetEmail,
@@ -352,7 +354,8 @@ export async function sendPaymentRejectedEmail(order: any, reason: string): Prom
     </div>
   `;
 
-  const targetEmail = details.email || order.user_email || order.buyer_email || 'thevibofficial@gmail.com';
+  const targetEmail = details.email || order.user_email || order.buyer_email;
+  if (!targetEmail) return;
 
   await sendEmail({
     to: targetEmail,
@@ -365,7 +368,8 @@ export async function sendPaymentRejectedEmail(order: any, reason: string): Prom
 
 export async function sendOrderPaymentVerifiedEmail(order: any, isManualDelivery: boolean = true): Promise<void> {
   const details = typeof order.details_json === 'string' ? JSON.parse(order.details_json) : (order.details || {});
-  const customerEmail = details.email || order.user_email || order.buyer_email || ADMIN_EMAIL;
+  const customerEmail = details.email || order.user_email || order.buyer_email;
+  if (!customerEmail) return;
   const trackUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?page=track&orderId=${order.id}`;
   const phone = details.contactPhone || details.phone || order.phone || 'Not specified';
 
@@ -559,7 +563,8 @@ export async function sendWelcomeVerificationEmail(user: { email: string; name?:
 
 export async function sendOrderFulfilledEmail(order: any, fulfillmentNote?: string): Promise<void> {
   const details = typeof order.details_json === 'string' ? JSON.parse(order.details_json) : (order.details || {});
-  const customerEmail = details.email || order.user_email || order.buyer_email || ADMIN_EMAIL;
+  const customerEmail = details.email || order.user_email || order.buyer_email;
+  if (!customerEmail) return;
   const trackUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?page=track&orderId=${order.id}`;
 
   const html = `

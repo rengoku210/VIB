@@ -79,13 +79,13 @@ export const ClientRentalsPage: React.FC<ClientRentalsPageProps> = ({
   const getPriceForDuration = (listing: RentalListing, duration: '24h' | '3d' | '7d' | '30d') => {
     switch (duration) {
       case '24h':
-        return Number(listing.price_24h) || 299;
+        return Number(listing.price_24h ?? 0);
       case '3d':
-        return Number(listing.price_3d) || 699;
+        return Number(listing.price_3d ?? 0);
       case '7d':
-        return Number(listing.price_7d) || 1299;
+        return Number(listing.price_7d ?? 0);
       case '30d':
-        return Number(listing.price_30d) || 3999;
+        return Number(listing.price_30d ?? 0);
     }
   };
 
@@ -229,7 +229,13 @@ export const ClientRentalsPage: React.FC<ClientRentalsPageProps> = ({
                         {item.region || 'AP / Mumbai'}
                       </span>
                       <img
-                        src={item.image_url || '/assets/skins/kuronami_vandal.png'}
+                        src={item.image_url || '/assets/hires/profiles/card1_exact.jpg'}
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (!img.src.endsWith('/assets/hires/profiles/card1_exact.jpg')) {
+                            img.src = '/assets/hires/profiles/card1_exact.jpg';
+                          }
+                        }}
                         alt={item.title}
                         className="w-[85%] h-auto object-contain group-hover:scale-105 transition-transform drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]"
                       />
@@ -267,7 +273,9 @@ export const ClientRentalsPage: React.FC<ClientRentalsPageProps> = ({
                         {formatCurrencyPrice(price, currency)}
                       </div>
                       <div className="text-[9px] text-gray-400 font-mono">
-                        +₹{item.security_deposit || 500} refundable deposit
+                        {Number(item.security_deposit ?? 0) > 0
+                          ? `+₹${item.security_deposit} refundable deposit`
+                          : 'No security deposit required'}
                       </div>
                     </div>
 

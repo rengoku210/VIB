@@ -280,7 +280,7 @@ export const AdminLegalManagement: React.FC = () => {
                           {consent.user_id ? consent.user_id.slice(0, 14) : 'Anonymous Session'}
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono">
-                          IP: {consent.ip_address || '127.0.0.1'}
+                          IP: {consent.ip_address || 'Unavailable'}
                         </div>
                       </td>
 

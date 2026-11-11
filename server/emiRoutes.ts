@@ -412,7 +412,7 @@ export function registerEmiRoutes(
           : round2(amountFinanced * (1 + (ratePct / 100) * (tenureMonths / 12)));
       }
       const installmentPool =
-        serviceType === 'vp' && totalPayable >= totalAmount
+        totalPayable >= totalAmount
           ? Math.max(0, round2(totalPayable - initialPayment))
           : totalPayable;
       let emiAmount = Number(body.emiAmount);
@@ -772,7 +772,7 @@ export function registerEmiRoutes(
         created_at: r.created_at,
         start_date: r.start_date,
         next_due_date: r.next_due_date,
-        outstanding: outstandingBalance(r.id),
+        outstanding: r.status === 'pending_approval' ? null : outstandingBalance(r.id),
         service_type: r.service_type || 'account',
         region: r.region || null,
         listing_id: r.listing_id || null,
@@ -859,7 +859,7 @@ export function registerEmiRoutes(
               application.amount_financed * (1 + (application.interest_rate_pct / 100) * (application.tenure_months / 12))
             );
         const installmentPool =
-          application.service_type === 'vp' && totalPayable >= application.total_amount
+          totalPayable >= application.total_amount
             ? Math.max(0, round2(totalPayable - (application.initial_payment || 0)))
             : totalPayable;
         const lastInstallmentAmount = round2(installmentPool - emiAmount * (totalInstallments - 1));

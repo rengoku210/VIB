@@ -84,24 +84,24 @@ export const AdminAdvertisementSettings: React.FC = () => {
   // Plan Form
   const [planForm, setPlanForm] = useState({
     name: '',
-    price: 95,
+    price: 0,
     category: 'standard' as 'standard' | 'trade' | 'premium' | 'bonus',
     description: '',
-    badge: 'NEW',
+    badge: '',
     display_order: 1,
     is_active: true,
     instagram_story: true,
     instagram_post: false,
     highlight_placement: false,
-    story_count: '1 Story (24h)',
+    story_count: '',
     website_listing: false,
     inventory_editing: false,
-    promotion_duration: '24 Hours',
+    promotion_duration: '',
     buyer_assistance: false,
     priority_placement: false,
     dedicated_agent: false,
     lifetime_guaranteed: false,
-    benefits: ['24-Hour Story Broadcast', 'Direct Profile Mention'],
+    benefits: [] as string[],
   });
   const [newBenefit, setNewBenefit] = useState('');
 
@@ -234,6 +234,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to mark live.');
+      setActionFeedback(data.message || 'Campaign marked live!');
       fetchOrders();
       if (selectedOrder?.id === orderId) {
         setSelectedOrder((prev) => (prev ? { ...prev, status: 'live' } : null));
@@ -408,24 +409,24 @@ export const AdminAdvertisementSettings: React.FC = () => {
     setEditingPlan(null);
     setPlanForm({
       name: '',
-      price: 199,
+      price: 0,
       category: 'standard',
       description: '',
-      badge: 'POPULAR',
+      badge: '',
       display_order: plans.length + 1,
       is_active: true,
       instagram_story: true,
       instagram_post: false,
       highlight_placement: false,
-      story_count: '1 Story',
+      story_count: '',
       website_listing: false,
       inventory_editing: false,
-      promotion_duration: '24 Hours',
+      promotion_duration: '',
       buyer_assistance: false,
       priority_placement: false,
       dedicated_agent: false,
       lifetime_guaranteed: false,
-      benefits: ['Instagram Story Promotion', 'Tagged Seller Account'],
+      benefits: [],
     });
     setIsPlanModalOpen(true);
   };
@@ -1412,7 +1413,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                       type="text"
                       value={newHighlight}
                       onChange={(e) => setNewHighlight(e.target.value)}
-                      placeholder="Add highlight (e.g. 50k+ active buyers reach)..."
+                      placeholder="Add highlight..."
                       className="flex-1 bg-[#05030e] border border-white/10 rounded-lg p-2 text-xs text-white"
                     />
                     <button

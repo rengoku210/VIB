@@ -302,16 +302,16 @@ export const LegalPage: React.FC<LegalPageProps> = ({
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs font-mono">
                     <div className="p-2.5 rounded-lg bg-white/5 border border-white/5">
-                      <div className="text-[10px] text-gray-400 uppercase">Grievance Officer</div>
-                      <div className="font-bold text-white mt-0.5">Shaurya Sharma</div>
+                      <div className="text-[10px] text-gray-400 uppercase">Grievance Desk</div>
+                      <div className="font-bold text-white mt-0.5">VIB Grievance Redressal Desk</div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-white/5 border border-white/5">
                       <div className="text-[10px] text-gray-400 uppercase">Official Email</div>
-                      <div className="font-bold text-cyan-400 mt-0.5">grievance@vib.gg</div>
+                      <div className="font-bold text-cyan-400 mt-0.5">thevibofficial@gmail.com</div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-white/5 border border-white/5">
-                      <div className="text-[10px] text-gray-400 uppercase">Response SLA</div>
-                      <div className="font-bold text-emerald-400 mt-0.5">48 Hours Acknowledgment</div>
+                      <div className="text-[10px] text-gray-400 uppercase">WhatsApp Support</div>
+                      <div className="font-bold text-emerald-400 mt-0.5">+91 80996 41606</div>
                     </div>
                   </div>
                 </div>

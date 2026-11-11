@@ -158,11 +158,11 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   const images = Array.isArray(listing.images) && listing.images.length > 0
     ? listing.images
-    : ['/assets/hires/profiles/card1_exact.jpg', '/assets/hires/profiles/card2_exact.jpg'];
-  const activeImage = images[activeImageIndex] || images[0];
+    : [];
+  const activeImage = images[activeImageIndex] || images[0] || '';
   const skins: any[] = Array.isArray(listing.skins) ? listing.skins : [];
   const isGuaranteed = listing.guarantee_type === 'lifetime_guaranteed' || listing.guarantee_type === 'guaranteed';
-  const originalPrice = listing.price_inr ? Math.round(listing.price_inr * 1.35) : 0;
+  const originalPrice = Number(listing.original_price_inr) || 0;
 
   return (
     <div className="min-h-screen pb-20 pt-6">
@@ -217,14 +217,18 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             <div className="rounded-2xl bg-[#0c0d1c] border border-white/10 overflow-hidden shadow-2xl relative">
               {/* Main Active Image Preview */}
               <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-black/80 overflow-hidden flex items-center justify-center">
-                <img
-                  src={activeImage}
-                  alt={listing.title}
-                  className="w-full h-full object-cover sm:object-contain transition-all duration-300"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/assets/hires/profiles/card1_exact.jpg';
-                  }}
-                />
+                {activeImage ? (
+                  <img
+                    src={activeImage}
+                    alt={listing.title}
+                    className="w-full h-full object-cover sm:object-contain transition-all duration-300"
+                  />
+                ) : (
+                  <div className="text-center space-y-2 p-6 text-gray-400">
+                    <ShieldCheck className="w-10 h-10 mx-auto text-purple-400/70" />
+                    <div className="text-xs font-mono uppercase tracking-wider">No preview image uploaded by seller</div>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d1c] via-transparent to-transparent pointer-events-none" />
 
                 {/* Top Badges */}
@@ -318,7 +322,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 </div>
                 <div>
                   <div className="text-[10px] text-gray-400 font-mono uppercase">Region / Server</div>
-                  <div className="text-sm sm:text-base font-black text-white font-rajdhani">{listing.region || 'AP / Mumbai'}</div>
+                  <div className="text-sm sm:text-base font-black text-white font-rajdhani">{listing.region || 'Not specified'}</div>
                 </div>
               </div>
             </div>
@@ -366,9 +370,11 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     Skins confirmed present on this account. Click on upgraded skins to view preview clips.
                   </p>
                 </div>
-                <span className="text-xs font-mono px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                  {listing.knife_count ? `${listing.knife_count} Knives` : 'Melees Included'}
-                </span>
+                {Number(listing.knife_count) > 0 && (
+                  <span className="text-xs font-mono px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                    {listing.knife_count} {Number(listing.knife_count) === 1 ? 'Knife' : 'Knives'}
+                  </span>
+                )}
               </div>
 
               {skins.length === 0 ? (
@@ -547,7 +553,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   <span className="text-gray-400">Seller / Provider</span>
                   <span className="font-bold text-white flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{listing.seller_name || 'VIB Official'}</span>
+                    <span>{listing.seller_name || 'Seller'}</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">

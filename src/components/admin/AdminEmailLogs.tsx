@@ -16,12 +16,14 @@ import { useAuth } from '../../context/AuthContext';
 interface EmailLog {
   id: string;
   recipient: string;
-  template: string;
+  template?: string;
+  template_name?: string;
   subject: string;
-  status: 'sent' | 'failed' | 'mocked';
+  status: 'sent' | 'delivered' | 'failed' | 'mocked';
   order_id: string | null;
   error_message: string | null;
-  created_at: string;
+  created_at?: string;
+  sent_at?: string;
 }
 
 export const AdminEmailLogs: React.FC = () => {
@@ -218,13 +220,13 @@ export const AdminEmailLogs: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10 text-gray-400 font-mono uppercase text-[11px]">
-                  <th className="p-3.5">Log ID &amp; Time</th>
-                  <th className="p-3.5">Recipient</th>
-                  <th className="p-3.5">Template</th>
-                  <th className="p-3.5">Subject</th>
-                  <th className="p-3.5">Delivery Status</th>
-                  <th className="p-3.5">Linked Order</th>
-                  <th className="p-3.5 text-right">Actions</th>
+                  <th className="px-2.5 py-2.5">Log ID &amp; Time</th>
+                  <th className="px-2.5 py-2.5">Recipient</th>
+                  <th className="px-2.5 py-2.5">Template</th>
+                  <th className="px-2.5 py-2.5">Subject</th>
+                  <th className="px-2.5 py-2.5">Status</th>
+                  <th className="px-2.5 py-2.5">Order</th>
+                  <th className="px-2.5 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -236,35 +238,40 @@ export const AdminEmailLogs: React.FC = () => {
                   </tr>
                 ) : (
                   logs.map((log) => {
-                    const isSent = log.status === 'sent';
+                    const isSent = log.status === 'sent' || log.status === 'delivered';
                     const isMocked = log.status === 'mocked';
                     const isFailed = log.status === 'failed';
+                    const rawTs = log.sent_at || log.created_at;
+                    const tsDate = rawTs ? new Date(rawTs) : null;
+                    const hasValidDate = Boolean(tsDate && !Number.isNaN(tsDate.getTime()));
 
                     return (
                       <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-3.5 font-mono text-gray-400 text-[11px]">
+                        <td className="px-2.5 py-2.5 font-mono text-gray-400 text-[11px] whitespace-nowrap">
                           {log.id}
                           <div className="text-[10px] text-gray-500">
-                            {new Date(log.created_at).toLocaleTimeString()} • {new Date(log.created_at).toLocaleDateString()}
+                            {hasValidDate
+                              ? `${tsDate!.toLocaleTimeString()} • ${tsDate!.toLocaleDateString()}`
+                              : 'Timestamp unavailable'}
                           </div>
                         </td>
 
-                        <td className="p-3.5 font-mono text-white text-[11px]">
+                        <td className="px-2.5 py-2.5 font-mono text-white text-[11px] max-w-[150px] truncate" title={log.recipient}>
                           {log.recipient}
                         </td>
 
-                        <td className="p-3.5 font-mono text-purple-300 uppercase text-[11px]">
-                          {log.template}
+                        <td className="px-2.5 py-2.5 font-mono text-purple-300 uppercase text-[10px] max-w-[130px] truncate" title={log.template_name || log.template}>
+                          {log.template_name || log.template || '—'}
                         </td>
 
-                        <td className="p-3.5 text-gray-300 font-rajdhani text-xs font-semibold max-w-xs truncate">
+                        <td className="px-2.5 py-2.5 text-gray-300 font-rajdhani text-xs font-semibold max-w-[180px] truncate" title={log.subject}>
                           {log.subject}
                           {log.error_message && (
                             <div className="text-[10px] text-rose-400 font-mono truncate">{log.error_message}</div>
                           )}
                         </td>
 
-                        <td className="p-3.5">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
                               isSent
@@ -278,7 +285,7 @@ export const AdminEmailLogs: React.FC = () => {
                           </span>
                         </td>
 
-                        <td className="p-3.5 font-mono text-[11px]">
+                        <td className="px-2.5 py-2.5 font-mono text-[11px] whitespace-nowrap">
                           {log.order_id ? (
                             <span className="text-purple-300 font-bold">#{log.order_id}</span>
                           ) : (
@@ -286,7 +293,7 @@ export const AdminEmailLogs: React.FC = () => {
                           )}
                         </td>
 
-                        <td className="p-3.5 text-right">
+                        <td className="px-2.5 py-2.5 text-right whitespace-nowrap">
                           {isFailed && (
                             <button
                               type="button"

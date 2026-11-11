@@ -528,7 +528,7 @@ export const RankProgressionCalculator: React.FC<RankProgressionCalculatorProps>
                 {isDerank ? 'D-Rank Order Summary' : 'Rankup Order Summary'}
               </span>
               <span className="text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-semibold whitespace-nowrap">
-                Slots Available Today
+                Queue-Based Scheduling
               </span>
             </div>
 

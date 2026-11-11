@@ -1262,7 +1262,7 @@ const AdminEmiManagement: React.FC = () => {
                       <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
                       <div>
                         <div className="font-bold text-white text-xs font-mono">
-                          Agreement Ref: {String(detail.agreement_ref || 'VIB-FPP-2026')}
+                          Agreement Ref: {String(detail.agreement_ref || detail.id)}
                         </div>
                         <div className="text-[11px] text-gray-400 font-mono">
                           {detail.service_type === 'vp' ? 'VP Services Agreement' : 'Digital Profile Agreement'} • Formally Generated &amp; Signed
