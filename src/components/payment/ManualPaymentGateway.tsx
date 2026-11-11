@@ -41,6 +41,9 @@ export interface ManualPaymentGatewayProps {
   iconType?: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles';
   breadcrumbService?: string;
   onBack: () => void;
+  backButtonLabel?: string;
+  nextStepsText?: string;
+  onTrackOrder?: () => void;
   upiId?: string;
   payeeName?: string;
   qrImageUrl?: string;
@@ -61,6 +64,9 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   iconType = 'megaphone',
   breadcrumbService = 'Advertise',
   onBack,
+  backButtonLabel = 'Back to Advertisement Plans',
+  nextStepsText,
+  onTrackOrder,
   upiId = 'thevibofficial@okhdfcbank',
   payeeName = 'VIB Digital Services Platform',
   qrImageUrl,
@@ -245,16 +251,36 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
           <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200 text-left">
             <strong className="text-white block pb-1">What Happens Next?</strong>
             <p className="text-gray-300 leading-relaxed">
-              Once approved, you will receive an official confirmation email at your registered address with a secure link: <em>"Continue to Submit Advertisement Details"</em> where you can upload your inventory screenshot and social handle.
+              {nextStepsText || (
+                <>
+                  Once approved, you will receive an official confirmation email at your registered address with a secure
+                  link: <em>&ldquo;Continue to Submit Advertisement Details&rdquo;</em> where you can upload your inventory
+                  screenshot and social handle.
+                </>
+              )}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {onTrackOrder && (
+              <button
+                type="button"
+                onClick={onTrackOrder}
+                className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+              >
+                Track Live Order
+              </button>
+            )}
             <button
+              type="button"
               onClick={onBack}
-              className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+              className={`px-6 py-3 rounded-xl font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer ${
+                onTrackOrder
+                  ? 'bg-white/10 hover:bg-white/15 border border-white/15 text-gray-200'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/30'
+              }`}
             >
-              Back to Advertisement Plans
+              {backButtonLabel}
             </button>
             <a
               href={`https://wa.me/${supportWhatsapp.replace(/\+/g, '')}?text=Hi%20VIB%20Team%2C%20I%20have%20submitted%20payment%20for%20order%20${encodeURIComponent(orderId)}`}
@@ -647,7 +673,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
               onClick={onBack}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold font-rajdhani uppercase tracking-wider text-gray-300 hover:text-white transition-all cursor-pointer min-h-[46px]"
             >
-              ← Back to Plans
+              ← {backButtonLabel === 'Back to Advertisement Plans' ? 'Back to Plans' : backButtonLabel}
             </button>
 
             <button

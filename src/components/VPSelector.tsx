@@ -6,18 +6,17 @@ import { CyberBorders } from './CyberBorders';
 import { CharacterStage } from './CharacterStage';
 import { ProductInfo } from './ProductInfo';
 import { PackageCardsBar } from './PackageCardsBar';
-import { CheckoutModal } from './CheckoutModal';
 import { ComparisonModal } from './ComparisonModal';
 import { soundFx } from '../utils/audio';
 
 interface VPSelectorProps {
   currency: Currency;
-  onOpenCheckoutGlobal?: () => void;
+  onOpenCheckoutGlobal?: (pkg: VPPackage) => void;
   onActiveChange?: (pkg: VPPackage) => void;
   initialIndex?: number;
 }
 
-export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange, initialIndex = 0 }) => {
+export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onOpenCheckoutGlobal, onActiveChange, initialIndex = 0 }) => {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
 
   useEffect(() => {
@@ -25,7 +24,6 @@ export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange
       setActiveIndex(initialIndex);
     }
   }, [initialIndex]);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
 
   const currentPkg = VP_PACKAGES[activeIndex];
@@ -54,7 +52,7 @@ export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange
   // Keyboard navigation: Left / Right arrows
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isCheckoutOpen || isComparisonOpen) return;
+      if (isComparisonOpen) return;
       if (e.key === 'ArrowLeft') {
         handlePrev();
       } else if (e.key === 'ArrowRight') {
@@ -63,7 +61,7 @@ export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrev, handleNext, isCheckoutOpen, isComparisonOpen]);
+  }, [handlePrev, handleNext, isComparisonOpen]);
 
   return (
     <section className="relative w-full min-h-[calc(100vh-68px)] flex flex-col justify-between overflow-hidden">
@@ -89,7 +87,7 @@ export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange
           <ProductInfo
             currentPkg={currentPkg}
             currency={currency}
-            onBuyNow={() => setIsCheckoutOpen(true)}
+            onBuyNow={() => onOpenCheckoutGlobal?.(currentPkg)}
             onViewAll={() => setIsComparisonOpen(true)}
           />
         </div>
@@ -100,14 +98,6 @@ export const VPSelector: React.FC<VPSelectorProps> = ({ currency, onActiveChange
         packages={VP_PACKAGES}
         activeIndex={activeIndex}
         onSelect={(index) => setActiveIndex(index)}
-        currency={currency}
-      />
-
-      {/* Interactive Checkout Modal */}
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        pkg={currentPkg}
         currency={currency}
       />
 

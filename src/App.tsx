@@ -16,7 +16,6 @@ import { UserDashboard } from './components/dashboard/UserDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/CartDrawer';
-import { CheckoutModal } from './components/CheckoutModal';
 import { OrderTrackingModal } from './components/orders/OrderTrackingModal';
 import { EscrowModal } from './components/home/EscrowModal';
 import { ListingDetailPage } from './components/profiles/ListingDetailPage';
@@ -25,9 +24,15 @@ import { CookieConsentBanner } from './components/legal/CookieConsentBanner';
 import { FlexiblePaymentPlansPage } from './components/flexible/FlexiblePaymentPlansPage';
 import { FlexibleCheckoutPage } from './components/flexible/FlexibleCheckoutPage';
 import { FlexibleConfirmationPage } from './components/flexible/FlexibleConfirmationPage';
+import { ServiceProductPage } from './components/checkout/ServiceProductPage';
+import { ServiceCheckoutPage } from './components/checkout/ServiceCheckoutPage';
 import { FlexiblePlanSelection } from './types/flexiblePlans';
-import { VP_PACKAGES } from './data/packages';
-import { Currency, CartItem, VPPackage } from './types';
+import {
+  ServiceProductDetail,
+  buildServiceSelection,
+  buildServiceProductDetail,
+} from './data/serviceProductDetails';
+import { Currency, CartItem } from './types';
 import { soundFx } from './utils/audio';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -48,6 +53,12 @@ function AppContent() {
       }
       if (path === '/flexible-confirmation' || path.startsWith('/flexible-confirmation')) {
         return 'flexible-confirmation';
+      }
+      if (path === '/product' || path.startsWith('/product')) {
+        return 'service-product';
+      }
+      if (path === '/checkout' || path.startsWith('/checkout')) {
+        return 'service-checkout';
       }
       const params = new URLSearchParams(window.location.search);
       const p = params.get('page') as ClientPage;
@@ -71,6 +82,8 @@ function AppContent() {
           'flexible-payment-plans',
           'flexible-checkout',
           'flexible-confirmation',
+          'service-product',
+          'service-checkout',
         ].includes(p)
       ) {
         return p;
@@ -138,6 +151,14 @@ function AppContent() {
     return '';
   });
 
+  const [selectedServiceProduct, setSelectedServiceProduct] = useState<ServiceProductDetail | null>(() => {
+    try {
+      const saved = localStorage.getItem('vib_selected_service_product');
+      return saved ? JSON.parse(saved) : null;
+    } catch {}
+    return null;
+  });
+
   // Handle URL history state & back/forward navigation
   useEffect(() => {
     // Sanitize any malformed duplicate slashes in pathname (e.g. //?page=...)
@@ -172,6 +193,14 @@ function AppContent() {
         setCurrentPage('flexible-confirmation');
         return;
       }
+      if (path === '/product' || path.startsWith('/product')) {
+        setCurrentPage('service-product');
+        return;
+      }
+      if (path === '/checkout' || path.startsWith('/checkout')) {
+        setCurrentPage('service-checkout');
+        return;
+      }
       const p = (params.get('page') as ClientPage) || 'home';
       if (
         [
@@ -191,6 +220,8 @@ function AppContent() {
           'flexible-payment-plans',
           'flexible-checkout',
           'flexible-confirmation',
+          'service-product',
+          'service-checkout',
         ].includes(p)
       ) {
         setCurrentPage(p);
@@ -261,11 +292,6 @@ function AppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Modals state
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [checkoutPackage, setCheckoutPackage] = useState<VPPackage | null>(null);
-  const [checkoutCustomItem, setCheckoutCustomItem] = useState<
-    { title: string; priceINR: number; productId?: string; id?: string; cartItems?: Array<Pick<CartItem, 'id' | 'quantity'>>; rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' }; rentalDuration?: string } | undefined
-  >(undefined);
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingOrderId, setTrackingOrderId] = useState('');
@@ -308,15 +334,28 @@ function AppContent() {
     setCartItems([]);
   };
 
-  const handleOpenCustomCheckout = (title: string, price: number, productId?: string, rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' } | string) => {
-    const rentalDuration = typeof rankup === 'string' ? rankup : undefined;
-    const rankupQuote = typeof rankup === 'string' ? undefined : rankup;
-    setCheckoutCustomItem({ title, priceINR: price, id: productId, productId, rankup: rankupQuote, rentalDuration });
-    const matchedPkg = VP_PACKAGES.find(
-      (p) => p.id === productId || p.vpLabel === title || title.includes(p.vpLabel)
-    );
-    setCheckoutPackage(matchedPkg || null);
-    setIsCheckoutOpen(true);
+  const handleOpenCustomCheckout = (
+    title: string,
+    price: number,
+    productId?: string,
+    rankup?: { fromRankId: string; toRankId: string; mode: 'solo' | 'duo'; queueType: 'standard' | 'priority' } | string
+  ) => {
+    const isListingPurchase =
+      currentPage === 'listing' ||
+      (productId ? productId.startsWith('lst_') || productId.startsWith('p-') : false);
+    const backPage = currentPage === 'listing' ? 'listing' : currentPage;
+    const selection = buildServiceSelection(title, price, productId, rankup, undefined, backPage);
+    const detail = buildServiceProductDetail(selection);
+    setSelectedServiceProduct(detail);
+    try {
+      localStorage.setItem('vib_selected_service_product', JSON.stringify(detail));
+    } catch {}
+    // Account listings already open on ListingDetailPage; go directly to checkout
+    if (isListingPurchase) {
+      handleNavigate('service-checkout');
+    } else {
+      handleNavigate('service-product');
+    }
   };
 
   const handleProceedFromCart = () => {
@@ -324,13 +363,20 @@ function AppContent() {
     const totalINR = cartItems.reduce((sum, item) => sum + item.priceINR * item.quantity, 0);
     const itemNames = cartItems.map((i) => `${i.title} (x${i.quantity})`).join(', ');
     setIsCartOpen(false);
-    setCheckoutCustomItem({
-      title: `Cart Checkout: ${itemNames}`,
-      priceINR: totalINR,
-      cartItems: cartItems.map(({ id, quantity }) => ({ id, quantity })),
-    });
-    setCheckoutPackage(null);
-    setIsCheckoutOpen(true);
+    const selection = buildServiceSelection(
+      `Cart Checkout: ${itemNames}`,
+      totalINR,
+      'cart',
+      undefined,
+      cartItems.map(({ id, quantity }) => ({ id, quantity })),
+      currentPage
+    );
+    const detail = buildServiceProductDetail(selection);
+    setSelectedServiceProduct(detail);
+    try {
+      localStorage.setItem('vib_selected_service_product', JSON.stringify(detail));
+    } catch {}
+    handleNavigate('service-checkout');
   };
 
   const handleNavigate = (page: ClientPage, id?: string) => {
@@ -448,6 +494,26 @@ function AppContent() {
         url.searchParams.delete('region');
         url.searchParams.delete('listingId');
         if (id) url.searchParams.set('ref', id);
+      } else if (page === 'service-product') {
+        url.pathname = '/product';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+      } else if (page === 'service-checkout') {
+        url.pathname = '/checkout';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
       } else if (page === 'advertise') {
         url.pathname = '/advertise';
         url.searchParams.delete('page');
@@ -675,6 +741,54 @@ function AppContent() {
           />
         )}
 
+        {currentPage === 'service-product' && (
+          selectedServiceProduct ? (
+            <ServiceProductPage
+              product={selectedServiceProduct}
+              currency={currency}
+              onBuyNow={() => handleNavigate('service-checkout')}
+              onBack={() => handleNavigate((selectedServiceProduct.selection.backPage as ClientPage) || 'vp')}
+              onNavigateHome={() => handleNavigate('home')}
+            />
+          ) : (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <p className="text-gray-400 text-sm">No product selected. Browse a service or VP pack first.</p>
+              <button
+                type="button"
+                onClick={() => handleNavigate('vp')}
+                className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani uppercase text-xs cursor-pointer"
+              >
+                Browse VP & Services
+              </button>
+            </div>
+          )
+        )}
+
+        {currentPage === 'service-checkout' && (
+          <ServiceCheckoutPage
+            product={selectedServiceProduct}
+            currency={currency}
+            onBack={() => {
+              if (!selectedServiceProduct) {
+                handleNavigate('vp');
+                return;
+              }
+              if (selectedServiceProduct.selection.category === 'profile' && selectedServiceProduct.selection.productId) {
+                handleNavigate('listing', selectedServiceProduct.selection.productId);
+                return;
+              }
+              if (selectedServiceProduct.selection.category === 'cart') {
+                handleNavigate((selectedServiceProduct.selection.backPage as ClientPage) || 'profiles');
+                return;
+              }
+              handleNavigate('service-product');
+            }}
+            onNavigate={handleNavigate}
+            onTrackOrder={handleOpenTracking}
+            onClearCart={handleClearCart}
+          />
+        )}
+
         {currentPage === 'dashboard' && (
           loading ? (
             <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 text-center space-y-4">
@@ -769,20 +883,6 @@ function AppContent() {
         onClearCart={handleClearCart}
         onProceedToCheckout={handleProceedFromCart}
         currency={currency}
-      />
-
-      {/* Checkout / Payment Modal */}
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => {
-          setIsCheckoutOpen(false);
-          setCheckoutCustomItem(undefined);
-          setCheckoutPackage(null);
-        }}
-        pkg={checkoutPackage || undefined}
-        customItem={checkoutCustomItem}
-        currency={currency}
-        onTrackOrder={handleOpenTracking}
       />
 
       {/* Live Order Tracking Modal (Persistent Escrow & Genuine VP Delivery) */}

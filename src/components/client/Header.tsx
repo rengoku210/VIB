@@ -46,7 +46,9 @@ export type ClientPage =
   | 'admin'
   | 'flexible-payment-plans'
   | 'flexible-checkout'
-  | 'flexible-confirmation';
+  | 'flexible-confirmation'
+  | 'service-product'
+  | 'service-checkout';
 
 interface HeaderProps {
   currentPage: ClientPage;
