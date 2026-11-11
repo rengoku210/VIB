@@ -36,6 +36,7 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
   const [activeCategory, setActiveCategory] = useState<'vp' | 'account'>(initialCategory);
   const [vpRegion, setVpRegion] = useState<'in' | 'php'>(initialRegion);
   const [frequency, setFrequency] = useState<'weekly' | 'monthly'>('weekly');
+  const [selectedAccountOptions, setSelectedAccountOptions] = useState<Record<string, number>>({});
   const [settings, setSettings] = useState<any>(null);
   const [guaranteedListings, setGuaranteedListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,9 +58,10 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
           fetch('/api/listings?limit=100'),
         ]);
 
+        let parsedSettings: any = null;
         if (settingsRes.ok && isMounted) {
-          const sData = await settingsRes.json();
-          setSettings(sData);
+          parsedSettings = await settingsRes.json();
+          setSettings(parsedSettings);
         }
 
         if (listingsRes.ok && isMounted) {
@@ -69,7 +71,7 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
             : Array.isArray(lData)
               ? lData
               : [];
-          const minAmount = Number(settings?.account?.minAmount) || 1500;
+          const minAmount = Number(parsedSettings?.account?.minAmount) || 1500;
           const guaranteed = items.filter(
             (item: any) =>
               (item.guarantee_type === 'lifetime_guaranteed' || item.guarantee_type === 'guaranteed') &&
@@ -143,8 +145,10 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
     const fixedProfit = slab.fixedProfit;
     const totalPayable = financed + fixedProfit;
 
-    const matchedOpt =
-      slab.options?.find((o: any) => o.frequency === frequency) || slab.options?.[0];
+    const matchingOpts = (slab.options || []).filter((o: any) => o.frequency === frequency);
+    const availableOptions = matchingOpts.length > 0 ? matchingOpts : slab.options || [];
+    const chosenIdx = selectedAccountOptions[listing.id] ?? 0;
+    const matchedOpt = availableOptions[chosenIdx] || availableOptions[0];
     const totalInstallments = matchedOpt?.installments ?? (frequency === 'weekly' ? 4 : 3);
     const actualFreq = (matchedOpt?.frequency || frequency) as 'weekly' | 'monthly';
     const installmentAmount = Math.round(totalPayable / totalInstallments);
@@ -160,6 +164,8 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
       totalInstallments,
       installmentAmount,
       frequency: actualFreq,
+      availableOptions,
+      chosenIdx,
     };
   };
 
@@ -363,6 +369,17 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
             Loading flexible payment packages...
           </div>
         ) : activeCategory === 'vp' ? (
+          vpConfig?.enabled === false ? (
+            <div className="p-12 text-center rounded-2xl bg-[#0c0d1e] border border-white/10 text-gray-400 space-y-2">
+              <CreditCard className="w-10 h-10 mx-auto text-purple-400" />
+              <p className="text-base font-bold text-white font-rajdhani uppercase">
+                {vpRegion === 'in' ? 'Indian VP' : 'Philippines VP'} Flexible Plans Temporarily Paused
+              </p>
+              <p className="text-xs text-gray-500">
+                Please switch regions or check back later.
+              </p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {vpPackages.map((pkg) => {
               const sched = resolveVpSchedule(pkg);
@@ -440,6 +457,14 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
                 </div>
               );
             })}
+          </div>
+          )
+        ) : settings?.account?.enabled === false ? (
+          <div className="p-12 text-center rounded-2xl bg-[#0c0d1e] border border-white/10 text-gray-400 space-y-2">
+            <ShieldCheck className="w-10 h-10 mx-auto text-purple-400" />
+            <p className="text-base font-bold text-white font-rajdhani uppercase">
+              Digital Profile Flexible Plans Temporarily Paused
+            </p>
           </div>
         ) : (
           <div>
@@ -522,6 +547,29 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
                             <span>Total Payable:</span>
                             <span className="font-bold">{formatCurrencyPrice(sched.totalPayable, currency)}</span>
                           </div>
+                          {sched.availableOptions.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-white/10">
+                              {sched.availableOptions.map((opt: any, optIdx: number) => (
+                                <button
+                                  key={`${opt.frequency}-${opt.installments}`}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedAccountOptions((prev) => ({
+                                      ...prev,
+                                      [listing.id]: optIdx,
+                                    }))
+                                  }
+                                  className={`px-2 py-1 rounded-md text-[10px] font-mono cursor-pointer border transition-colors ${
+                                    sched.chosenIdx === optIdx
+                                      ? 'bg-purple-600 text-white border-purple-400'
+                                      : 'bg-black/40 text-gray-300 border-white/10 hover:border-purple-500/40'
+                                  }`}
+                                >
+                                  {opt.installments} {opt.frequency === 'weekly' ? 'Wks' : 'Mos'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <ul className="space-y-2 text-xs text-gray-300 mb-6 font-mono">

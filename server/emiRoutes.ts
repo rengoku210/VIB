@@ -361,14 +361,49 @@ export function registerEmiRoutes(
         return res.status(400).json({ error: 'Tenure months must be a whole number between 1 and 36.' });
       }
 
-      const amountFinanced = round2(totalAmount - initialPayment);
-
-      // Flexible Plan Rich Fields
+      // Flexible Plan Rich Fields & Server-Side Rule Enforcement
       const serviceType = body.serviceType === 'vp' ? 'vp' : 'account';
       const region = body.region === 'php' ? 'php' : (body.region === 'in' ? 'in' : null);
       const listingId = typeof body.listingId === 'string' && body.listingId.trim() ? body.listingId.trim() : null;
       const planType = typeof body.planType === 'string' ? body.planType.trim() : null;
       const paymentFrequency = body.paymentFrequency === 'weekly' ? 'weekly' : 'monthly';
+
+      const vpCfg = getVpFlexibleSettings();
+      const accCfg = getAccountFlexibleSettings();
+      const weeklyLateFee = serviceType === 'vp' ? Number(vpCfg.weeklyLateFee ?? 300) : Number(accCfg.weeklyLateFee ?? 300);
+      const monthlyLateFee = serviceType === 'vp' ? Number(vpCfg.monthlyLateFee ?? 1500) : Number(accCfg.monthlyLateFee ?? 1500);
+
+      if (serviceType === 'vp') {
+        const regKey = region === 'php' ? 'php' : 'in';
+        if (!vpCfg[regKey]?.enabled) {
+          return res.status(409).json({ error: `Flexible payment plans are currently disabled for ${regKey.toUpperCase()} VP.` });
+        }
+      } else {
+        if (!accCfg.enabled) {
+          return res.status(409).json({ error: 'Digital profile flexible payment plans are currently disabled.' });
+        }
+        if (listingId) {
+          const listing = db.prepare('SELECT id, title, price_inr, guarantee_type, status FROM listings WHERE id = ?').get(listingId) as any;
+          if (!listing) {
+            return res.status(404).json({ error: 'Selected digital profile listing not found.' });
+          }
+          if (listing.status !== 'published') {
+            return res.status(409).json({ error: 'Selected listing is not available for flexible payment purchase.' });
+          }
+          if (listing.guarantee_type !== 'lifetime_guaranteed' && listing.guarantee_type !== 'guaranteed') {
+            return res.status(403).json({
+              error: 'Flexible payment plans are exclusively available for Lifetime Guaranteed profiles. Public community marketplace listings are excluded.',
+            });
+          }
+          if (Number(listing.price_inr) < Number(accCfg.minAmount || 1500)) {
+            return res.status(400).json({
+              error: `Listing price must be at least ₹${Number(accCfg.minAmount || 1500)} to qualify for flexible payment plans.`,
+            });
+          }
+        }
+      }
+
+      const amountFinanced = round2(totalAmount - initialPayment);
       const fixedProfit = Number(body.fixedProfit) || 0;
       let totalPayable = Number(body.totalPayable);
       if (!Number.isFinite(totalPayable) || totalPayable <= 0) {
@@ -389,7 +424,12 @@ export function registerEmiRoutes(
         ? body.agreementRef.trim()
         : `VIB-FPP-2026-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       const agreementVersion = typeof body.agreementVersion === 'string' ? body.agreementVersion : '2026.1';
-      const customerSignature = typeof body.customerSignature === 'string' ? body.customerSignature : null;
+      const customerSignature =
+        typeof body.customerSignature === 'string' && body.customerSignature
+          ? body.customerSignature
+          : typeof body.signatureDataUrl === 'string' && body.signatureDataUrl
+            ? body.signatureDataUrl
+            : null;
       const customerDetails = body.customerDetails && typeof body.customerDetails === 'object' ? body.customerDetails : null;
       const kycSubmissionId = typeof body.kycSubmissionId === 'string' ? body.kycSubmissionId : null;
       const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
@@ -444,8 +484,8 @@ export function registerEmiRoutes(
           installmentAmount: emiAmount,
           installmentsCount: tenureMonths,
           paymentFrequency,
-          weeklyLateFee: 300,
-          monthlyLateFee: 1500,
+          weeklyLateFee,
+          monthlyLateFee,
         },
         schedule: scheduleItems,
         signatureDataUrl: customerSignature || undefined,

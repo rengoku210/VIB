@@ -201,6 +201,7 @@ const AdminEmiManagement: React.FC = () => {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [vpSettings, setVpSettings] = useState<any>(null);
   const [accountSettings, setAccountSettings] = useState<any>(null);
+  const [vpRegionTab, setVpRegionTab] = useState<'in' | 'php'>('in');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -222,6 +223,50 @@ const AdminEmiManagement: React.FC = () => {
       setSettingsLoading(false);
     }
   }, [token]);
+
+  const updateVpRegionPackages = (
+    regKey: 'in' | 'php',
+    updater: (pkgs: any[]) => any[]
+  ) => {
+    setVpSettings((prev: any) => {
+      if (!prev) return prev;
+      const regionBlock = prev[regKey] || { enabled: true, packages: [] };
+      return {
+        ...prev,
+        [regKey]: {
+          ...regionBlock,
+          packages: updater(Array.isArray(regionBlock.packages) ? regionBlock.packages : []),
+        },
+      };
+    });
+  };
+
+  const recalcVpPackage = (pkg: any, patch: Partial<{ priceINR: number; downPaymentPct: number; weeklyDur: number; monthlyDur: number }>) => {
+    const priceINR = Math.max(100, Number(patch.priceINR ?? pkg.priceINR ?? 0));
+    const downPaymentPct = Math.min(90, Math.max(5, Number(patch.downPaymentPct ?? pkg.downPaymentPct ?? 30)));
+    const downPaymentINR = Math.round(priceINR * (downPaymentPct / 100));
+    const balance = Math.max(0, priceINR - downPaymentINR);
+    const updatedPlans = (pkg.plans || []).map((pl: any) => {
+      const duration = Math.max(
+        1,
+        Math.round(
+          pl.frequency === 'weekly'
+            ? (patch.weeklyDur ?? pl.duration ?? 4)
+            : (patch.monthlyDur ?? pl.duration ?? 2)
+        )
+      );
+      const installmentAmount = Math.ceil(balance / duration);
+      return {
+        ...pl,
+        duration,
+        downPayment: downPaymentINR,
+        balance,
+        installmentAmount,
+        totalPayable: downPaymentINR + installmentAmount * duration,
+      };
+    });
+    return { ...pkg, priceINR, downPaymentPct, downPaymentINR, plans: updatedPlans };
+  };
 
   const handleSaveSettings = async (category: 'vp' | 'account') => {
     setSettingsSaving(true);
@@ -652,123 +697,141 @@ const AdminEmiManagement: React.FC = () => {
                       VP Flexible Payment Rules
                     </h3>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/40">
-                    Indian &amp; PHP Packs
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {(['in', 'php'] as const).map((rk) => (
+                      <button
+                        key={rk}
+                        type="button"
+                        onClick={() => setVpRegionTab(rk)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase cursor-pointer border ${
+                          vpRegionTab === rk
+                            ? 'bg-purple-600 text-white border-purple-400'
+                            : 'bg-white/5 text-gray-400 border-white/10'
+                        }`}
+                      >
+                        {rk === 'in' ? 'India (IN)' : 'Philippines (PHP)'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-4 text-xs font-mono">
-                  {/* India Rules */}
+                  {/* Active Region Configuration */}
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
-                    <div className="font-bold text-purple-300 uppercase">India VP Configuration</div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Down Payment %</label>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-300 uppercase">
+                        {vpRegionTab === 'in' ? 'India VP' : 'Philippines VP'} Region Rules
+                      </span>
+                      <label className="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
                         <input
-                          type="number"
-                          value={vpSettings?.india?.downPaymentPercent ?? 30}
+                          type="checkbox"
+                          checked={vpSettings?.[vpRegionTab]?.enabled !== false}
                           onChange={(e) =>
                             setVpSettings((prev: any) => ({
                               ...prev,
-                              india: { ...prev.india, downPaymentPercent: Number(e.target.value) },
+                              [vpRegionTab]: { ...(prev?.[vpRegionTab] || {}), enabled: e.target.checked },
                             }))
                           }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
+                          className="rounded accent-purple-600 cursor-pointer"
                         />
-                      </div>
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Weekly (wks)</label>
-                        <input
-                          type="number"
-                          value={vpSettings?.india?.weeklyInstallments ?? 4}
-                          onChange={(e) =>
-                            setVpSettings((prev: any) => ({
-                              ...prev,
-                              india: { ...prev.india, weeklyInstallments: Number(e.target.value) },
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Monthly (mos)</label>
-                        <input
-                          type="number"
-                          value={vpSettings?.india?.monthlyInstallments ?? 2}
-                          onChange={(e) =>
-                            setVpSettings((prev: any) => ({
-                              ...prev,
-                              india: { ...prev.india, monthlyInstallments: Number(e.target.value) },
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
-                        />
-                      </div>
+                        <span>Region Enabled</span>
+                      </label>
                     </div>
-                  </div>
 
-                  {/* PHP Rules */}
-                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
-                    <div className="font-bold text-blue-300 uppercase">Philippines VP Configuration</div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Down Payment %</label>
-                        <input
-                          type="number"
-                          value={vpSettings?.philippines?.downPaymentPercent ?? 30}
-                          onChange={(e) =>
-                            setVpSettings((prev: any) => ({
-                              ...prev,
-                              philippines: { ...prev.philippines, downPaymentPercent: Number(e.target.value) },
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Weekly (wks)</label>
-                        <input
-                          type="number"
-                          value={vpSettings?.philippines?.weeklyInstallments ?? 4}
-                          onChange={(e) =>
-                            setVpSettings((prev: any) => ({
-                              ...prev,
-                              philippines: { ...prev.philippines, weeklyInstallments: Number(e.target.value) },
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-gray-400 block text-[10px] mb-1">Monthly (mos)</label>
-                        <input
-                          type="number"
-                          value={vpSettings?.philippines?.monthlyInstallments ?? 2}
-                          onChange={(e) =>
-                            setVpSettings((prev: any) => ({
-                              ...prev,
-                              philippines: { ...prev.philippines, monthlyInstallments: Number(e.target.value) },
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
-                        />
-                      </div>
+                    <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+                      {(vpSettings?.[vpRegionTab]?.packages || []).map((pkg: any, idx: number) => {
+                        const weeklyPlan = pkg.plans?.find((p: any) => p.frequency === 'weekly');
+                        const monthlyPlan = pkg.plans?.find((p: any) => p.frequency === 'monthly');
+                        return (
+                          <div
+                            key={pkg.id || idx}
+                            className="p-3 rounded-lg bg-black/40 border border-white/10 space-y-2 text-[11px]"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-white">{pkg.name}</span>
+                              <span className="text-[10px] text-emerald-300">
+                                {pkg.downPaymentPct}% Down (₹{Number(pkg.downPaymentINR || 0).toLocaleString()})
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Price (INR)</label>
+                                <input
+                                  type="number"
+                                  value={pkg.priceINR}
+                                  onChange={(e) => {
+                                    const nextPrice = Number(e.target.value);
+                                    updateVpRegionPackages(vpRegionTab, (pkgs) =>
+                                      pkgs.map((p, i) => (i === idx ? recalcVpPackage(p, { priceINR: nextPrice }) : p))
+                                    );
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Down %</label>
+                                <input
+                                  type="number"
+                                  value={pkg.downPaymentPct}
+                                  onChange={(e) => {
+                                    const nextPct = Number(e.target.value);
+                                    updateVpRegionPackages(vpRegionTab, (pkgs) =>
+                                      pkgs.map((p, i) => (i === idx ? recalcVpPackage(p, { downPaymentPct: nextPct }) : p))
+                                    );
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Weekly (wks)</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={weeklyPlan?.duration ?? 4}
+                                  onChange={(e) => {
+                                    const dur = Number(e.target.value);
+                                    updateVpRegionPackages(vpRegionTab, (pkgs) =>
+                                      pkgs.map((p, i) => (i === idx ? recalcVpPackage(p, { weeklyDur: dur }) : p))
+                                    );
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Monthly (mos)</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={monthlyPlan?.duration ?? 2}
+                                  onChange={(e) => {
+                                    const dur = Number(e.target.value);
+                                    updateVpRegionPackages(vpRegionTab, (pkgs) =>
+                                      pkgs.map((p, i) => (i === idx ? recalcVpPackage(p, { monthlyDur: dur }) : p))
+                                    );
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Late fee policy */}
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
-                    <div className="font-bold text-amber-300 uppercase">Statutory Late Fee Policies</div>
+                    <div className="font-bold text-amber-300 uppercase">VP Statutory Late Fee Policies</div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-gray-400 block text-[10px] mb-1">Weekly Late Fee (₹)</label>
                         <input
                           type="number"
-                          value={vpSettings?.lateFees?.weeklyFee ?? 300}
+                          value={vpSettings?.weeklyLateFee ?? 300}
                           onChange={(e) =>
                             setVpSettings((prev: any) => ({
                               ...prev,
-                              lateFees: { ...prev.lateFees, weeklyFee: Number(e.target.value) },
+                              weeklyLateFee: Number(e.target.value),
                             }))
                           }
                           className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
@@ -778,11 +841,11 @@ const AdminEmiManagement: React.FC = () => {
                         <label className="text-gray-400 block text-[10px] mb-1">Monthly Late Fee (₹)</label>
                         <input
                           type="number"
-                          value={vpSettings?.lateFees?.monthlyFee ?? 1500}
+                          value={vpSettings?.monthlyLateFee ?? 1500}
                           onChange={(e) =>
                             setVpSettings((prev: any) => ({
                               ...prev,
-                              lateFees: { ...prev.lateFees, monthlyFee: Number(e.target.value) },
+                              monthlyLateFee: Number(e.target.value),
                             }))
                           }
                           className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
@@ -812,9 +875,17 @@ const AdminEmiManagement: React.FC = () => {
                       Lifetime Guaranteed Account Rules
                     </h3>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/40">
-                    Slab Engine
-                  </span>
+                  <label className="flex items-center gap-2 text-[11px] font-mono text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={accountSettings?.enabled !== false}
+                      onChange={(e) =>
+                        setAccountSettings((prev: any) => ({ ...prev, enabled: e.target.checked }))
+                      }
+                      className="rounded accent-amber-500 cursor-pointer"
+                    />
+                    <span>Enabled</span>
+                  </label>
                 </div>
 
                 <div className="space-y-4 text-xs font-mono">
@@ -839,30 +910,65 @@ const AdminEmiManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Slabs breakdown */}
+                  {/* Slabs breakdown (editable) */}
                   <div className="space-y-2">
                     <div className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
-                      Price Slabs &amp; Fixed Profit Margins
+                      Price Slabs &amp; Fixed Plan Margins
                     </div>
-                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                       {Array.isArray(accountSettings?.slabs) &&
                         accountSettings.slabs.map((slab: any, idx: number) => (
                           <div
                             key={slab.id || idx}
-                            className="p-3 rounded-lg bg-white/[0.02] border border-white/10 flex items-center justify-between gap-3 text-[11px]"
+                            className="p-3 rounded-lg bg-white/[0.02] border border-white/10 space-y-2 text-[11px]"
                           >
-                            <div>
-                              <span className="text-white font-bold">{slab.name}</span>
-                              <div className="text-gray-500 text-[10px]">
-                                ₹{slab.minPrice.toLocaleString()} - {slab.maxPrice === Infinity ? 'Above' : `₹${slab.maxPrice.toLocaleString()}`}
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <span className="text-white font-bold">{slab.name}</span>
+                                <div className="text-gray-500 text-[10px]">
+                                  ₹{Number(slab.minPrice).toLocaleString()} -{' '}
+                                  {slab.maxPrice >= 999999 ? 'Above' : `₹${Number(slab.maxPrice).toLocaleString()}`}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-emerald-400 font-bold">{slab.downPaymentPct ?? 30}% Down</span>
+                                <div className="text-amber-300 text-[10px]">+₹{slab.fixedProfit} Margin</div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <span className="text-emerald-400 font-bold">
-                                {slab.downPaymentPct ?? slab.downPaymentPercent ?? 30}% Down
-                              </span>
-                              <div className="text-amber-300 text-[10px]">
-                                +₹{slab.fixedProfit} Profit
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Down Payment %</label>
+                                <input
+                                  type="number"
+                                  value={slab.downPaymentPct ?? 30}
+                                  onChange={(e) => {
+                                    const pct = Number(e.target.value);
+                                    setAccountSettings((prev: any) => ({
+                                      ...prev,
+                                      slabs: prev.slabs.map((s: any, i: number) =>
+                                        i === idx ? { ...s, downPaymentPct: pct } : s
+                                      ),
+                                    }));
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-gray-500 block text-[9px]">Fixed Margin (INR)</label>
+                                <input
+                                  type="number"
+                                  value={slab.fixedProfit ?? 0}
+                                  onChange={(e) => {
+                                    const margin = Number(e.target.value);
+                                    setAccountSettings((prev: any) => ({
+                                      ...prev,
+                                      slabs: prev.slabs.map((s: any, i: number) =>
+                                        i === idx ? { ...s, fixedProfit: margin } : s
+                                      ),
+                                    }));
+                                  }}
+                                  className="w-full px-2 py-1 rounded bg-black/60 border border-white/15 text-white"
+                                />
                               </div>
                             </div>
                           </div>
@@ -872,17 +978,17 @@ const AdminEmiManagement: React.FC = () => {
 
                   {/* Late fee policy */}
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
-                    <div className="font-bold text-amber-300 uppercase">Late Fee Policies</div>
+                    <div className="font-bold text-amber-300 uppercase">Account Late Fee Policies</div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-gray-400 block text-[10px] mb-1">Weekly Fee (₹)</label>
                         <input
                           type="number"
-                          value={accountSettings?.lateFees?.weeklyFee ?? 300}
+                          value={accountSettings?.weeklyLateFee ?? 300}
                           onChange={(e) =>
                             setAccountSettings((prev: any) => ({
                               ...prev,
-                              lateFees: { ...prev.lateFees, weeklyFee: Number(e.target.value) },
+                              weeklyLateFee: Number(e.target.value),
                             }))
                           }
                           className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
@@ -892,11 +998,11 @@ const AdminEmiManagement: React.FC = () => {
                         <label className="text-gray-400 block text-[10px] mb-1">Monthly Fee (₹)</label>
                         <input
                           type="number"
-                          value={accountSettings?.lateFees?.monthlyFee ?? 1500}
+                          value={accountSettings?.monthlyLateFee ?? 1500}
                           onChange={(e) =>
                             setAccountSettings((prev: any) => ({
                               ...prev,
-                              lateFees: { ...prev.lateFees, monthlyFee: Number(e.target.value) },
+                              monthlyLateFee: Number(e.target.value),
                             }))
                           }
                           className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white"
@@ -992,13 +1098,23 @@ const AdminEmiManagement: React.FC = () => {
                     Financed: <strong className="text-amber-300">{formatINR(row.amount_financed)}</strong>
                   </div>
                   <div className="text-gray-500">
-                    EMI: <strong className="text-white">{formatINR(row.emi_amount)}</strong>
+                    Installment: <strong className="text-white">{formatINR(row.emi_amount)}</strong>
                   </div>
                   <div className="text-gray-500">
-                    Tenure: <strong className="text-white">{row.tenure_months} mo</strong>
+                    Schedule:{' '}
+                    <strong className="text-white">
+                      {row.total_installments || row.tenure_months}{' '}
+                      {row.payment_frequency === 'weekly' ? 'wks' : 'mo'}
+                    </strong>
                   </div>
                   <div className="text-gray-500">
                     Paid: <strong className="text-emerald-300">{row.installments_paid}/{row.total_installments}</strong>
+                  </div>
+                  <div className="text-gray-500 col-span-2">
+                    Outstanding:{' '}
+                    <strong className="text-amber-300">
+                      {row.outstanding !== null ? formatINR(row.outstanding) : 'Pending Schedule'}
+                    </strong>
                   </div>
                 </div>
 

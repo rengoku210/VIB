@@ -144,7 +144,10 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
   // user still sees feedback after fetchDetail() refreshes the schedule.
   const [lastPayFeedback, setLastPayFeedback] = useState<string | null>(null);
 
-  // Pay modal
+  // Inline agreement preview
+  const [previewAgreementId, setPreviewAgreementId] = useState<string | null>(null);
+
+  // Inline installment payment state
   const [payTarget, setPayTarget] = useState<{ application: EmiApplication; payment: EmiPayment } | null>(null);
   const [utr, setUtr] = useState('');
   const [evidence, setEvidence] = useState<{ dataUrl: string; file: File; progress: number } | null>(null);
@@ -372,7 +375,11 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
           </div>
 
           {/* Stats grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
+            <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+              <div className="text-[10px] font-mono uppercase text-gray-500">Initial Payment</div>
+              <div className="text-sm font-bold text-emerald-300 mt-1">₹{formatInr(app.initialPayment)}</div>
+            </div>
             <div className="p-3 rounded-xl bg-white/5 border border-white/5">
               <div className="text-[10px] font-mono uppercase text-gray-500">Schedule</div>
               <div className="text-sm font-bold text-white mt-1">
@@ -396,7 +403,7 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
                 {app.nextDueDate ? formatDate(app.nextDueDate) : '—'}
               </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 border border-white/5 col-span-2 md:col-span-1">
+            <div className="p-3 rounded-xl bg-white/5 border border-white/5">
               <div className="text-[10px] font-mono uppercase text-gray-500">Verification / Status</div>
               <div className="text-xs font-bold text-purple-300 mt-1 uppercase">
                 {app.status === 'pending_approval'
@@ -467,17 +474,13 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
                       <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                         <button
                           type="button"
-                          onClick={() => {
-                            const w = window.open('', '_blank');
-                            if (w) {
-                              w.document.write(app.agreementHtml!);
-                              w.document.close();
-                            }
-                          }}
+                          onClick={() =>
+                            setPreviewAgreementId((prev) => (prev === app.id ? null : app.id))
+                          }
                           className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>View Agreement</span>
+                          <span>{previewAgreementId === app.id ? 'Hide Agreement' : 'View Agreement'}</span>
                         </button>
                         <button
                           type="button"
@@ -499,6 +502,17 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Inline Agreement Preview (No popup blocked window.open) */}
+                {previewAgreementId === app.id && app.agreementHtml && (
+                  <div className="rounded-xl border border-purple-500/30 bg-white overflow-hidden">
+                    <iframe
+                      title={`Agreement ${app.agreementRef || app.id}`}
+                      srcDoc={app.agreementHtml}
+                      className="w-full h-96 border-0"
+                    />
                   </div>
                 )}
 
@@ -573,6 +587,156 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
                     </div>
                   </div>
                 )}
+                {payTarget && payTarget.application.id === app.id && (
+                  <div className="rounded-2xl bg-[#0b0e1f] border border-emerald-500/40 p-5 space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <div className="flex items-center gap-2 text-emerald-300 font-bold font-rajdhani text-base uppercase">
+                        <IndianRupee className="w-4 h-4 text-emerald-400" />
+                        <span>Submit Payment for Installment #{payTarget.payment.installmentNo}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPayTarget(null)}
+                        className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+                        aria-label="Close payment form"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div
+                        className={`p-3 rounded-xl border ${
+                          payTarget.payment.status === 'late'
+                            ? 'bg-rose-950/40 border-rose-500/40'
+                            : 'bg-white/5 border-white/10'
+                        }`}
+                      >
+                        <div className="text-[10px] font-mono uppercase text-gray-500">Amount Due</div>
+                        <div
+                          className={`text-lg font-black font-rajdhani mt-0.5 ${
+                            payTarget.payment.status === 'late' ? 'text-rose-300' : 'text-emerald-300'
+                          }`}
+                        >
+                          ₹{formatInr(payTarget.payment.amount)}
+                        </div>
+                      </div>
+                      <div
+                        className={`p-3 rounded-xl border ${
+                          payTarget.payment.status === 'late'
+                            ? 'bg-rose-950/40 border-rose-500/40'
+                            : 'bg-white/5 border-white/10'
+                        }`}
+                      >
+                        <div className="text-[10px] font-mono uppercase text-gray-500">Due Date</div>
+                        <div
+                          className={`text-base font-black font-rajdhani mt-0.5 ${
+                            payTarget.payment.status === 'late' ? 'text-rose-300' : 'text-white'
+                          }`}
+                        >
+                          {formatDate(payTarget.payment.dueDate)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {payError && (
+                      <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span>{payError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handlePay} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
+                          UTR Reference (12 digits) *
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={12}
+                          value={utr}
+                          onChange={(e) => setUtr(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder="e.g. 402137896541"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-sm tracking-widest font-mono focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
+                          Payment Screenshot *
+                        </label>
+                        <div className="rounded-xl border border-dashed border-emerald-500/40 bg-emerald-950/20 p-4">
+                          {evidence ? (
+                            <div className="flex items-center gap-3">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0">
+                                {evidence.dataUrl ? (
+                                  <img src={evidence.dataUrl} alt="Payment evidence" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="text-xs text-white font-mono truncate">{evidence.file.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${evidence.progress}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-emerald-300 font-mono w-9 text-right">{evidence.progress}%</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEvidence(null)}
+                                className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 cursor-pointer shrink-0"
+                                aria-label="Remove evidence"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => evidenceInputRef.current?.click()}
+                              className="w-full py-5 flex flex-col items-center gap-1.5 text-emerald-300/80 hover:text-emerald-200 transition-colors cursor-pointer"
+                            >
+                              <Upload className="w-5 h-5" />
+                              <span className="text-xs font-mono uppercase tracking-wider">Upload UPI Screenshot</span>
+                              <span className="text-[10px] text-gray-500">image only • max 5MB</span>
+                            </button>
+                          )}
+                          <input
+                            ref={evidenceInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleEvidenceSelected}
+                            className="hidden"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-1 border-t border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => setPayTarget(null)}
+                          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={paying}
+                          className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-900/40 disabled:opacity-50"
+                        >
+                          {paying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <IndianRupee className="w-3.5 h-3.5" />}
+                          <span>{paying ? 'Submitting…' : 'Submit Payment'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </>
             ) : null}
           </div>
@@ -625,14 +789,14 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-purple-400" />
-            <span>My EMI Plans ({applications.length})</span>
+            <span>My Flexible Payment Plans ({applications.length})</span>
           </h3>
         </div>
 
         {loading ? (
           <div className="p-12 rounded-2xl bg-[#0c0d1c] border border-white/10 flex flex-col items-center justify-center gap-3 text-gray-400">
             <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-            <p className="text-xs font-mono uppercase tracking-wider">Loading EMI plans…</p>
+            <p className="text-xs font-mono uppercase tracking-wider">Loading flexible plans…</p>
           </div>
         ) : listError ? (
           <div className="p-6 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-sm flex items-center gap-2">
@@ -642,188 +806,16 @@ const EmiSection: React.FC<EmiSectionProps> = ({ onBrowsePlans }) => {
         ) : applications.length === 0 ? (
           <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/10 text-gray-400 space-y-3">
             <CreditCard className="w-12 h-12 mx-auto text-gray-600" />
-            <p className="text-sm font-semibold text-white font-rajdhani uppercase">No EMI plans yet</p>
+            <p className="text-sm font-semibold text-white font-rajdhani uppercase">No flexible payment plans yet</p>
             <p className="text-xs text-gray-500 max-w-md mx-auto">
-              Apply for EMI above to split your purchase into manageable monthly installments.
+              Select an eligible VP package or Lifetime Guaranteed profile on our Flexible Payment Plans page to submit
+              an application.
             </p>
           </div>
         ) : (
           <div className="space-y-4">{applications.map((app) => renderPlanCard(app))}</div>
         )}
       </div>
-
-      {/* Pay modal */}
-      {payTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#0c0d1c] border border-emerald-500/30 p-6 space-y-4 shadow-2xl text-white max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2 text-emerald-300 font-bold font-rajdhani text-lg uppercase">
-                <IndianRupee className="w-5 h-5 text-emerald-400" />
-                <span>Pay Installment #{payTarget.payment.installmentNo}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPayTarget(null)}
-                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className={`p-3.5 rounded-xl border ${
-                payTarget.payment.status === 'late'
-                  ? 'bg-rose-950/40 border-rose-500/40'
-                  : 'bg-white/5 border-white/10'
-              }`}>
-                <div className="text-[10px] font-mono uppercase text-gray-500">Amount</div>
-                <div className={`text-xl font-black font-rajdhani mt-1 ${
-                  payTarget.payment.status === 'late' ? 'text-rose-300' : 'text-emerald-300'
-                }`}>
-                  ₹{formatInr(payTarget.payment.amount)}
-                </div>
-              </div>
-              <div className={`p-3.5 rounded-xl border ${
-                payTarget.payment.status === 'late'
-                  ? 'bg-rose-950/40 border-rose-500/40'
-                  : 'bg-white/5 border-white/10'
-              }`}>
-                <div className="text-[10px] font-mono uppercase text-gray-500">Due Date</div>
-                <div className={`text-lg font-black font-rajdhani mt-1 ${
-                  payTarget.payment.status === 'late' ? 'text-rose-300' : 'text-white'
-                }`}>
-                  {formatDate(payTarget.payment.dueDate)}
-                </div>
-                {payTarget.payment.status === 'late' && (
-                  <div className="text-[10px] uppercase font-bold text-rose-400 mt-1 tracking-wider">
-                    Overdue — pay now
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {payError && (
-              <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{payError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handlePay} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                  UTR Reference (12 digits) *
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={12}
-                  value={utr}
-                  onChange={(e) => setUtr(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="e.g. 402137896541"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-sm tracking-widest font-mono focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-1.5">
-                  Payment Screenshot *
-                </label>
-                <div className="rounded-xl border border-dashed border-emerald-500/40 bg-emerald-950/20 p-4">
-                  {evidence ? (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0">
-                          {evidence.dataUrl ? (
-                            <img src={evidence.dataUrl} alt="Payment evidence" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="text-xs text-white font-mono truncate">{evidence.file.name}</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                              <div
-                                className="h-full bg-emerald-500 transition-all"
-                                style={{ width: `${evidence.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] text-emerald-300 font-mono w-9 text-right">
-                              {evidence.progress}%
-                            </span>
-                          </div>
-                          {evidence.dataUrl && (
-                            <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Ready • {(evidence.file.size / 1024 / 1024).toFixed(2)}MB</span>
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setEvidence(null)}
-                          className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 cursor-pointer transition-all shrink-0"
-                          aria-label="Remove evidence"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => evidenceInputRef.current?.click()}
-                      className="w-full py-6 flex flex-col items-center gap-2 text-emerald-300/80 hover:text-emerald-200 transition-colors cursor-pointer"
-                    >
-                      <Upload className="w-6 h-6" />
-                      <span className="text-xs font-mono uppercase tracking-wider">Upload UPI Screenshot</span>
-                      <span className="text-[10px] text-gray-500">image only • max 5MB</span>
-                    </button>
-                  )}
-                  <input
-                    ref={evidenceInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleEvidenceSelected}
-                    className="hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setPayTarget(null)}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-bold font-rajdhani uppercase cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paying}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-900/40 disabled:opacity-50"
-                >
-                  {paying ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Submitting…</span>
-                    </>
-                  ) : (
-                    <>
-                      <IndianRupee className="w-3.5 h-3.5" />
-                      <span>Submit Payment</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

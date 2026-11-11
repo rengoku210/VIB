@@ -417,6 +417,7 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
         agreementRef,
         agreementVersion: AGREEMENT_VERSION,
         agreementHtml: renderedAgreementHtml,
+        customerSignature: signatureDataUrl,
         signatureDataUrl,
         customerDetails: {
           fullName: formData.fullName,
@@ -466,14 +467,22 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
     }
   };
 
+  const allStepsReady = Boolean(step1Done && step2Done && step3Done && step4Done && step5Done);
+
   const progressSteps = [
-    { num: 1, label: 'Customer Info', done: step1Done },
-    { num: 2, label: 'Identity Verification', done: step2Done },
-    { num: 3, label: 'Document Uploads', done: step3Done },
-    ...(isMinor ? [{ num: 4, label: 'Guardian Info', done: step4Done }] : []),
-    { num: isMinor ? 5 : 4, label: 'Agreement & E-Sign', done: step5Done },
-    { num: isMinor ? 6 : 5, label: 'Final Confirmation', done: submitting },
+    { num: 1, targetId: 'fpp-step-1', label: 'Order Details', done: true },
+    { num: 2, targetId: 'fpp-step-2', label: 'Customer Info', done: step1Done },
+    { num: 3, targetId: 'fpp-step-3', label: 'KYC Verification', done: step2Done && step3Done && step4Done },
+    { num: 4, targetId: 'fpp-step-4', label: 'Agreement', done: step5Done },
+    { num: 5, targetId: 'fpp-step-5', label: 'Review & Submit', done: allStepsReady },
   ];
+
+  const scrollToStep = (targetId: string) => {
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#06040d] text-white selection:bg-purple-500 selection:text-white pb-24">
@@ -514,25 +523,33 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
           </button>
         </div>
 
-        {/* Structured Checkout Progress Indicator */}
+        {/* Structured 5-Step Checkout Progress Indicator */}
         <div className="mb-8 p-4 rounded-2xl bg-[#0c0d1e] border border-white/10 overflow-x-auto">
-          <div className="flex items-center justify-between gap-3 min-w-[600px]">
+          <div className="flex items-center justify-between gap-3 min-w-[640px]">
             {progressSteps.map((step, idx) => (
               <React.Fragment key={step.num}>
-                <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => scrollToStep(step.targetId)}
+                  className="flex items-center gap-2.5 text-left cursor-pointer group focus:outline-none"
+                >
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-colors ${
                       step.done
                         ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
-                        : 'bg-purple-500/20 border border-purple-500/40 text-purple-300'
+                        : 'bg-purple-500/20 border border-purple-500/40 text-purple-300 group-hover:border-purple-400'
                     }`}
                   >
                     {step.done ? <Check className="w-3.5 h-3.5" /> : step.num}
                   </div>
-                  <span className={`text-xs font-mono ${step.done ? 'text-white font-semibold' : 'text-gray-400'}`}>
+                  <span
+                    className={`text-xs font-mono whitespace-nowrap ${
+                      step.done ? 'text-white font-semibold' : 'text-gray-400 group-hover:text-gray-200'
+                    }`}
+                  >
                     {step.label}
                   </span>
-                </div>
+                </button>
                 {idx < progressSteps.length - 1 && <div className="flex-1 h-px bg-white/10" />}
               </React.Fragment>
             ))}
@@ -575,11 +592,54 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
               </div>
             )}
 
-            {/* Section 1: Customer & Service Information */}
-            <div className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-4">
+            {/* Step 1: Selected Product & Plan Breakdown */}
+            <div id="fpp-step-1" className="p-6 rounded-2xl bg-[#0c0d1e] border border-purple-500/25 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2.5 text-white font-bold font-rajdhani text-lg uppercase tracking-wider">
+                  <CreditCard className="w-5 h-5 text-purple-400" />
+                  <span>1. Order Details &amp; Installment Breakdown</span>
+                </div>
+                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-950/70 border border-purple-500/30 text-purple-300 uppercase">
+                  {selectedPlan.serviceType === 'vp' ? 'VP Service Plan' : 'Lifetime Guaranteed Profile Plan'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10">
+                  <span className="text-[10px] text-gray-500 uppercase block">Selected Product</span>
+                  <span className="text-white font-bold line-clamp-2 mt-0.5">{selectedPlan.productTitle}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10">
+                  <span className="text-[10px] text-gray-500 uppercase block">Service Price</span>
+                  <span className="text-white font-bold mt-0.5 block">
+                    {formatCurrencyPrice(selectedPlan.productPrice, currency)}
+                  </span>
+                  {selectedPlan.region && (
+                    <span className="text-[10px] text-purple-300 uppercase">Region: {selectedPlan.region}</span>
+                  )}
+                </div>
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10">
+                  <span className="text-[10px] text-gray-500 uppercase block">Initial Payment</span>
+                  <span className="text-emerald-400 font-bold mt-0.5 block">
+                    {formatCurrencyPrice(selectedPlan.downPaymentAmount, currency)} ({selectedPlan.downPaymentPercent}%)
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10">
+                  <span className="text-[10px] text-gray-500 uppercase block">Installment Plan</span>
+                  <span className="text-fuchsia-300 font-bold mt-0.5 block">
+                    {selectedPlan.totalInstallments} ×{' '}
+                    {formatCurrencyPrice(selectedPlan.installmentAmount, currency)}
+                  </span>
+                  <span className="text-[10px] text-gray-400 uppercase">{selectedPlan.paymentFrequency}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2: Customer Information */}
+            <div id="fpp-step-2" className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-4">
               <div className="flex items-center gap-2.5 pb-2 border-b border-white/10 text-white font-bold font-rajdhani text-lg uppercase tracking-wider">
                 <User className="w-5 h-5 text-purple-400" />
-                <span>1. Customer &amp; Service Information</span>
+                <span>2. Customer Information</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
@@ -700,16 +760,21 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
               </div>
             </div>
 
-            {/* Section 2 & 3: Identity Verification & Required Document Uploads */}
-            <div className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-4">
+            {/* Step 3: KYC Verification & Document Uploads */}
+            <div id="fpp-step-3" className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-4">
               <div className="flex items-center gap-2.5 pb-2 border-b border-white/10 text-white font-bold font-rajdhani text-lg uppercase tracking-wider">
                 <ShieldCheck className="w-5 h-5 text-cyan-400" />
-                <span>2. Identity Verification &amp; 3. Document Uploads</span>
+                <span>3. KYC Verification &amp; Document Uploads</span>
               </div>
-              <p className="text-xs text-gray-400 font-mono">
-                Two distinct government-approved identity documents are required to verify identity and secure escrow
-                coverage.
-              </p>
+              <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-500/25 text-xs font-mono text-gray-300 space-y-1.5">
+                <div className="font-bold text-cyan-300 uppercase">Why These Documents Are Required</div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  <strong>Primary Identity Document:</strong> Confirms applicant legal identity and date of birth to
+                  enforce age &amp; guardian rules. <strong>Secondary Document:</strong> Cross-verifies identity against
+                  multiple fraud/chargeback claims so digital profiles and VP balances remain escrow-protected.
+                  Files are stored privately for compliance desk review only.
+                </p>
+              </div>
 
               {/* Primary Document */}
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
@@ -804,12 +869,12 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
               </div>
             </div>
 
-            {/* Section 4: Guardian Details (Minor) */}
+            {/* Section 3B: Minor Guardian Authorization */}
             {isMinor && (
               <div className="p-6 rounded-2xl bg-amber-950/20 border border-amber-500/40 space-y-4">
                 <div className="flex items-center gap-2.5 pb-2 border-b border-amber-500/20 text-amber-300 font-bold font-rajdhani text-lg uppercase tracking-wider">
                   <ShieldCheck className="w-5 h-5 text-amber-400" />
-                  <span>4. Minor Guardian Authorization (Applicant under 18)</span>
+                  <span>3B. Minor Guardian Authorization (Applicant under 18)</span>
                 </div>
                 <p className="text-xs text-amber-200/80 font-mono">
                   Because the applicant is under 18 years of age, legal parent or guardian authorization is required.
@@ -854,12 +919,12 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
               </div>
             )}
 
-            {/* Section 5: Agreement Review, Download & E-Signature */}
-            <div className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-5">
+            {/* Step 4: Agreement Review, Download & E-Signature */}
+            <div id="fpp-step-4" className="p-6 rounded-2xl bg-[#0c0d1e] border border-white/10 space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
                 <div className="flex items-center gap-2.5 text-white font-bold font-rajdhani text-lg uppercase tracking-wider">
                   <FileText className="w-5 h-5 text-emerald-400" />
-                  <span>{isMinor ? '5.' : '4.'} Formal Legal Agreement &amp; Electronic Signature</span>
+                  <span>4. Formal Legal Agreement &amp; Electronic Signature</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30">
@@ -999,6 +1064,51 @@ export const FlexibleCheckoutPage: React.FC<FlexibleCheckoutPageProps> = ({
                     I certify that all submitted KYC details and identity documents are authentic and belong to me.
                   </span>
                 </label>
+              </div>
+            </div>
+
+            {/* Step 5: Pre-Submission Review */}
+            <div id="fpp-step-5" className="p-6 rounded-2xl bg-[#0c0d1e] border border-purple-500/30 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2.5 text-white font-bold font-rajdhani text-lg uppercase tracking-wider">
+                  <CheckCircle2 className="w-5 h-5 text-purple-400" />
+                  <span>5. Review Application Details</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border uppercase ${
+                    allStepsReady
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                      : 'bg-white/5 border-white/15 text-gray-400'
+                  }`}
+                >
+                  {allStepsReady ? 'Ready to Submit' : 'Complete All Sections Above'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                  <div className="text-[10px] text-gray-500 uppercase">Applicant</div>
+                  <div className="text-white font-bold">{formData.fullName || 'Not entered'}</div>
+                  <div className="text-gray-400 text-[11px]">{formData.email || '—'}</div>
+                  <div className="text-gray-400 text-[11px]">{formData.phone || '—'}</div>
+                  {selectedPlan.serviceType === 'vp' && (
+                    <div className="text-purple-300 text-[11px]">Riot ID: {formData.riotId || '—'}</div>
+                  )}
+                </div>
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                  <div className="text-[10px] text-gray-500 uppercase">KYC &amp; Agreement</div>
+                  <div className="text-gray-300 text-[11px]">
+                    Primary: {formData.primaryDocType} {formData.primaryDocNumber ? `(${formData.primaryDocNumber})` : '(Pending)'}
+                  </div>
+                  <div className="text-gray-300 text-[11px]">
+                    Secondary: {formData.secondaryDocType} {formData.secondaryDocNumber ? `(${formData.secondaryDocNumber})` : '(Pending)'}
+                  </div>
+                  <div className="text-gray-300 text-[11px]">
+                    Docs Uploaded: {formData.primaryDocImage && formData.secondaryDocImage ? 'Both Ready' : 'Missing'}
+                  </div>
+                  <div className="text-gray-300 text-[11px]">
+                    E-Signature &amp; Consent: {step5Done ? 'Signed & Accepted' : 'Pending'}
+                  </div>
+                </div>
               </div>
             </div>
 
