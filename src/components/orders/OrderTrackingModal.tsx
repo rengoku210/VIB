@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { downloadBrandedQrCard } from '../../utils/qrDownload';
+import { resolveUploadUrl, handleUploadImageError } from '../../utils/uploadUrl';
 
 interface OrderTrackingModalProps {
   isOpen: boolean;
@@ -68,6 +69,10 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   const [copiedRef, setCopiedRef] = useState(false);
   const [isDownloadingQr, setIsDownloadingQr] = useState(false);
   const [zoomScreenshot, setZoomScreenshot] = useState<string | null>(null);
+  const [zoomImgFailed, setZoomImgFailed] = useState(false);
+  useEffect(() => {
+    setZoomImgFailed(false);
+  }, [zoomScreenshot]);
 
   // Payment settings state for QR generation
   const [paymentSettings, setPaymentSettings] = useState({
@@ -76,7 +81,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   });
 
   useEffect(() => {
-    fetch('/api/payment/settings')
+    fetch('/api/payment/settings', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data && data.upi_id) setPaymentSettings(data);
@@ -96,7 +101,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/orders/track/${encodeURIComponent(id.trim())}`);
+      const res = await fetch(`/api/orders/track/${encodeURIComponent(id.trim())}`, { cache: 'no-store' });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
         setError(err?.error || 'Order reference not found. Please check your reference ID.');
@@ -839,7 +844,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={zoomScreenshot}
+                    href={resolveUploadUrl(zoomScreenshot)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-rajdhani font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -849,7 +854,10 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   </a>
                   <button
                     type="button"
-                    onClick={() => setZoomScreenshot(null)}
+                    onClick={() => {
+                      setZoomScreenshot(null);
+                      setZoomImgFailed(false);
+                    }}
                     className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
                     aria-label="Close Preview"
                   >
@@ -857,18 +865,33 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   </button>
                 </div>
               </div>
-              <div className="p-4 max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
-                <img
-                  src={zoomScreenshot}
-                  alt="Payment Receipt Zoom"
-                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    if (!img.src.includes(':5000') && zoomScreenshot.startsWith('/uploads')) {
-                      img.src = `${zoomScreenshot}`;
-                    }
-                  }}
-                />
+              <div className="p-4 min-h-[220px] max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
+                {zoomImgFailed ? (
+                  <div className="p-8 text-center space-y-3">
+                    <ImageIcon className="w-12 h-12 text-rose-400 mx-auto" />
+                    <div className="text-white font-bold text-sm">Image preview could not be loaded</div>
+                    <p className="text-gray-400 text-xs font-mono max-w-md">{zoomScreenshot}</p>
+                    <a
+                      href={resolveUploadUrl(zoomScreenshot)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase font-rajdhani"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Open Direct File Link</span>
+                    </a>
+                  </div>
+                ) : (
+                  <img
+                    key={zoomScreenshot}
+                    src={resolveUploadUrl(zoomScreenshot)}
+                    alt="Payment Receipt Zoom"
+                    className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
+                    onError={(e) => {
+                      handleUploadImageError(e.currentTarget, zoomScreenshot, () => setZoomImgFailed(true));
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>

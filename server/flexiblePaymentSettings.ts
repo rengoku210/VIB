@@ -223,16 +223,16 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountFlexibleSettings = {
 };
 
 // Seed or retrieve settings
-export function getVpFlexibleSettings(): VpFlexibleSettings {
+export async function getVpFlexibleSettings(): Promise<VpFlexibleSettings> {
   try {
-    const row = db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('vp') as any;
+    const row = await db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('vp') as any;
     if (row?.settings_json) {
       return JSON.parse(row.settings_json);
     }
     // Seed
     const now = new Date().toISOString();
     const id = 'set_' + crypto.randomBytes(6).toString('hex');
-    db.prepare('INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)')
+    await db.prepare('INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)')
       .run(id, 'vp', JSON.stringify(DEFAULT_VP_SETTINGS), now);
     return DEFAULT_VP_SETTINGS;
   } catch (e) {
@@ -241,16 +241,16 @@ export function getVpFlexibleSettings(): VpFlexibleSettings {
   }
 }
 
-export function getAccountFlexibleSettings(): AccountFlexibleSettings {
+export async function getAccountFlexibleSettings(): Promise<AccountFlexibleSettings> {
   try {
-    const row = db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('account') as any;
+    const row = await db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('account') as any;
     if (row?.settings_json) {
       return JSON.parse(row.settings_json);
     }
     // Seed
     const now = new Date().toISOString();
     const id = 'set_' + crypto.randomBytes(6).toString('hex');
-    db.prepare('INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)')
+    await db.prepare('INSERT OR REPLACE INTO emi_settings (id, category, settings_json, updated_at) VALUES (?, ?, ?, ?)')
       .run(id, 'account', JSON.stringify(DEFAULT_ACCOUNT_SETTINGS), now);
     return DEFAULT_ACCOUNT_SETTINGS;
   } catch (e) {
@@ -259,11 +259,11 @@ export function getAccountFlexibleSettings(): AccountFlexibleSettings {
   }
 }
 
-export function saveVpFlexibleSettings(settings: VpFlexibleSettings, adminId: string): void {
+export async function saveVpFlexibleSettings(settings: VpFlexibleSettings, adminId: string): Promise<void> {
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT id FROM emi_settings WHERE category = ?').get('vp') as any;
+  const existing = await db.prepare('SELECT id FROM emi_settings WHERE category = ?').get('vp') as any;
   const id = existing?.id || ('set_' + crypto.randomBytes(6).toString('hex'));
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO emi_settings (id, category, settings_json, updated_at, updated_by)
     VALUES (?, 'vp', ?, ?, ?)
     ON CONFLICT(category) DO UPDATE SET
@@ -273,11 +273,11 @@ export function saveVpFlexibleSettings(settings: VpFlexibleSettings, adminId: st
   `).run(id, JSON.stringify(settings), now, adminId);
 }
 
-export function saveAccountFlexibleSettings(settings: AccountFlexibleSettings, adminId: string): void {
+export async function saveAccountFlexibleSettings(settings: AccountFlexibleSettings, adminId: string): Promise<void> {
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT id FROM emi_settings WHERE category = ?').get('account') as any;
+  const existing = await db.prepare('SELECT id FROM emi_settings WHERE category = ?').get('account') as any;
   const id = existing?.id || ('set_' + crypto.randomBytes(6).toString('hex'));
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO emi_settings (id, category, settings_json, updated_at, updated_by)
     VALUES (?, 'account', ?, ?, ?)
     ON CONFLICT(category) DO UPDATE SET
@@ -303,8 +303,8 @@ export interface CalculatedAccountPlan {
   slabName: string;
 }
 
-export function calculateAccountPlans(priceINR: number): CalculatedAccountPlan[] {
-  const cfg = getAccountFlexibleSettings();
+export async function calculateAccountPlans(priceINR: number): Promise<CalculatedAccountPlan[]> {
+  const cfg = await getAccountFlexibleSettings();
   if (!cfg.enabled || priceINR < cfg.minAmount) return [];
 
   const slab = cfg.slabs.find((s) => priceINR >= s.minPrice && priceINR <= s.maxPrice) || cfg.slabs[cfg.slabs.length - 1];

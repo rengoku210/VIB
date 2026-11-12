@@ -1,8 +1,6 @@
 import express, { Request, Response } from 'express';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { db, databaseDirectory, validateImageMagicBytes } from './db.js';
+import { db, validateImageMagicBytes, saveUploadedAsset, deleteUploadedAsset } from './db.js';
 import {
   getVpFlexibleSettings,
   getAccountFlexibleSettings,
@@ -28,10 +26,6 @@ import {
 //     an installment paid (status 'paid').
 // =============================================================================
 
-const uploadsDir = path.join(databaseDirectory, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -69,7 +63,7 @@ function addWeeks(dateStr: string, weeks: number): string {
  * Returns the public URL. Throws 'INVALID_IMAGE' or 'IMAGE_TOO_LARGE' errors
  * that routes translate into 400 responses.
  */
-function saveEvidenceImage(dataUrl: string): { url: string; filename: string } {
+async function saveEvidenceImage(dataUrl: string): Promise<{ url: string; filename: string }> {
   if (typeof dataUrl !== 'string') throw new Error('INVALID_IMAGE');
   const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
   if (!matches) throw new Error('INVALID_IMAGE');
@@ -78,27 +72,23 @@ function saveEvidenceImage(dataUrl: string): { url: string; filename: string } {
   // P3-F4: reject evidence images whose bytes don't match the declared format.
   if (!validateImageMagicBytes(buffer, matches[1])) throw new Error('INVALID_IMAGE');
   if (buffer.length > 5 * 1024 * 1024) throw new Error('IMAGE_TOO_LARGE');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
   const filename = `emi_evidence_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-  fs.writeFileSync(path.join(uploadsDir, filename), buffer);
-  return { url: `/uploads/${filename}`, filename };
+  return { url: await saveUploadedAsset(filename, '', buffer), filename };
 }
 
 // -----------------------------------------------------------------------------
 // Small helpers
 // -----------------------------------------------------------------------------
 
-function insertNotification(userId: string, title: string, message: string, now: string): void {
-  db.prepare(`
+async function insertNotification(userId: string, title: string, message: string, now: string): Promise<void> {
+  await db.prepare(`
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'emi', 0, ?)
   `).run('notif_' + crypto.randomBytes(8).toString('hex'), userId, title, message, now);
 }
 
-function outstandingBalance(appId: string): number {
-  const row = db.prepare(`
+async function outstandingBalance(appId: string): Promise<number> {
+  const row = await db.prepare(`
     SELECT COALESCE(SUM(amount), 0) AS total
     FROM emi_payments
     WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
@@ -106,8 +96,8 @@ function outstandingBalance(appId: string): number {
   return round2(Number(row?.total) || 0);
 }
 
-function nextUnpaidInstallment(appId: string): any | null {
-  const row = db.prepare(`
+async function nextUnpaidInstallment(appId: string): Promise<any | null> {
+  const row = await db.prepare(`
     SELECT * FROM emi_payments
     WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
     ORDER BY installment_no ASC
@@ -120,12 +110,12 @@ function nextUnpaidInstallment(appId: string): any | null {
  * Lazily marks overdue installments as 'late' and recomputes the application's
  * next_due_date (earliest unpaid due date). Only meaningful for active plans.
  */
-function markOverdue(application: any): void {
+async function markOverdue(application: any): Promise<void> {
   if (!application || application.status !== 'active') return;
   const now = new Date().toISOString();
   const nowMs = Date.now();
 
-  const unpaid = db.prepare(`
+  const unpaid = await db.prepare(`
     SELECT id, due_date, status
     FROM emi_payments
     WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
@@ -137,11 +127,11 @@ function markOverdue(application: any): void {
       row.due_date &&
       new Date(row.due_date).getTime() < nowMs
     ) {
-      db.prepare("UPDATE emi_payments SET status = 'late' WHERE id = ?").run(row.id);
+      await db.prepare("UPDATE emi_payments SET status = 'late' WHERE id = ?").run(row.id);
     }
   }
 
-  const earliest = db.prepare(`
+  const earliest = await db.prepare(`
     SELECT due_date FROM emi_payments
     WHERE application_id = ? AND status IN ('pending', 'late', 'pending_verification')
       AND due_date IS NOT NULL AND due_date != ''
@@ -150,7 +140,7 @@ function markOverdue(application: any): void {
   `).get(application.id) as any;
   const nextDue = earliest && earliest.due_date ? earliest.due_date : null;
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE emi_applications SET next_due_date = ?, updated_at = ? WHERE id = ?
   `).run(nextDue, now, application.id);
 
@@ -162,7 +152,7 @@ function markOverdue(application: any): void {
  * Serializes a DB row of emi_applications into the public camelCase shape used
  * by customer-facing endpoints.
  */
-function serializeApplication(app: any): any {
+async function serializeApplication(app: any): Promise<any> {
   let customerDetails: any = null;
   if (app.customer_details_json) {
     try {
@@ -184,7 +174,7 @@ function serializeApplication(app: any): any {
     nextDueDate: app.next_due_date,
     installmentsPaid: app.installments_paid,
     totalInstallments: app.total_installments,
-    outstandingBalance: outstandingBalance(app.id),
+    outstandingBalance: await outstandingBalance(app.id),
     createdAt: app.created_at,
     startDate: app.start_date || null,
     serviceType: app.service_type || 'account',
@@ -229,14 +219,14 @@ export function registerEmiRoutes(
     superAdminOnly: any;
     sendEmail: (options: { to: string; subject: string; html: string; text?: string }) => Promise<{ success: boolean; logId: string; error?: string }>;
     isEmailConfigured: () => boolean;
-    logAudit: (actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ipOrReq: any) => void;
+    logAudit: (actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ipOrReq: any) => Promise<void> | void;
   }
 ): void {
   const { authenticate, staffOnly, sendEmail, isEmailConfigured, logAudit } = helpers;
 
-  const sendEmiEmailIfConfigured = (userId: string, subject: string, html: string, text?: string): void => {
+  const sendEmiEmailIfConfigured = async (userId: string, subject: string, html: string, text?: string): Promise<void> => {
     if (!isEmailConfigured()) return;
-    const userRow = db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as any;
+    const userRow = await db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as any;
     if (!userRow?.email) return;
     sendEmail({ to: userRow.email, subject, html, text: text || subject }).catch((err: any) => {
       console.warn('[EMI Email Warning]:', err?.message || err);
@@ -248,10 +238,10 @@ export function registerEmiRoutes(
   // ===========================================================================
 
   // GET /api/emi/settings — customer/public settings
-  app.get('/api/emi/settings', (_req: Request, res: Response) => {
+  app.get('/api/emi/settings', async (_req: Request, res: Response) => {
     try {
-      const vp = getVpFlexibleSettings();
-      const account = getAccountFlexibleSettings();
+      const vp = await getVpFlexibleSettings();
+      const account = await getAccountFlexibleSettings();
       return res.json({ success: true, vp, account });
     } catch (err: any) {
       console.error('[EMI Settings Error]:', err);
@@ -260,11 +250,11 @@ export function registerEmiRoutes(
   });
 
   // POST /api/emi/calculate — plan calculation engine
-  app.post('/api/emi/calculate', (req: Request, res: Response) => {
+  app.post('/api/emi/calculate', async (req: Request, res: Response) => {
     try {
       const { serviceType, region, priceINR } = req.body || {};
       if (serviceType === 'vp') {
-        const vpSettings = getVpFlexibleSettings();
+        const vpSettings = await getVpFlexibleSettings();
         const reg = region === 'php' ? 'php' : 'in';
         const packages = vpSettings[reg]?.packages || [];
         return res.json({
@@ -276,8 +266,8 @@ export function registerEmiRoutes(
         });
       } else {
         const price = Number(priceINR) || 0;
-        const plans = calculateAccountPlans(price);
-        const accSettings = getAccountFlexibleSettings();
+        const plans = await calculateAccountPlans(price);
+        const accSettings = await getAccountFlexibleSettings();
         return res.json({
           success: true,
           serviceType: 'account',
@@ -294,10 +284,10 @@ export function registerEmiRoutes(
   });
 
   // GET /api/admin/emi/settings — staff settings
-  app.get('/api/admin/emi/settings', authenticate, staffOnly, (_req: Request, res: Response) => {
+  app.get('/api/admin/emi/settings', authenticate, staffOnly, async (_req: Request, res: Response) => {
     try {
-      const vp = getVpFlexibleSettings();
-      const account = getAccountFlexibleSettings();
+      const vp = await getVpFlexibleSettings();
+      const account = await getAccountFlexibleSettings();
       return res.json({ success: true, vp, account });
     } catch (err: any) {
       console.error('[Admin EMI Settings Error]:', err);
@@ -306,7 +296,7 @@ export function registerEmiRoutes(
   });
 
   // PUT /api/admin/emi/settings — update VP or Account settings
-  app.put('/api/admin/emi/settings', authenticate, staffOnly, (req: Request, res: Response) => {
+  app.put('/api/admin/emi/settings', authenticate, staffOnly, async (req: Request, res: Response) => {
     try {
       const { category, settings } = req.body || {};
       const staff = (req as any).user;
@@ -318,12 +308,12 @@ export function registerEmiRoutes(
       }
 
       if (category === 'vp') {
-        saveVpFlexibleSettings(settings, staff.id);
+        await saveVpFlexibleSettings(settings, staff.id);
       } else {
-        saveAccountFlexibleSettings(settings, staff.id);
+        await saveAccountFlexibleSettings(settings, staff.id);
       }
 
-      logAudit(staff.id, staff.name, 'EMI_SETTINGS_UPDATE', 'emi_settings', category, { category }, req);
+      await logAudit(staff.id, staff.name, 'EMI_SETTINGS_UPDATE', 'emi_settings', category, { category }, req);
       return res.json({ success: true, message: `${category.toUpperCase()} flexible payment settings updated successfully.` });
     } catch (err: any) {
       console.error('[Admin EMI Settings Update Error]:', err);
@@ -336,7 +326,7 @@ export function registerEmiRoutes(
   // ===========================================================================
 
   // POST /api/emi/apply — submit a flexible payment / EMI financing application
-  app.post('/api/emi/apply', authenticate, (req: Request, res: Response) => {
+  app.post('/api/emi/apply', authenticate, async (req: Request, res: Response) => {
     try {
       const body = req.body || {};
       const productTitle = typeof body.productTitle === 'string' ? body.productTitle.trim() : '';
@@ -368,8 +358,8 @@ export function registerEmiRoutes(
       const planType = typeof body.planType === 'string' ? body.planType.trim() : null;
       const paymentFrequency = body.paymentFrequency === 'weekly' ? 'weekly' : 'monthly';
 
-      const vpCfg = getVpFlexibleSettings();
-      const accCfg = getAccountFlexibleSettings();
+      const vpCfg = await getVpFlexibleSettings();
+      const accCfg = await getAccountFlexibleSettings();
       const weeklyLateFee = serviceType === 'vp' ? Number(vpCfg.weeklyLateFee ?? 300) : Number(accCfg.weeklyLateFee ?? 300);
       const monthlyLateFee = serviceType === 'vp' ? Number(vpCfg.monthlyLateFee ?? 1500) : Number(accCfg.monthlyLateFee ?? 1500);
 
@@ -383,7 +373,7 @@ export function registerEmiRoutes(
           return res.status(409).json({ error: 'Digital profile flexible payment plans are currently disabled.' });
         }
         if (listingId) {
-          const listing = db.prepare('SELECT id, title, price_inr, guarantee_type, status FROM listings WHERE id = ?').get(listingId) as any;
+          const listing = await db.prepare('SELECT id, title, price_inr, guarantee_type, status FROM listings WHERE id = ?').get(listingId) as any;
           if (!listing) {
             return res.status(404).json({ error: 'Selected digital profile listing not found.' });
           }
@@ -492,7 +482,7 @@ export function registerEmiRoutes(
         ipAddress: String(clientIp),
       });
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO emi_applications (
           id, user_id, order_id, product_title, total_amount, initial_payment,
           amount_financed, tenure_months, interest_rate_pct, emi_amount,
@@ -541,7 +531,7 @@ export function registerEmiRoutes(
         kycSubmissionId
       );
 
-      insertNotification(
+      await insertNotification(
         userId,
         'Flexible Payment Application Received',
         `Your application for ${productTitle} (${agreementRef}) has been received and is pending staff review.`,
@@ -582,19 +572,19 @@ export function registerEmiRoutes(
   });
 
   // GET /api/user/emi — list the current user's EMI applications
-  app.get('/api/user/emi', authenticate, (req: Request, res: Response) => {
+  app.get('/api/user/emi', authenticate, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).user.id;
-      const rows = db.prepare(`
+      const rows = await db.prepare(`
         SELECT * FROM emi_applications WHERE user_id = ? ORDER BY created_at DESC
       `).all(userId) as any[];
 
       // Lazily mark overdue installments on active plans before responding.
       for (const row of rows) {
-        if (row.status === 'active') markOverdue(row);
+        if (row.status === 'active') await markOverdue(row);
       }
 
-      const applications = rows.map((row) => serializeApplication(row));
+      const applications = await Promise.all(rows.map((row) => serializeApplication(row)));
 
       return res.json({ applications });
     } catch (err: any) {
@@ -604,11 +594,11 @@ export function registerEmiRoutes(
   });
 
   // GET /api/user/emi/:id — owner-only detail with installment schedule
-  app.get('/api/user/emi/:id', authenticate, (req: Request, res: Response) => {
+  app.get('/api/user/emi/:id', authenticate, async (req: Request, res: Response) => {
     try {
       const appId = req.params.id;
       const userId = (req as any).user.id;
-      const application = db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
+      const application = await db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
       if (!application) {
         return res.status(404).json({ error: 'EMI application not found.' });
       }
@@ -616,14 +606,14 @@ export function registerEmiRoutes(
         return res.status(403).json({ error: 'Access denied.' });
       }
 
-      if (application.status === 'active') markOverdue(application);
+      if (application.status === 'active') await markOverdue(application);
 
-      const payments = (db.prepare(`
+      const payments = ((await db.prepare(`
         SELECT id, installment_no, amount, due_date, status, paid_at, utr, payment_method, evidence_image
         FROM emi_payments
         WHERE application_id = ?
         ORDER BY installment_no ASC
-      `).all(appId) as any[]).map((p) => ({
+      `).all(appId)) as any[]).map((p) => ({
         id: p.id,
         installmentNo: p.installment_no,
         amount: p.amount,
@@ -635,7 +625,7 @@ export function registerEmiRoutes(
         evidenceImage: p.evidence_image,
       }));
 
-      return res.json({ application: serializeApplication(application), payments });
+      return res.json({ application: await serializeApplication(application), payments });
     } catch (err: any) {
       console.error('[EMI User Detail Error]:', err);
       return res.status(500).json({ error: 'Failed to fetch EMI application details.' });
@@ -643,13 +633,13 @@ export function registerEmiRoutes(
   });
 
   // POST /api/emi/:id/pay-installment — submit UPI evidence for the next installment
-  app.post('/api/emi/:id/pay-installment', authenticate, (req: Request, res: Response) => {
+  app.post('/api/emi/:id/pay-installment', authenticate, async (req: Request, res: Response) => {
     try {
       const appId = req.params.id;
       const { installmentId, utr, evidenceImage } = req.body || {};
       const userId = (req as any).user.id;
 
-      const application = db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
+      const application = await db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
       if (!application) {
         return res.status(404).json({ error: 'EMI application not found.' });
       }
@@ -667,13 +657,13 @@ export function registerEmiRoutes(
         return res.status(400).json({ error: 'UTR reference is required.' });
       }
 
-      const payment = db.prepare('SELECT * FROM emi_payments WHERE id = ? AND application_id = ?').get(installmentId, appId) as any;
+      const payment = await db.prepare('SELECT * FROM emi_payments WHERE id = ? AND application_id = ?').get(installmentId, appId) as any;
       if (!payment) {
         return res.status(404).json({ error: 'Installment not found for this application.' });
       }
 
       // Installments must be paid in order.
-      const nextUnpaid = nextUnpaidInstallment(appId);
+      const nextUnpaid = await nextUnpaidInstallment(appId);
       if (!nextUnpaid || nextUnpaid.installment_no !== payment.installment_no) {
         return res.status(409).json({ error: 'Please pay installments in order.' });
       }
@@ -686,7 +676,7 @@ export function registerEmiRoutes(
 
       let evidenceUrl: string;
       try {
-        evidenceUrl = saveEvidenceImage(evidenceImage).url;
+        evidenceUrl = (await saveEvidenceImage(evidenceImage)).url;
       } catch (imgErr: any) {
         if (imgErr.message === 'INVALID_IMAGE') {
           return res.status(400).json({ error: 'Invalid image format. Expected a base64 data URL.' });
@@ -699,24 +689,19 @@ export function registerEmiRoutes(
 
       const now = new Date().toISOString();
 
-      // Remove the previously submitted evidence file (if any) so the disk does
-      // not accumulate orphaned files on rejection -> resubmission cycles.
+      // Remove the previously submitted evidence file (if any) so neither disk nor SQLite
+      // accumulates orphaned files on rejection -> resubmission cycles.
       if (payment.evidence_image) {
-        try {
-          const oldPath = path.join(databaseDirectory, 'uploads', path.basename(payment.evidence_image));
-          if (fs.existsSync(oldPath)) {
-            fs.unlinkSync(oldPath);
-          }
-        } catch { /* best-effort cleanup */ }
+        await deleteUploadedAsset(payment.evidence_image);
       }
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE emi_payments
         SET status = 'pending_verification', utr = ?, evidence_image = ?, payment_method = 'UPI_QR'
         WHERE id = ?
       `).run(utrValue, evidenceUrl, payment.id);
 
-      insertNotification(
+      await insertNotification(
         userId,
         'EMI Payment Submitted',
         `Your installment #${payment.installment_no} payment of ₹${formatInr(payment.amount)} has been submitted for verification.`,
@@ -735,7 +720,7 @@ export function registerEmiRoutes(
   // ===========================================================================
 
   // GET /api/admin/emi/list — staff queue with user context
-  app.get('/api/admin/emi/list', authenticate, staffOnly, (req: Request, res: Response) => {
+  app.get('/api/admin/emi/list', authenticate, staffOnly, async (req: Request, res: Response) => {
     try {
       const statusFilter = typeof req.query.status === 'string' && req.query.status.trim() ? req.query.status.trim() : null;
       let sql = `
@@ -751,41 +736,43 @@ export function registerEmiRoutes(
       }
       sql += ' ORDER BY e.created_at DESC';
 
-      const rows = db.prepare(sql).all(...params) as any[];
-      const applications = rows.map((r) => ({
-        id: r.id,
-        user_id: r.user_id,
-        user_email: r.user_email,
-        user_name: r.user_name,
-        user_phone: r.user_phone,
-        product_title: r.product_title,
-        total_amount: r.total_amount,
-        initial_payment: r.initial_payment,
-        amount_financed: r.amount_financed,
-        tenure_months: r.tenure_months,
-        interest_rate_pct: r.interest_rate_pct,
-        emi_amount: r.emi_amount,
-        total_installments: r.total_installments,
-        installments_paid: r.installments_paid,
-        status: r.status,
-        rejection_reason: r.rejection_reason,
-        created_at: r.created_at,
-        start_date: r.start_date,
-        next_due_date: r.next_due_date,
-        outstanding: r.status === 'pending_approval' ? null : outstandingBalance(r.id),
-        service_type: r.service_type || 'account',
-        region: r.region || null,
-        listing_id: r.listing_id || null,
-        plan_type: r.plan_type || null,
-        payment_frequency: r.payment_frequency || 'monthly',
-        fixed_profit: r.fixed_profit || 0,
-        total_payable: r.total_payable || r.amount_financed || 0,
-        agreement_ref: r.agreement_ref || null,
-        agreement_version: r.agreement_version || null,
-        customer_details_json: r.customer_details_json || null,
-        kyc_submission_id: r.kyc_submission_id || null,
-        admin_remarks: r.admin_remarks || null,
-      }));
+      const rows = await db.prepare(sql).all(...params) as any[];
+      const applications = await Promise.all(
+        rows.map(async (r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          user_email: r.user_email,
+          user_name: r.user_name,
+          user_phone: r.user_phone,
+          product_title: r.product_title,
+          total_amount: r.total_amount,
+          initial_payment: r.initial_payment,
+          amount_financed: r.amount_financed,
+          tenure_months: r.tenure_months,
+          interest_rate_pct: r.interest_rate_pct,
+          emi_amount: r.emi_amount,
+          total_installments: r.total_installments,
+          installments_paid: r.installments_paid,
+          status: r.status,
+          rejection_reason: r.rejection_reason,
+          created_at: r.created_at,
+          start_date: r.start_date,
+          next_due_date: r.next_due_date,
+          outstanding: r.status === 'pending_approval' ? null : await outstandingBalance(r.id),
+          service_type: r.service_type || 'account',
+          region: r.region || null,
+          listing_id: r.listing_id || null,
+          plan_type: r.plan_type || null,
+          payment_frequency: r.payment_frequency || 'monthly',
+          fixed_profit: r.fixed_profit || 0,
+          total_payable: r.total_payable || r.amount_financed || 0,
+          agreement_ref: r.agreement_ref || null,
+          agreement_version: r.agreement_version || null,
+          customer_details_json: r.customer_details_json || null,
+          kyc_submission_id: r.kyc_submission_id || null,
+          admin_remarks: r.admin_remarks || null,
+        }))
+      );
 
       return res.json({ applications });
     } catch (err: any) {
@@ -795,10 +782,10 @@ export function registerEmiRoutes(
   });
 
   // GET /api/admin/emi/:id — full staff detail including payment evidence
-  app.get('/api/admin/emi/:id', authenticate, staffOnly, (req: Request, res: Response) => {
+  app.get('/api/admin/emi/:id', authenticate, staffOnly, async (req: Request, res: Response) => {
     try {
       const appId = req.params.id;
-      const application = db.prepare(`
+      const application = await db.prepare(`
         SELECT e.*, u.email AS user_email, u.name AS user_name, u.phone AS user_phone
         FROM emi_applications e
         JOIN users u ON e.user_id = u.id
@@ -809,7 +796,7 @@ export function registerEmiRoutes(
         return res.status(404).json({ error: 'EMI application not found.' });
       }
 
-      const payments = db.prepare(`
+      const payments = await db.prepare(`
         SELECT * FROM emi_payments
         WHERE application_id = ?
         ORDER BY installment_no ASC
@@ -823,7 +810,7 @@ export function registerEmiRoutes(
   });
 
   // PUT /api/admin/emi/:id/status — approve / reject / cancel an application
-  app.put('/api/admin/emi/:id/status', authenticate, staffOnly, (req: Request, res: Response) => {
+  app.put('/api/admin/emi/:id/status', authenticate, staffOnly, async (req: Request, res: Response) => {
     try {
       const appId = req.params.id;
       const { status, reason } = req.body || {};
@@ -833,7 +820,7 @@ export function registerEmiRoutes(
         return res.status(400).json({ error: 'Status must be one of: active, rejected, cancelled.' });
       }
 
-      const application = db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
+      const application = await db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(appId) as any;
       if (!application) {
         return res.status(404).json({ error: 'EMI application not found.' });
       }
@@ -864,10 +851,8 @@ export function registerEmiRoutes(
             : totalPayable;
         const lastInstallmentAmount = round2(installmentPool - emiAmount * (totalInstallments - 1));
 
-        try {
-          db.exec('BEGIN IMMEDIATE');
-
-          db.prepare(`
+        await db.transaction(async (tx) => {
+          await tx.prepare(`
             UPDATE emi_applications
             SET status = 'active', start_date = ?, next_due_date = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
             WHERE id = ?
@@ -876,14 +861,14 @@ export function registerEmiRoutes(
           // Create the installment schedule on approval (the schema requires a
           // non-null due_date, so rows are materialized here rather than at
           // application time).
-          const insertPay = db.prepare(`
+          const insertPay = tx.prepare(`
             INSERT INTO emi_payments (id, application_id, installment_no, amount, due_date, status, created_at)
             VALUES (?, ?, ?, ?, ?, 'pending', ?)
           `);
           for (let i = 1; i <= totalInstallments; i++) {
             const installmentAmount = i === totalInstallments ? lastInstallmentAmount : emiAmount;
             const dueDate = isWeekly ? addWeeks(startDate, i) : addMonths(startDate, i);
-            insertPay.run(
+            await insertPay.run(
               'emi_pay_' + crypto.randomBytes(6).toString('hex'),
               appId,
               i,
@@ -892,28 +877,23 @@ export function registerEmiRoutes(
               now
             );
           }
+        });
 
-          db.exec('COMMIT');
-        } catch (txErr) {
-          try { db.exec('ROLLBACK'); } catch {}
-          throw txErr;
-        }
-
-        insertNotification(
+        await insertNotification(
           application.user_id,
           'EMI Approved',
           `Your EMI plan for ${application.product_title} is approved. First installment due ${formatDate(firstDue)}.`,
           now
         );
 
-        sendEmiEmailIfConfigured(
+        await sendEmiEmailIfConfigured(
           application.user_id,
           'EMI Application Approved',
           `<p>Hello,</p><p>Your EMI plan for <strong>${escapeHtml(application.product_title)}</strong> is approved.</p><p>First installment of ₹${formatInr(emiAmount)} is due on <strong>${formatDate(firstDue)}</strong>.</p>`,
           `Your EMI plan for ${application.product_title} is approved. First installment of ₹${formatInr(emiAmount)} is due on ${formatDate(firstDue)}.`
         );
 
-        logAudit(staff.id, staff.name, 'EMI_APPROVE', 'emi_application', appId, {
+        await logAudit(staff.id, staff.name, 'EMI_APPROVE', 'emi_application', appId, {
           productTitle: application.product_title,
           tenureMonths: totalInstallments,
           emiAmount,
@@ -937,27 +917,27 @@ export function registerEmiRoutes(
           return res.status(400).json({ error: 'A rejection reason of at least 5 characters is required.' });
         }
 
-        db.prepare(`
+        await db.prepare(`
           UPDATE emi_applications
           SET status = 'rejected', rejection_reason = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
           WHERE id = ?
         `).run(rejectReason, now, staff.id, now, appId);
 
-        insertNotification(
+        await insertNotification(
           application.user_id,
           'EMI Rejected',
           `Your EMI application for ${application.product_title} was rejected. Reason: ${rejectReason}`,
           now
         );
 
-        sendEmiEmailIfConfigured(
+        await sendEmiEmailIfConfigured(
           application.user_id,
           'EMI Application Rejected',
           `<p>Hello,</p><p>Your EMI application for <strong>${escapeHtml(application.product_title)}</strong> was not approved.</p><p>Reason: ${escapeHtml(rejectReason)}</p>`,
           `Your EMI application for ${application.product_title} was rejected. Reason: ${rejectReason}`
         );
 
-        logAudit(staff.id, staff.name, 'EMI_REJECT', 'emi_application', appId, {
+        await logAudit(staff.id, staff.name, 'EMI_REJECT', 'emi_application', appId, {
           productTitle: application.product_title,
           reason: rejectReason,
         }, req);
@@ -970,20 +950,20 @@ export function registerEmiRoutes(
         return res.status(409).json({ error: 'Only active EMI applications can be cancelled.' });
       }
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE emi_applications
         SET status = 'cancelled', reviewed_at = ?, reviewed_by = ?, updated_at = ?
         WHERE id = ?
       `).run(now, staff.id, now, appId);
 
-      insertNotification(
+      await insertNotification(
         application.user_id,
         'EMI Cancelled',
         `Your EMI plan for ${application.product_title} has been cancelled.`,
         now
       );
 
-      logAudit(staff.id, staff.name, 'EMI_CANCEL', 'emi_application', appId, {
+      await logAudit(staff.id, staff.name, 'EMI_CANCEL', 'emi_application', appId, {
         productTitle: application.product_title,
       }, req);
 
@@ -995,7 +975,7 @@ export function registerEmiRoutes(
   });
 
   // PUT /api/admin/emi/payments/:paymentId/verify — verify or reject installment proof
-  app.put('/api/admin/emi/payments/:paymentId/verify', authenticate, staffOnly, (req: Request, res: Response) => {
+  app.put('/api/admin/emi/payments/:paymentId/verify', authenticate, staffOnly, async (req: Request, res: Response) => {
     try {
       const paymentId = req.params.paymentId;
       const { approved, reason } = req.body || {};
@@ -1005,7 +985,7 @@ export function registerEmiRoutes(
         return res.status(400).json({ error: 'approved must be a boolean.' });
       }
 
-      const payment = db.prepare('SELECT * FROM emi_payments WHERE id = ?').get(paymentId) as any;
+      const payment = await db.prepare('SELECT * FROM emi_payments WHERE id = ?').get(paymentId) as any;
       if (!payment) {
         return res.status(404).json({ error: 'EMI installment payment not found.' });
       }
@@ -1013,7 +993,7 @@ export function registerEmiRoutes(
         return res.status(409).json({ error: 'Only installments awaiting verification can be verified.' });
       }
 
-      const application = db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(payment.application_id) as any;
+      const application = await db.prepare('SELECT * FROM emi_applications WHERE id = ?').get(payment.application_id) as any;
       if (!application) {
         return res.status(404).json({ error: 'EMI application not found.' });
       }
@@ -1025,44 +1005,44 @@ export function registerEmiRoutes(
 
       // ---- Approved --------------------------------------------------------
       if (approved) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE emi_payments
           SET status = 'paid', paid_at = ?, verified_by = ?, verified_at = ?
           WHERE id = ?
         `).run(now, staff.id, now, paymentId);
 
         const newPaidCount = (application.installments_paid || 0) + 1;
-        const nextUnpaid = nextUnpaidInstallment(application.id);
+        const nextUnpaid = await nextUnpaidInstallment(application.id);
         const isCompleted = !nextUnpaid;
         const nextDue = nextUnpaid && nextUnpaid.due_date ? nextUnpaid.due_date : null;
 
-        db.prepare(`
+        await db.prepare(`
           UPDATE emi_applications
           SET installments_paid = ?, status = ?, next_due_date = ?, updated_at = ?
           WHERE id = ?
         `).run(newPaidCount, isCompleted ? 'completed' : 'active', nextDue, now, application.id);
 
         if (isCompleted) {
-          insertNotification(
+          await insertNotification(
             application.user_id,
             'EMI Completed',
             `You have completed all EMI installments for ${application.product_title}.`,
             now
           );
-          sendEmiEmailIfConfigured(
+          await sendEmiEmailIfConfigured(
             application.user_id,
             'EMI Completed',
             `<p>Hello,</p><p>Congratulations! You have completed all EMI installments for <strong>${escapeHtml(application.product_title)}</strong>.</p>`,
             `You have completed all EMI installments for ${application.product_title}.`
           );
         } else {
-          insertNotification(
+          await insertNotification(
             application.user_id,
             'EMI Installment Verified',
             `Installment #${payment.installment_no} of ₹${formatInr(payment.amount)} has been verified.`,
             now
           );
-          sendEmiEmailIfConfigured(
+          await sendEmiEmailIfConfigured(
             application.user_id,
             'EMI Installment Verified',
             `<p>Installment #${payment.installment_no} of ₹${formatInr(payment.amount)} has been verified.</p>`,
@@ -1070,7 +1050,7 @@ export function registerEmiRoutes(
           );
         }
 
-        logAudit(staff.id, staff.name, 'EMI_PAYMENT_VERIFY', 'emi_payment', paymentId, {
+        await logAudit(staff.id, staff.name, 'EMI_PAYMENT_VERIFY', 'emi_payment', paymentId, {
           applicationId: application.id,
           installmentNo: payment.installment_no,
           amount: payment.amount,
@@ -1088,27 +1068,27 @@ export function registerEmiRoutes(
 
       // Return the installment to 'pending' so the customer can resubmit.
       // UTR and evidence are retained for history; a resubmission overwrites them.
-      db.prepare(`
+      await db.prepare(`
         UPDATE emi_payments
         SET status = 'pending', verified_by = ?, verified_at = ?
         WHERE id = ?
       `).run(staff.id, now, paymentId);
 
-      insertNotification(
+      await insertNotification(
         application.user_id,
         'EMI Installment Rejected',
         `Your installment #${payment.installment_no} payment of ₹${formatInr(payment.amount)} was not approved${typeof reason === 'string' && reason.trim() ? `: ${reason.trim()}` : '.'}`,
         now
       );
 
-      sendEmiEmailIfConfigured(
+      await sendEmiEmailIfConfigured(
         application.user_id,
         'EMI Installment Rejected',
         `<p>Your installment #${payment.installment_no} payment of ₹${formatInr(payment.amount)} was not approved${typeof reason === 'string' && reason.trim() ? `: ${escapeHtml(reason.trim())}` : '.'}</p>`,
         `Your installment #${payment.installment_no} payment of ₹${formatInr(payment.amount)} was not approved${typeof reason === 'string' && reason.trim() ? `: ${reason.trim()}` : '.'}`
       );
 
-      logAudit(staff.id, staff.name, 'EMI_PAYMENT_REJECT', 'emi_payment', paymentId, {
+      await logAudit(staff.id, staff.name, 'EMI_PAYMENT_REJECT', 'emi_payment', paymentId, {
         applicationId: application.id,
         installmentNo: payment.installment_no,
         reason: rejectReason,

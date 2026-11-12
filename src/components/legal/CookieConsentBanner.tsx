@@ -29,7 +29,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onNavi
       const savedToken = localStorage.getItem('vib_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (savedToken) headers.Authorization = `Bearer ${savedToken}`;
-      await fetch('/api/legal/consent', {
+      const res = await fetch('/api/legal/consent', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -40,6 +40,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onNavi
           context_id: type,
         }),
       });
+      await res.text().catch(() => {});
     } catch (e) {
       console.warn('Failed to record cookie consent:', e);
     }

@@ -438,7 +438,7 @@ export const Header: React.FC<HeaderProps> = ({
                           <span>Advertise Profile Plans</span>
                           <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-purple-900 text-purple-300 font-bold">12 PLANS</span>
                         </span>
-                        <span className="text-[10px] text-gray-400 truncate">Instagram story, post & web promotions</span>
+                        <span className="text-[10px] text-gray-400 truncate">WhatsApp Status, Channel &amp; Web promotions</span>
                       </div>
                     </button>
 

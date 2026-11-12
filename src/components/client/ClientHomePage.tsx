@@ -11,7 +11,6 @@ import {
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  Instagram,
   Disc as Discord,
   Youtube,
   Send,
@@ -723,11 +722,11 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
       {/* 4. SOCIAL CONVERSION BANNERS (Reference 1) */}
       <section className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-          {/* Instagram: full-bleed Part 03 artwork + 3D phone on top */}
+          {/* Community Rewards: full-bleed Part 03 artwork */}
           <div className="relative rounded-2xl overflow-hidden min-h-[300px] sm:min-h-[420px] flex items-center bg-[#070510] shadow-2xl group">
             <img
               src="/assets/reference_parts/part_03.png"
-              alt="Instagram Promotion Artwork"
+              alt="VIB Community Drops Artwork"
               className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#070510] via-[#070510]/85 to-[#070510]/15 z-[1]" />
@@ -737,18 +736,18 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               <div className="space-y-3 max-w-sm">
                 <div className="inline-flex items-center gap-2 text-[10.5px] font-mono tracking-widest text-[#f43f5e] uppercase font-bold">
                   <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-[#f59e0b] via-[#ec4899] to-[#8b5cf6] flex items-center justify-center text-white shadow-sm">
-                    <Instagram className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3" />
                   </div>
-                  <span>FOLLOW OUR INSTAGRAM</span>
+                  <span>VIB COMMUNITY DROPS</span>
                 </div>
                 <h3 className="text-2xl sm:text-3xl font-black uppercase text-white font-rajdhani tracking-wide leading-tight drop-shadow-[0_4px_18px_rgba(0,0,0,0.9)]">
                   STAY UPDATED <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-rose-400 to-amber-300">
-                    & WIN EXCITING REWARDS!
+                    &amp; WIN EXCITING REWARDS!
                   </span>
                 </h3>
                 <p className="text-xs text-gray-200 leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
-                  Follow us on Instagram to stand a chance to win giveaways of VP, Profiles and Cash Prizes!
+                  Join our official VIB community channels to participate in giveaways of VP, Profiles and Cash Prizes!
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <span className="px-2.5 py-1 rounded-full bg-[#201133]/80 backdrop-blur-sm border border-pink-500/30 text-[10.5px] font-medium text-pink-200 flex items-center gap-1">
@@ -1494,7 +1493,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               Trade or exchange your unwanted skins with other players. Find better skins, upgrade your collection — all in one place.
             </p>
             <button
-              onClick={() => onNavigate('services', 'skins-exchange')}
+              onClick={() => onNavigate('advertise', 'trade-exchange-plans')}
               className="text-sm font-bold text-[#ff2ebb] hover:text-fuchsia-300 font-rajdhani uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]"
             >
               <span>Start Trading</span>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { resolveUploadUrl } from '../../utils/uploadUrl';
 import {
   QrCode,
   CreditCard,
@@ -65,7 +66,7 @@ export const AdminPaymentSettings: React.FC = () => {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('/api/payment/settings');
+      const res = await fetch('/api/payment/settings', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         let methods = ['UPI', 'QR', 'IMPS', 'NEFT'];
@@ -95,6 +96,7 @@ export const AdminPaymentSettings: React.FC = () => {
     setLoadingOrders(true);
     try {
       const res = await fetch('/api/admin/orders', {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -441,7 +443,7 @@ export const AdminPaymentSettings: React.FC = () => {
                   <div className="p-2.5 bg-white rounded-2xl shrink-0 shadow-lg">
                     <img
                       src={
-                        settings.qr_image_url ||
+                        resolveUploadUrl(settings.qr_image_url) ||
                         `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
                           `upi://pay?pa=${settings.upi_id}&pn=${encodeURIComponent(settings.payee_name || 'VIB')}`
                         )}`
@@ -657,7 +659,7 @@ export const AdminPaymentSettings: React.FC = () => {
 
                           {ord.payment_evidence_image && (
                             <a
-                              href={ord.payment_evidence_image}
+                              href={resolveUploadUrl(ord.payment_evidence_image)}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] text-sky-400 hover:underline flex items-center gap-1 mt-1"

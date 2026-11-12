@@ -12,7 +12,15 @@ import express, { Request, Response } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, databaseDirectory, validateImageMagicBytes } from './db.js';
+import {
+  db,
+  databaseDirectory,
+  validateImageMagicBytes,
+  saveUploadedAsset,
+  readUploadedAsset,
+  deleteUploadedAsset,
+  inferUploadMimeType,
+} from './db.js';
 
 const KYC_DOCS_DIR = path.join(databaseDirectory, 'kyc_docs');
 const MAX_DOC_BYTES = 5 * 1024 * 1024; // 5MB per file
@@ -77,13 +85,18 @@ function decodeDocumentDataUrl(dataUrl: string): DocumentDecodeResult {
  * Validate a base64 data URL and write the decoded bytes into the private
  * kyc_docs directory. Returns the generated filename on success.
  */
-function saveDocumentDataUrl(dataUrl: string): { ok: boolean; filename?: string; error?: string } {
+async function saveDocumentDataUrl(dataUrl: string): Promise<{ ok: boolean; filename?: string; error?: string }> {
   const decoded = decodeDocumentDataUrl(dataUrl);
   if (!decoded.ok) {
     return { ok: false, error: decoded.error };
   }
   const filename = `kycdoc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${decoded.ext}`;
-  fs.writeFileSync(path.join(KYC_DOCS_DIR, filename), decoded.buffer as Buffer);
+  const buffer = decoded.buffer as Buffer;
+  try {
+    fs.mkdirSync(KYC_DOCS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(KYC_DOCS_DIR, filename), buffer);
+  } catch { /* best-effort local disk copy */ }
+  await saveUploadedAsset(filename, inferUploadMimeType(filename), buffer);
   return { ok: true, filename };
 }
 
@@ -101,7 +114,7 @@ function parseDocumentsJson(json: string | null | undefined): Array<{ label: str
   }
 }
 
-function latestSubmissionForUser(userId: string): any {
+async function latestSubmissionForUser(userId: string): Promise<any> {
   return db.prepare(`
     SELECT * FROM kyc_submissions
     WHERE user_id = ?
@@ -111,16 +124,16 @@ function latestSubmissionForUser(userId: string): any {
 }
 
 /** Ensure a profile row exists and keep its KYC status in sync. */
-function upsertProfileKycStatus(userId: string, status: string, now: string): void {
-  db.prepare(`
+async function upsertProfileKycStatus(userId: string, status: string, now: string): Promise<void> {
+  await db.prepare(`
     INSERT INTO profiles (user_id, wallet_balance, kyc_status, total_orders, created_at)
     VALUES (?, 0, ?, 0, ?)
     ON CONFLICT(user_id) DO UPDATE SET kyc_status = excluded.kyc_status
   `).run(userId, status, now);
 }
 
-function insertNotification(userId: string, title: string, message: string, now: string): void {
-  db.prepare(`
+async function insertNotification(userId: string, title: string, message: string, now: string): Promise<void> {
+  await db.prepare(`
     INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
     VALUES (?, ?, ?, ?, 'kyc', 0, ?)
   `).run('notif_' + crypto.randomBytes(8).toString('hex'), userId, title, message, now);
@@ -147,7 +160,7 @@ export function registerKycRoutes(
     superAdminOnly: any;
     sendEmail: (options: { to: string; subject: string; html: string; text?: string }) => Promise<{ success: boolean; logId: string; error?: string }>;
     isEmailConfigured: () => boolean;
-    logAudit: (actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ipOrReq: any) => void;
+    logAudit: (actorId: string, actorName: string, action: string, targetType: string, targetId: string, details: any, ipOrReq: any) => Promise<void> | void;
   }
 ): void {
   const { authenticate, staffOnly, isEmailConfigured, sendEmail, logAudit } = helpers;
@@ -155,7 +168,7 @@ export function registerKycRoutes(
   // =========================================================================
   // POST /api/kyc/submit — user submits a new KYC application
   // =========================================================================
-  app.post('/api/kyc/submit', authenticate, (req: Request, res: Response): void => {
+  app.post('/api/kyc/submit', authenticate, async (req: Request, res: Response): Promise<void> => {
     try {
       const user = (req as any).user;
       if (!user || !user.id) {
@@ -188,7 +201,7 @@ export function registerKycRoutes(
       }
 
       // A user may only have one submission in flight at a time.
-      const pending = db.prepare(`
+      const pending = await db.prepare(`
         SELECT id FROM kyc_submissions
         WHERE user_id = ? AND status = 'pending'
         ORDER BY submitted_at DESC
@@ -199,7 +212,7 @@ export function registerKycRoutes(
         return;
       }
 
-      const profile = db.prepare('SELECT kyc_status FROM profiles WHERE user_id = ?').get(user.id) as any;
+      const profile = await db.prepare('SELECT kyc_status FROM profiles WHERE user_id = ?').get(user.id) as any;
       if (profile?.kyc_status === 'approved') {
         res.status(409).json({ error: 'Your identity is already verified.' });
         return;
@@ -226,11 +239,9 @@ export function registerKycRoutes(
       // Persist files privately. Clean up partial writes on any failure.
       const savedFilenames: string[] = [];
       try {
-        fs.mkdirSync(KYC_DOCS_DIR, { recursive: true });
         for (const doc of validatedDocs) {
-          const result = saveDocumentDataUrl(doc.dataUrl);
+          const result = await saveDocumentDataUrl(doc.dataUrl);
           if (!result.ok) {
-            // Should never happen after validation, but guard anyway.
             throw new Error(result.error || 'Failed to store document');
           }
           savedFilenames.push(result.filename as string);
@@ -238,6 +249,7 @@ export function registerKycRoutes(
       } catch (err) {
         for (const f of savedFilenames) {
           try { fs.unlinkSync(path.join(KYC_DOCS_DIR, f)); } catch { /* ignore */ }
+          await deleteUploadedAsset(f);
         }
         console.error('[KYC Submit] Failed to store documents:', err);
         res.status(500).json({ error: 'Failed to save KYC documents.' });
@@ -251,7 +263,7 @@ export function registerKycRoutes(
       );
 
       try {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO kyc_submissions (
             id, user_id, full_name, dob, address, id_type, id_number, documents_json,
             status, rejection_reason, admin_notes, submitted_at, updated_at
@@ -269,8 +281,8 @@ export function registerKycRoutes(
           now
         );
 
-        upsertProfileKycStatus(user.id, 'pending', now);
-        insertNotification(
+        await upsertProfileKycStatus(user.id, 'pending', now);
+        await insertNotification(
           user.id,
           'KYC Submission Received',
           'Your KYC documents are under review. We will notify you once verified.',
@@ -294,6 +306,7 @@ export function registerKycRoutes(
         // DB failed — remove stored documents to avoid orphans.
         for (const f of savedFilenames) {
           try { fs.unlinkSync(path.join(KYC_DOCS_DIR, f)); } catch { /* ignore */ }
+          await deleteUploadedAsset(f);
         }
         console.error('[KYC Submit] Database error:', err);
         res.status(500).json({ error: 'Failed to submit KYC verification.' });
@@ -307,7 +320,7 @@ export function registerKycRoutes(
   // =========================================================================
   // GET /api/user/kyc — current user's latest submission + profile status
   // =========================================================================
-  app.get('/api/user/kyc', authenticate, (req: Request, res: Response): void => {
+  app.get('/api/user/kyc', authenticate, async (req: Request, res: Response): Promise<void> => {
     try {
       const user = (req as any).user;
       if (!user || !user.id) {
@@ -315,10 +328,10 @@ export function registerKycRoutes(
         return;
       }
 
-      const profile = db.prepare('SELECT kyc_status FROM profiles WHERE user_id = ?').get(user.id) as any;
+      const profile = await db.prepare('SELECT kyc_status FROM profiles WHERE user_id = ?').get(user.id) as any;
       const kycStatus = profile?.kyc_status || 'unverified';
 
-      const submission = latestSubmissionForUser(user.id);
+      const submission = await latestSubmissionForUser(user.id);
       if (!submission) {
         res.json({ submission: null, kycStatus });
         return;
@@ -349,7 +362,7 @@ export function registerKycRoutes(
   // =========================================================================
   // GET /api/user/kyc/docs/:file — owner-only private document access
   // =========================================================================
-  app.get('/api/user/kyc/docs/:file', authenticate, (req: Request, res: Response): void => {
+  app.get('/api/user/kyc/docs/:file', authenticate, async (req: Request, res: Response): Promise<void> => {
     try {
       const user = (req as any).user;
       if (!user || !user.id) {
@@ -363,11 +376,19 @@ export function registerKycRoutes(
         return;
       }
 
-      const submission = latestSubmissionForUser(user.id);
+      const submission = await latestSubmissionForUser(user.id);
       const documents = submission ? parseDocumentsJson(submission.documents_json) : [];
       const allowed = documents.some((doc) => doc.filename === safeName);
       if (!allowed) {
         res.status(404).json({ error: 'Document not found.' });
+        return;
+      }
+
+      const asset = await readUploadedAsset(safeName);
+      if (asset) {
+        res.setHeader('Content-Type', asset.mimeType);
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.send(asset.buffer);
         return;
       }
 
@@ -389,7 +410,7 @@ export function registerKycRoutes(
   // =========================================================================
   // GET /api/admin/kyc/list — staff list of submissions (optional status filter)
   // =========================================================================
-  app.get('/api/admin/kyc/list', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/kyc/list', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
       const statusFilter = typeof req.query.status === 'string' ? req.query.status.trim() : '';
       const validStatuses: string[] = ['pending', 'approved', 'rejected'];
@@ -400,7 +421,7 @@ export function registerKycRoutes(
           res.status(400).json({ error: 'Invalid status filter. Use pending, approved, or rejected.' });
           return;
         }
-        rows = db.prepare(`
+        rows = await db.prepare(`
           SELECT s.id, s.user_id, s.full_name, s.id_type, s.id_number, s.status,
                  s.submitted_at, s.reviewed_at, s.rejection_reason, s.documents_json,
                  u.email AS user_email, u.name AS user_name, u.phone AS user_phone
@@ -410,7 +431,7 @@ export function registerKycRoutes(
           ORDER BY s.submitted_at DESC
         `).all(statusFilter) as any[];
       } else {
-        rows = db.prepare(`
+        rows = await db.prepare(`
           SELECT s.id, s.user_id, s.full_name, s.id_type, s.id_number, s.status,
                  s.submitted_at, s.reviewed_at, s.rejection_reason, s.documents_json,
                  u.email AS user_email, u.name AS user_name, u.phone AS user_phone
@@ -446,9 +467,9 @@ export function registerKycRoutes(
   // =========================================================================
   // GET /api/admin/kyc/:id — staff full detail (incl. document list)
   // =========================================================================
-  app.get('/api/admin/kyc/:id', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/kyc/:id', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
-      const row = db.prepare(`
+      const row = await db.prepare(`
         SELECT s.*, u.email AS user_email, u.name AS user_name, u.phone AS user_phone
         FROM kyc_submissions s
         LEFT JOIN users u ON u.id = s.user_id
@@ -491,11 +512,19 @@ export function registerKycRoutes(
   // =========================================================================
   // GET /api/admin/kyc/docs/:file — staff private document access
   // =========================================================================
-  app.get('/api/admin/kyc/docs/:file', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/kyc/docs/:file', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
       const safeName = path.basename(String(req.params.file || ''));
       if (!safeName || safeName !== req.params.file) {
         res.status(404).json({ error: 'Document not found.' });
+        return;
+      }
+
+      const asset = await readUploadedAsset(safeName);
+      if (asset) {
+        res.setHeader('Content-Type', asset.mimeType);
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.send(asset.buffer);
         return;
       }
 
@@ -517,7 +546,7 @@ export function registerKycRoutes(
   // =========================================================================
   // PUT /api/admin/kyc/:id/status — staff approve/reject a submission
   // =========================================================================
-  app.put('/api/admin/kyc/:id/status', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.put('/api/admin/kyc/:id/status', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
       const staff = (req as any).user;
       if (!staff || !staff.id) {
@@ -538,7 +567,7 @@ export function registerKycRoutes(
         return;
       }
 
-      const submission = db.prepare('SELECT * FROM kyc_submissions WHERE id = ?').get(String(req.params.id || '')) as any;
+      const submission = await db.prepare('SELECT * FROM kyc_submissions WHERE id = ?').get(String(req.params.id || '')) as any;
       if (!submission) {
         res.status(404).json({ error: 'KYC submission not found.' });
         return;
@@ -555,18 +584,18 @@ export function registerKycRoutes(
 
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE kyc_submissions
         SET status = ?, rejection_reason = ?, admin_notes = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
         WHERE id = ?
       `).run(newStatus, rejectionReason, notes, now, staff.id, now, submission.id);
 
-      upsertProfileKycStatus(submission.user_id, newStatus, now);
+      await upsertProfileKycStatus(submission.user_id, newStatus, now);
 
-      const userRow = db.prepare('SELECT email FROM users WHERE id = ?').get(submission.user_id) as any;
+      const userRow = await db.prepare('SELECT email FROM users WHERE id = ?').get(submission.user_id) as any;
 
       if (newStatus === 'approved') {
-        insertNotification(
+        await insertNotification(
           submission.user_id,
           'KYC Approved',
           'Your KYC verification was approved.',
@@ -580,7 +609,7 @@ export function registerKycRoutes(
           }).catch((e) => console.warn('[KYC Email] Approval email failed:', e));
         }
       } else {
-        insertNotification(
+        await insertNotification(
           submission.user_id,
           'KYC Rejected',
           `Your KYC verification was rejected. Reason: ${rejectionReason}`,
@@ -595,12 +624,12 @@ export function registerKycRoutes(
         }
       }
 
-      logAudit(staff.id, staff.name, 'KYC_REVIEWED', 'kyc_submission', submission.id, {
+      await logAudit(staff.id, staff.name, 'KYC_REVIEWED', 'kyc_submission', submission.id, {
         status: newStatus,
         reason: rejectionReason,
       }, req);
 
-      const updated = db.prepare('SELECT * FROM kyc_submissions WHERE id = ?').get(submission.id) as any;
+      const updated = await db.prepare('SELECT * FROM kyc_submissions WHERE id = ?').get(submission.id) as any;
       res.json({
         success: true,
         submission: {

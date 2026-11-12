@@ -13,6 +13,7 @@ import {
   RotateCcw,
   ShieldCheck,
   User,
+  Hash,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,7 +22,7 @@ interface AdCustomerAuthModalProps {
   onClose: () => void;
   selectedPackageName: string;
   selectedPackagePrice: number;
-  onAuthenticated: () => void;
+  onAuthenticated: (user?: any) => void;
 }
 
 export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
@@ -34,10 +35,11 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
   const { refreshUser } = useAuth();
   const [mode, setMode] = useState<'register' | 'login'>('register');
 
-  // Registration Form State (Strictly the 8 required fields)
+  // Registration Form State
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -96,8 +98,12 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
       setErrorMessage('Please enter a valid email address.');
       return;
     }
-    if (!validatePhone(phone)) {
-      setErrorMessage('Please enter a valid 10-digit Indian mobile number.');
+    if (!accountNumber.trim() || accountNumber.trim().length < 4) {
+      setErrorMessage('Please enter a valid Account Number (at least 4 characters).');
+      return;
+    }
+    if (phone.trim() && !validatePhone(phone)) {
+      setErrorMessage('If entering a mobile number, please provide a valid 10-digit Indian mobile number.');
       return;
     }
     if (!city.trim() || !state.trim()) {
@@ -155,7 +161,8 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
           lastName: lastName.trim(),
           email: email.trim().toLowerCase(),
           otp: registerOtp.trim(),
-          phone: phone.trim().replace(/[\s+-]/g, '').slice(-10),
+          accountNumber: accountNumber.trim(),
+          phone: phone.trim() ? phone.trim().replace(/[\s+-]/g, '').slice(-10) : '',
           city: city.trim(),
           state: state.trim(),
           pincode: pincode.trim(),
@@ -174,7 +181,7 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
 
       setSuccessMessage('Account verified! Proceeding to manual payment checkout…');
       setTimeout(() => {
-        onAuthenticated();
+        onAuthenticated(data.user);
       }, 300);
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid or expired verification code.');
@@ -249,7 +256,7 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
 
       setSuccessMessage('Signed in successfully! Continuing to checkout…');
       setTimeout(() => {
-        onAuthenticated();
+        onAuthenticated(data.user);
       }, 300);
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid or expired sign-in code.');
@@ -394,24 +401,45 @@ export const AdCustomerAuthModal: React.FC<AdCustomerAuthModalProps> = ({
                   </div>
                 </div>
 
-                {/* 5: Mobile Number */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-mono uppercase text-gray-400 font-semibold">
-                    Mobile Number (10 digits) *
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-500" />
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      placeholder="9876543210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
-                    />
+                {/* 4: Account Number & Optional WhatsApp Phone (Email OTP Only) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-mono uppercase text-gray-400 font-semibold">
+                      Account Number *
+                    </label>
+                    <div className="relative">
+                      <Hash className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. 9876543210 or Account ID"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-purple-500 transition-colors font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-mono uppercase text-gray-400 font-semibold">
+                      WhatsApp / Phone <span className="text-gray-500">(Optional)</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-500" />
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        placeholder="9876543210 (No OTP)"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    </div>
                   </div>
                 </div>
+                <p className="text-[10px] text-purple-300/80 font-mono">
+                  Verification is via Email OTP only — no phone OTP required.
+                </p>
 
                 {/* 6 & 7: City and State */}
                 <div className="grid grid-cols-2 gap-3">

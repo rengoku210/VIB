@@ -144,7 +144,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
 
   // 1. Check local SQLite verified cache
   try {
-    const cached = db.prepare(`
+    const cached = await db.prepare(`
       SELECT * FROM riot_accounts WHERE riot_id = ? COLLATE NOCASE
     `).get(riotId) as any;
 
@@ -216,7 +216,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
       // Save legitimate verified player to cache
       const id = 'riot_' + crypto.createHash('md5').update(riotId.toLowerCase()).digest('hex').substring(0, 12);
       try {
-        db.prepare(`
+        await db.prepare(`
           INSERT OR REPLACE INTO riot_accounts (id, game_name, tag_line, riot_id, puuid, region, account_level, card_small, verified, source, verified_at, last_checked_at)
           VALUES (?, ?, ?, ?, ?, ?, 100, NULL, 1, 'riot_official_api', ?, ?)
         `).run(id, riotMatch.gameName, riotMatch.tagLine, `${riotMatch.gameName}#${riotMatch.tagLine}`, riotMatch.puuid, foundShard, now, now);
@@ -277,7 +277,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
         if (data && data.puuid) {
           const id = 'riot_' + crypto.createHash('md5').update(riotId.toLowerCase()).digest('hex').substring(0, 12);
           try {
-            db.prepare(`
+            await db.prepare(`
               INSERT OR REPLACE INTO riot_accounts (id, game_name, tag_line, riot_id, puuid, region, account_level, card_small, verified, source, verified_at, last_checked_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'henrik_api', ?, ?)
             `).run(id, data.name, data.tag, `${data.name}#${data.tag}`, data.puuid, data.region || 'ap', data.account_level || 1, data.card?.small || null, now, now);
@@ -316,7 +316,7 @@ export async function verifyRiotId(rawName: string, rawTag?: string): Promise<Ri
 
   // 4. Check if existing user in the database already has this registered Riot ID
   try {
-    const existingUser = db.prepare(`
+    const existingUser = await db.prepare(`
       SELECT riot_id, name FROM users WHERE riot_id = ? COLLATE NOCASE
     `).get(riotId) as any;
 

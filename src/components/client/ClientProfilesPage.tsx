@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  Instagram,
   Disc as Discord,
   Youtube,
   Send,
@@ -963,7 +962,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               </div>
               <h3 className="font-bold text-sm text-white font-rajdhani">Instant Escrow Lock</h3>
               <p className="text-xs text-gray-400 leading-relaxed">
-                Zero chargeback or scam risk. Both accounts and funds are held in secure escrow until mutual verification.
+                Both accounts and funds are held in monitored VIB escrow until mutual verification is complete.
               </p>
             </div>
 

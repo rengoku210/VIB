@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { resolveUploadUrl, handleUploadImageError } from '../../utils/uploadUrl';
 import {
   Megaphone,
   Plus,
@@ -36,6 +37,7 @@ interface AdvertisementOrder {
   customer_first_name?: string;
   customer_last_name?: string;
   customer_email: string;
+  customer_account_number?: string;
   customer_phone: string;
   customer_city?: string;
   customer_state?: string;
@@ -53,6 +55,12 @@ interface AdvertisementOrder {
   other_valuable_items?: string;
   inventory_screenshot?: string;
   admin_notes?: string;
+  reviewed_by?: string;
+  reviewed_by_name?: string;
+  reviewed_at?: string;
+  approval_email_status?: 'sent' | 'failed' | string;
+  approval_email_error?: string;
+  last_email_at?: string;
   created_at: string;
   updated_at: string;
   approved_at?: string;
@@ -70,6 +78,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<AdvertisementOrder | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [adminNotesInput, setAdminNotesInput] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -134,6 +143,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
     if (params.toString()) url += `?${params.toString()}`;
 
     fetch(url, {
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -148,6 +158,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
   const fetchPlans = () => {
     setPlansLoading(true);
     fetch('/api/admin/advertisement/plans', {
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -168,7 +179,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
 
   // Order Actions
   const handleApprovePayment = async (orderId: string) => {
-    if (!confirm('Approve payment for this order? This will email the customer with the link to submit advertisement details.')) return;
+    if (!confirm('Approve payment for this order? This will email the customer with the Continue link to submit advertisement details.')) return;
     setActionLoading(true);
     setActionFeedback(null);
     try {
@@ -178,13 +189,61 @@ export const AdminAdvertisementSettings: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          notes: adminNotesInput.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to approve payment.');
       setActionFeedback(data.message || 'Payment approved!');
       fetchOrders();
       if (selectedOrder?.id === orderId) {
-        setSelectedOrder((prev) => (prev ? { ...prev, status: 'approved' } : null));
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'approved',
+                admin_notes: adminNotesInput.trim() || prev.admin_notes,
+                approval_email_status: data.emailStatus || (data.emailSent ? 'sent' : 'failed'),
+                approval_email_error: data.emailError || undefined,
+                reviewed_at: new Date().toISOString(),
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResendApprovalEmail = async (orderId: string) => {
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/advertisement/orders/${orderId}/resend-approval-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to resend approval email.');
+      setActionFeedback(data.message || 'Approval email resent!');
+      fetchOrders();
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                approval_email_status: 'sent',
+                approval_email_error: undefined,
+                last_email_at: new Date().toISOString(),
+              }
+            : null
+        );
       }
     } catch (err: any) {
       alert(err.message);
@@ -207,7 +266,10 @@ export const AdminAdvertisementSettings: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ reason: rejectReason.trim() }),
+        body: JSON.stringify({
+          reason: rejectReason.trim(),
+          notes: adminNotesInput.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to reject payment.');
@@ -216,7 +278,17 @@ export const AdminAdvertisementSettings: React.FC = () => {
       setRejectReason('');
       fetchOrders();
       if (selectedOrder?.id === orderId) {
-        setSelectedOrder((prev) => (prev ? { ...prev, status: 'rejected', rejection_reason: rejectReason } : null));
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'rejected',
+                rejection_reason: rejectReason.trim(),
+                admin_notes: adminNotesInput.trim() || prev.admin_notes,
+                reviewed_at: new Date().toISOString(),
+              }
+            : null
+        );
       }
     } catch (err: any) {
       alert(err.message);
@@ -548,7 +620,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d0a1a] p-3 rounded-xl border border-white/10">
             <div className="flex flex-wrap items-center gap-2">
-              {['all', 'pending_payment', 'approved', 'details_submitted', 'live', 'rejected'].map((st) => (
+              {['all', 'submitted_for_verification', 'pending_payment', 'approved', 'details_submitted', 'live', 'rejected'].map((st) => (
                 <button
                   key={st}
                   onClick={() => setStatusFilter(st)}
@@ -558,7 +630,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                       : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white'
                   }`}
                 >
-                  {st.replace('_', ' ')}
+                  {st.replace(/_/g, ' ')}
                 </button>
               ))}
             </div>
@@ -615,7 +687,15 @@ export const AdminAdvertisementSettings: React.FC = () => {
                       <td className="p-3 font-mono font-bold text-purple-300">{o.id}</td>
                       <td className="p-3">
                         <div className="font-bold text-white">{o.customer_name}</div>
-                        <div className="text-[10px] text-gray-400">{o.customer_email} • {o.customer_phone}</div>
+                        <div className="text-[10px] text-gray-400">
+                          {o.customer_email}
+                          {o.customer_phone ? ` • ${o.customer_phone}` : ''}
+                        </div>
+                        {o.customer_account_number && (
+                          <div className="text-[10px] text-cyan-300 font-mono">
+                            Acct: {o.customer_account_number}
+                          </div>
+                        )}
                         {(o.customer_city || o.customer_state) && (
                           <div className="text-[9px] text-purple-300/80 font-mono">
                             {[o.customer_city, o.customer_state, o.customer_pincode].filter(Boolean).join(', ')}
@@ -659,6 +739,8 @@ export const AdminAdvertisementSettings: React.FC = () => {
                           <button
                             onClick={() => {
                               setSelectedOrder(o);
+                              setAdminNotesInput(o.admin_notes || '');
+                              setIsRejecting(false);
                               setIsOrderModalOpen(true);
                             }}
                             className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white font-bold text-[11px] font-rajdhani uppercase cursor-pointer"
@@ -845,15 +927,63 @@ export const AdminAdvertisementSettings: React.FC = () => {
                   <div className="text-[10px] font-mono text-gray-400 uppercase">Customer</div>
                   <div className="font-bold text-white">{selectedOrder.customer_name}</div>
                   <div className="text-gray-300">{selectedOrder.customer_email}</div>
-                  <div className="text-purple-300">{selectedOrder.customer_phone}</div>
+                  {selectedOrder.customer_account_number && (
+                    <div className="text-cyan-300 font-mono">Acct: {selectedOrder.customer_account_number}</div>
+                  )}
+                  {selectedOrder.customer_phone && (
+                    <div className="text-purple-300">{selectedOrder.customer_phone}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] font-mono text-gray-400 uppercase">Package</div>
                   <div className="font-bold text-white font-rajdhani text-sm">{selectedOrder.plan_name}</div>
                   <div className="text-emerald-400 font-mono font-bold">₹{Number(selectedOrder.plan_price).toLocaleString('en-IN')}</div>
                   <div className="text-[10px] text-gray-400">Placed: {new Date(selectedOrder.created_at).toLocaleString()}</div>
+                  {selectedOrder.updated_at && (
+                    <div className="text-[10px] text-gray-400">Updated: {new Date(selectedOrder.updated_at).toLocaleString()}</div>
+                  )}
                 </div>
               </div>
+
+              {(selectedOrder.reviewed_by_name || selectedOrder.approval_email_status) && (
+                <div className="p-3.5 rounded-xl bg-[#0b1020] border border-white/10 text-xs flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    {selectedOrder.reviewed_by_name && (
+                      <div className="text-gray-300">
+                        Reviewed by <strong className="text-white">{selectedOrder.reviewed_by_name}</strong>
+                        {selectedOrder.reviewed_at ? ` • ${new Date(selectedOrder.reviewed_at).toLocaleString()}` : ''}
+                      </div>
+                    )}
+                    {selectedOrder.approval_email_status && (
+                      <div className="font-mono text-[11px]">
+                        Approval Email:{' '}
+                        <span
+                          className={
+                            selectedOrder.approval_email_status === 'sent'
+                              ? 'text-emerald-400 font-bold'
+                              : 'text-rose-400 font-bold'
+                          }
+                        >
+                          {selectedOrder.approval_email_status.toUpperCase()}
+                        </span>
+                        {selectedOrder.approval_email_error && (
+                          <span className="text-rose-300 ml-2">({selectedOrder.approval_email_error})</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selectedOrder.status === 'approved' && (
+                    <button
+                      type="button"
+                      onClick={() => handleResendApprovalEmail(selectedOrder.id)}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 rounded-lg bg-purple-600/80 hover:bg-purple-500 text-white text-[11px] font-bold font-rajdhani uppercase cursor-pointer disabled:opacity-50"
+                    >
+                      Resend Approval Email
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Payment Verification Section */}
               <div className="p-3.5 rounded-xl bg-[#140f28] border border-purple-500/30 space-y-2.5 text-xs">
@@ -867,9 +997,12 @@ export const AdminAdvertisementSettings: React.FC = () => {
                   <div className="pt-2">
                     <div className="text-[10px] font-mono text-gray-400 mb-1">Uploaded Payment Screenshot:</div>
                     <img
-                      src={selectedOrder.payment_screenshot}
+                      src={resolveUploadUrl(selectedOrder.payment_screenshot)}
                       alt="Payment Receipt"
                       className="max-h-56 rounded-lg border border-white/10 object-contain shadow-md mx-auto"
+                      onError={(e) => {
+                        handleUploadImageError(e.currentTarget, selectedOrder.payment_screenshot);
+                      }}
                     />
                   </div>
                 )}
@@ -881,8 +1014,10 @@ export const AdminAdvertisementSettings: React.FC = () => {
                   <div className="font-bold font-rajdhani uppercase text-cyan-300">Customer Submitted Campaign Details</div>
                   <div className="grid grid-cols-3 gap-2 border-b border-white/10 pb-2">
                     <div>
-                      <div className="text-[10px] font-mono text-gray-400 uppercase">Instagram Handle</div>
-                      <div className="font-bold text-white font-mono">@{selectedOrder.instagram_username}</div>
+                      <div className="text-[10px] font-mono text-gray-400 uppercase">Optional Handle</div>
+                      <div className="font-bold text-white font-mono">
+                        {selectedOrder.instagram_username ? `@${selectedOrder.instagram_username}` : 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[10px] font-mono text-gray-400 uppercase">Selling Price</div>
@@ -914,14 +1049,31 @@ export const AdminAdvertisementSettings: React.FC = () => {
                     <div className="pt-2">
                       <div className="text-[10px] font-mono text-gray-400 mb-1">Main Account Inventory Screenshot:</div>
                       <img
-                        src={selectedOrder.inventory_screenshot}
+                        src={resolveUploadUrl(selectedOrder.inventory_screenshot)}
                         alt="Inventory"
                         className="max-h-64 rounded-lg border border-white/10 object-contain shadow-md mx-auto"
+                        onError={(e) => {
+                          handleUploadImageError(e.currentTarget, selectedOrder.inventory_screenshot);
+                        }}
                       />
                     </div>
                   )}
                 </div>
               ) : null}
+
+              {/* Reviewer Notes Input */}
+              <div className="p-3.5 rounded-xl bg-[#070510] border border-white/10 space-y-1.5 text-xs">
+                <label className="block text-[10px] font-mono text-gray-400 uppercase">
+                  Admin Review Notes (Audit Trail)
+                </label>
+                <textarea
+                  rows={2}
+                  value={adminNotesInput}
+                  onChange={(e) => setAdminNotesInput(e.target.value)}
+                  placeholder="Optional verification notes (UTR check, screenshot timestamp, remarks)..."
+                  className="w-full bg-[#0c0919] border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
 
               {/* Reject Reason Form */}
               {isRejecting && (
@@ -1129,7 +1281,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                     onChange={(e) => setPlanForm({ ...planForm, instagram_story: e.target.checked })}
                     className="rounded bg-black border-white/20"
                   />
-                  <span>Instagram Story</span>
+                  <span>Status Broadcast</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1138,7 +1290,7 @@ export const AdminAdvertisementSettings: React.FC = () => {
                     onChange={(e) => setPlanForm({ ...planForm, instagram_post: e.target.checked })}
                     className="rounded bg-black border-white/20"
                   />
-                  <span>Instagram Post</span>
+                  <span>Channel Post</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input

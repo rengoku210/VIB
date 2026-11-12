@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { resolveUploadUrl, handleUploadImageError } from '../../utils/uploadUrl';
 import {
   Users,
   Package,
@@ -196,6 +197,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     openDisputes: 0,
     activeSellers: 0,
   });
+  const [persistence, setPersistence] = useState<{
+    mode: string;
+    isVercel?: boolean;
+    remoteConfigured?: boolean;
+    warning?: string;
+  } | null>(null);
 
   // Data states
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -251,6 +258,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [isSubmittingVerify, setIsSubmittingVerify] = useState(false);
   const [zoomScreenshot, setZoomScreenshot] = useState<string | null>(null);
   const [zoomImgFailed, setZoomImgFailed] = useState(false);
+  useEffect(() => {
+    setZoomImgFailed(false);
+  }, [zoomScreenshot]);
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Dedicated Admin Order Room & Live Chat Modal
@@ -351,15 +361,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     try {
       // 1. Staff-accessible endpoints (allowed for moderator, admin, superadmin)
       const [statsRes, ordRes, tskRes, tktRes] = await Promise.all([
-        fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/orders', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/tasks', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/tickets', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/stats', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/orders', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/tasks', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/tickets', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       if (statsRes.ok) {
         const d = await statsRes.json();
         setMetrics(d.metrics || d);
+        setPersistence(d.persistence || d.metrics?.persistence || null);
       }
       if (ordRes.ok) {
         const d = await ordRes.json();
@@ -380,14 +391,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       // 2. Admin platform data
       const [usersRes, txnRes, invRes, finRes, expRes, tplRes, audRes] = await Promise.all([
         fetch(`/api/admin/users?search=${encodeURIComponent(userSearch)}&role=${roleFilter}&status=${statusFilter}`, {
+          cache: 'no-store',
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('/api/admin/transactions', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/invoices', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/finance/overview', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/finance/expenses', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/communication/templates', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/audit-logs', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/transactions', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/invoices', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/finance/overview', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/finance/expenses', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/communication/templates', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/audit-logs', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       if (usersRes.ok) {
@@ -427,15 +439,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
   useEffect(() => {
     fetchAdminData();
-  }, [token, roleFilter, statusFilter]);
+  }, [token, activeTab, roleFilter, statusFilter]);
 
   useEffect(() => {
-    if (!token || activeTab !== 'orders') return;
+    if (!token) return;
 
     let active = true;
     const refreshOrders = async () => {
       try {
-        const res = await fetch('/api/admin/orders', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch('/api/admin/orders', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (active) {
@@ -451,15 +463,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     };
 
     const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void refreshOrders();
+      if (document.visibilityState !== 'visible') return;
+      if (activeTab === 'orders') {
+        void refreshOrders();
+      } else {
+        void fetchAdminData();
+      }
     };
-    const intervalId = window.setInterval(refreshWhenVisible, 15_000);
+    const intervalId = activeTab === 'orders' ? window.setInterval(refreshWhenVisible, 15_000) : undefined;
     window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
+      if (intervalId !== undefined) window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [token, activeTab]);
 
@@ -1148,6 +1167,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
       </div>
 
+      {persistence?.mode === 'ephemeral_tmp' && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-amber-950/80 border border-amber-500/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 text-amber-100 shadow-lg"
+        >
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="text-xs leading-relaxed">
+            <p className="font-bold font-rajdhani uppercase tracking-wider text-amber-300 text-sm">
+              Ephemeral Serverless Storage Active — Cross-Browser Sync Disabled
+            </p>
+            <p className="font-mono text-[11px] text-amber-100/90 mt-0.5">
+              {persistence.warning ||
+                'Vercel is using per-container /tmp SQLite because TURSO_DATABASE_URL / TURSO_AUTH_TOKEN are not configured. Set both environment variables in Vercel Project Settings -> Environment Variables and redeploy so customer orders sync across all browsers.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start gap-6">
         {/* Desktop sidebar (lg+) */}
         <aside className={`hidden lg:block lg:sticky lg:top-6 lg:self-start shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
@@ -1201,7 +1238,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono text-gray-300">
                 <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>scrypt Passwords &amp; WAL DB: <strong className="text-white">Active</strong></span>
+                  <span>
+                    scrypt Passwords &amp; DB:{' '}
+                    <strong className={persistence?.mode === 'ephemeral_tmp' ? 'text-amber-300' : 'text-white'}>
+                      {persistence?.mode === 'turso_cloud'
+                        ? 'Turso Cloud Synced'
+                        : persistence?.mode === 'ephemeral_tmp'
+                          ? 'Ephemeral (Set Turso Env)'
+                          : 'Local WAL Active'}
+                    </strong>
+                  </span>
                 </div>
                 <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -3420,14 +3466,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           className="relative h-28 rounded-xl overflow-hidden border border-white/15 cursor-pointer group bg-black/40 flex items-center justify-center"
                         >
                           <img
-                            src={adminOrderRoom.payment_evidence_image}
+                            src={resolveUploadUrl(adminOrderRoom.payment_evidence_image)}
                             alt="Payment Evidence Thumbnail"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             onError={(e) => {
-                              const img = e.currentTarget;
-                              if (!img.src.includes(':5000') && adminOrderRoom.payment_evidence_image?.startsWith('/uploads')) {
-                                img.src = `${adminOrderRoom.payment_evidence_image}`;
-                              }
+                              handleUploadImageError(e.currentTarget, adminOrderRoom.payment_evidence_image);
                             }}
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1 font-rajdhani uppercase">
@@ -3669,7 +3712,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </div>
               <div className="flex items-center gap-2">
                 <a
-                  href={zoomScreenshot}
+                  href={resolveUploadUrl(zoomScreenshot)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-rajdhani font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -3690,14 +3733,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 </button>
               </div>
             </div>
-            <div className="p-4 max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
+            <div className="p-4 min-h-[220px] max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
               {zoomImgFailed ? (
                 <div className="p-8 text-center space-y-3">
                   <ImageIcon className="w-12 h-12 text-rose-400 mx-auto" />
                   <div className="text-white font-bold text-sm">Image preview could not be loaded</div>
                   <p className="text-gray-400 text-xs font-mono max-w-md">{zoomScreenshot}</p>
                   <a
-                    href={zoomScreenshot.startsWith('/uploads') ? `${zoomScreenshot}` : zoomScreenshot}
+                    href={resolveUploadUrl(zoomScreenshot)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase font-rajdhani"
@@ -3708,16 +3751,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 </div>
               ) : (
                 <img
-                  src={zoomScreenshot}
+                  key={zoomScreenshot}
+                  src={resolveUploadUrl(zoomScreenshot)}
                   alt="Payment Screenshot Zoom"
                   className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
                   onError={(e) => {
-                    const img = e.currentTarget;
-                    if (!img.src.includes(':5000') && zoomScreenshot.startsWith('/uploads')) {
-                      img.src = `${zoomScreenshot}`;
-                    } else {
-                      setZoomImgFailed(true);
-                    }
+                    handleUploadImageError(e.currentTarget, zoomScreenshot, () => setZoomImgFailed(true));
                   }}
                 />
               )}

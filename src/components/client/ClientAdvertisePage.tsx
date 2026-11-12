@@ -34,6 +34,7 @@ import { ClientPage } from './Header';
 import { useAuth } from '../../context/AuthContext';
 import {
   ADVERTISEMENT_PRODUCT_DETAILS,
+  mergeAdvertisementPlanWithDetails,
   PackageDetailData,
 } from '../../data/advertisementProductDetails';
 import { AdvertisementProductPage } from '../advertise/AdvertisementProductPage';
@@ -61,6 +62,11 @@ export interface AdvertisementPlan {
   priority_placement: boolean;
   dedicated_agent: boolean;
   lifetime_guaranteed: boolean;
+  reach_estimate?: string;
+  placement_tag?: string;
+  conditions?: string[];
+  custom_faq?: { question: string; answer: string }[];
+  ai_draft?: { headline?: string; summary?: string; highlights?: string[] } | null;
   benefits: string[];
 }
 
@@ -131,6 +137,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   const inventoryInputRef = useRef<HTMLInputElement>(null);
   const comparisonRef = useRef<HTMLDivElement>(null);
   const tradeExchangeRef = useRef<HTMLDivElement>(null);
+  const bonusPlanRef = useRef<HTMLDivElement>(null);
 
   const scrollToTradeExchange = () => {
     setActiveView('plans');
@@ -142,7 +149,17 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     }, 50);
   };
 
-  // Handle direct anchor link or parameter to Trade / Exchange section
+  const scrollToBonusPlan = () => {
+    setActiveView('plans');
+    setTimeout(() => {
+      const el = document.getElementById('vib-bonus-plan') || bonusPlanRef.current;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
+  // Handle direct anchor link or parameter to Trade / Exchange or Bonus section
   useEffect(() => {
     const checkHashAndScroll = () => {
       try {
@@ -154,6 +171,19 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           let retries = 0;
           const attempt = () => {
             const el = document.getElementById('trade-exchange-plans') || tradeExchangeRef.current;
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else if (retries < 10) {
+              retries++;
+              setTimeout(attempt, 80);
+            }
+          };
+          setTimeout(attempt, 100);
+        } else if (hash === '#vib-bonus-plan' || section === 'vib-bonus-plan') {
+          setActiveView('plans');
+          let retries = 0;
+          const attempt = () => {
+            const el = document.getElementById('vib-bonus-plan') || bonusPlanRef.current;
             if (el) {
               el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else if (retries < 10) {
@@ -214,10 +244,14 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
         // 2. Product details route check: /advertise/product/:id or ?product=:id
         const productMatch = path.match(/^\/advertise\/product\/([^/]+)/);
         const productParam = params.get('product');
-        const targetPlanId = (productMatch ? productMatch[1] : productParam) || '';
-        if (targetPlanId && ADVERTISEMENT_PRODUCT_DETAILS[targetPlanId]) {
+        const targetPlanId = decodeURIComponent((productMatch ? productMatch[1] : productParam) || '');
+        if (targetPlanId) {
           setSelectedProductId(targetPlanId);
-          setSelectedProductPackage(ADVERTISEMENT_PRODUCT_DETAILS[targetPlanId]);
+          const pkg = mergeAdvertisementPlanWithDetails(
+            plans.find((p) => p.id === targetPlanId) || null,
+            targetPlanId
+          );
+          if (pkg) setSelectedProductPackage(pkg);
           setActiveView('product');
           return;
         }
@@ -225,7 +259,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
         // 3. Checkout route check: /advertise/checkout/:id or ?checkout=:id
         const checkoutMatch = path.match(/^\/advertise\/checkout\/([^/]+)/);
         const checkoutParam = params.get('checkout');
-        const targetOrderId = (checkoutMatch ? checkoutMatch[1] : checkoutParam) || '';
+        const targetOrderId = decodeURIComponent((checkoutMatch ? checkoutMatch[1] : checkoutParam) || '');
         if (targetOrderId) {
           setActiveCheckoutOrderId(targetOrderId);
           setActiveView('checkout');
@@ -244,16 +278,40 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     return () => window.removeEventListener('popstate', handleUrlRoute);
   }, []);
 
-  // Fetch active checkout order and plan specs if viewing checkout
+  // Keep selectedProductPackage synced with live DB plans on reload/update
+  useEffect(() => {
+    if (!selectedProductId) return;
+    const livePlan = plans.find((p) => p.id === selectedProductId) || null;
+    if (livePlan) {
+      const merged = mergeAdvertisementPlanWithDetails(livePlan, selectedProductId);
+      if (merged) setSelectedProductPackage(merged);
+      return;
+    }
+    if (!loading) {
+      fetch(`/api/advertisement/plans/${encodeURIComponent(selectedProductId)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.success && data.plan) {
+            const merged = mergeAdvertisementPlanWithDetails(data.plan, selectedProductId);
+            if (merged) setSelectedProductPackage(merged);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [plans, selectedProductId, loading]);
+
+  // Fetch active checkout order and live plan specs if viewing checkout
   useEffect(() => {
     if (activeView === 'checkout' && activeCheckoutOrderId) {
-      fetch(`/api/advertisement/orders/${activeCheckoutOrderId}`)
+      fetch(`/api/advertisement/orders/${encodeURIComponent(activeCheckoutOrderId)}`)
         .then((res) => res.json())
         .then((data) => {
           if (data && data.success && data.order) {
             setActiveCheckoutOrder(data.order);
-            if (data.order.plan_id && ADVERTISEMENT_PRODUCT_DETAILS[data.order.plan_id]) {
-              setSelectedProductPackage(ADVERTISEMENT_PRODUCT_DETAILS[data.order.plan_id]);
+            const livePlan = data.plan || plans.find((p) => p.id === data.order.plan_id) || null;
+            const merged = mergeAdvertisementPlanWithDetails(livePlan, data.order.plan_id);
+            if (merged) {
+              setSelectedProductPackage(merged);
             }
             if (data.paymentSettings) {
               setPaymentSettings((prev) => ({
@@ -265,7 +323,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
         })
         .catch((e) => console.error('[Fetch Checkout Order Error]:', e));
     }
-  }, [activeView, activeCheckoutOrderId]);
+  }, [activeView, activeCheckoutOrderId, plans]);
 
   // Verify submission token if present
   useEffect(() => {
@@ -297,15 +355,16 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     }
   }, [activeView, submitOrderId, submitToken]);
 
-  const filteredPlans = plans.filter((p) => {
-    // Keep Trade / Exchange plans strictly in their dedicated section below; do not mix them into the sales grid
-    if (p.category === 'trade') return false;
+  const bonusPlan = plans.find((p) => p.category === 'bonus') || null;
+  const salesGridPlans = plans.filter((p) => p.category !== 'trade' && p.category !== 'bonus');
+  const filteredPlans = salesGridPlans.filter((p) => {
     if (selectedCategory === 'all') return true;
     return p.category === selectedCategory;
   });
 
   const handleOpenProduct = (planId: string) => {
-    const pkg = ADVERTISEMENT_PRODUCT_DETAILS[planId] || null;
+    const livePlan = plans.find((p) => p.id === planId) || null;
+    const pkg = mergeAdvertisementPlanWithDetails(livePlan, planId);
     setSelectedProductId(planId);
     setSelectedProductPackage(pkg);
     setActiveView('product');
@@ -350,6 +409,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           lastName: currentUser.last_name || '',
           customerName: currentUser.displayName || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'VIB Customer',
           customerEmail: currentUser.email || '',
+          customerAccountNumber: currentUser.account_number || '',
           customerPhone: currentUser.phone || '',
           customerCity: currentUser.city || '',
           customerState: currentUser.state || '',
@@ -428,10 +488,6 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
     e.preventDefault();
     setSubmitError(null);
 
-    if (!formInstagram.trim()) {
-      setSubmitError("Please provide the account owner's Instagram username.");
-      return;
-    }
     if (!formPrice.trim()) {
       setSubmitError('Please enter your desired selling price in INR.');
       return;
@@ -495,13 +551,24 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           isOpen={isAdAuthOpen}
           onClose={() => setIsAdAuthOpen(false)}
           selectedPackageName={pendingPackageToBuy?.name || selectedProductPackage.name}
-          selectedPackagePrice={pendingPackageToBuy?.price || selectedProductPackage.price}
-          onAuthenticated={() => {
+          selectedPackagePrice={pendingPackageToBuy?.price ?? selectedProductPackage.price}
+          onAuthenticated={(authUser?: any) => {
             setIsAdAuthOpen(false);
-            fetch('/api/auth/me')
+            if (authUser && pendingPackageToBuy) {
+              proceedToOrderDraft(pendingPackageToBuy, authUser);
+              return;
+            }
+            const token = localStorage.getItem('vib_auth_token') || '';
+            fetch('/api/auth/me', {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
               .then((r) => r.json())
               .then((userData) => {
-                const u = userData?.user;
+                let fallbackUser = null;
+                try {
+                  fallbackUser = JSON.parse(localStorage.getItem('vib_user') || 'null');
+                } catch {}
+                const u = userData?.user || fallbackUser;
                 if (u && pendingPackageToBuy) {
                   proceedToOrderDraft(pendingPackageToBuy, u);
                 }
@@ -514,6 +581,19 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
   }
 
   if (activeView === 'checkout' && activeCheckoutOrderId) {
+    const orderStatus = activeCheckoutOrder?.status || null;
+    const isSubmittedOrder = Boolean(
+      orderStatus &&
+        ['submitted_for_verification', 'approved', 'details_submitted', 'live', 'completed'].includes(
+          orderStatus
+        )
+    );
+    const submitTok = activeCheckoutOrder?.submission_token || activeCheckoutOrder?.approval_token;
+    const approvedSubmitUrl =
+      orderStatus === 'approved' && submitTok
+        ? `/advertise/submit/${encodeURIComponent(activeCheckoutOrderId)}?token=${encodeURIComponent(submitTok)}`
+        : null;
+
     return (
       <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white font-sans min-h-screen">
         <ManualPaymentGateway
@@ -526,7 +606,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           specs={[
             { label: 'Duration', value: selectedProductPackage?.promotion_duration || '24 Hours' },
             { label: 'Channel', value: selectedProductPackage?.reach || 'VIB Official Promotion Channel' },
-            { label: 'Placement', value: selectedProductPackage?.placement || 'Instagram Story' },
+            { label: 'Placement', value: selectedProductPackage?.placement || 'VIB Official Promotion Channels' },
             { label: 'Processing', value: 'After Payment Verification' },
           ]}
           iconType={selectedProductPackage?.heroIconType || 'megaphone'}
@@ -537,6 +617,15 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           supportWhatsapp="+918099641606"
           onBack={handleBackToPlans}
           onViewOrders={() => onNavigate('dashboard', 'tab:my_ads')}
+          initialSubmitted={isSubmittedOrder}
+          initialSubmittedAt={activeCheckoutOrder?.updated_at || activeCheckoutOrder?.created_at || null}
+          initialUtr={activeCheckoutOrder?.payment_reference || null}
+          orderStatus={orderStatus}
+          orderStatusEndpoint={`/api/advertisement/orders/${encodeURIComponent(activeCheckoutOrderId)}`}
+          verificationStartAt={activeCheckoutOrder?.updated_at || activeCheckoutOrder?.created_at || null}
+          approvedRedirectUrl={approvedSubmitUrl}
+          continueButtonLabel="Continue to Promotion Submission"
+          onOrderStatusChange={(updatedOrder) => setActiveCheckoutOrder(updatedOrder)}
           onSubmitProof={async (utr, screenshotData) => {
             const res = await fetch(`/api/advertisement/orders/${activeCheckoutOrderId}/submit-payment`, {
               method: 'POST',
@@ -550,6 +639,9 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
             if (!res.ok || !data.success) {
               throw new Error(data.error || 'Failed to submit payment verification.');
             }
+            if (data.order) {
+              setActiveCheckoutOrder(data.order);
+            }
             return true;
           }}
           onComplete={() => {}}
@@ -558,7 +650,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           isOpen={isAdAuthOpen}
           onClose={() => setIsAdAuthOpen(false)}
           selectedPackageName={selectedProductPackage?.name || 'Advertisement Package'}
-          selectedPackagePrice={selectedProductPackage?.price || 0}
+          selectedPackagePrice={selectedProductPackage?.price ?? 0}
           onAuthenticated={() => setIsAdAuthOpen(false)}
         />
       </div>
@@ -615,7 +707,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
             </h1>
 
             <p className="text-gray-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl">
-              Broadcast your Valorant inventory directly to active Indian gamers. Choose flexible Instagram story promotions, grid features, or concierge matchmaking.
+              Broadcast your Valorant inventory directly to active Indian gamers through official VIB WhatsApp Status promotions, Channel posts, Website Marketplace listings, Discord pushes, or concierge matchmaking.
             </p>
           </div>
 
@@ -677,17 +769,31 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           {/* Category Filter Tabs */}
           <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-4">
             {[
-              { id: 'all', label: 'All Sales Plans (10)' },
-              { id: 'standard', label: 'Standard Sales (7)' },
-              { id: 'premium', label: 'Premium & VIP (2)' },
-              { id: 'bonus', label: 'Free Bonus Plan (1)' },
-              { id: 'trade', label: 'Trade / Exchange Plans (2)' },
+              { id: 'all', label: `All Sales Plans (${salesGridPlans.length})` },
+              {
+                id: 'standard',
+                label: `Standard Sales (${salesGridPlans.filter((p) => p.category === 'standard').length})`,
+              },
+              {
+                id: 'premium',
+                label: `Premium & VIP (${salesGridPlans.filter((p) => p.category === 'premium').length})`,
+              },
+              {
+                id: 'trade',
+                label: `Trade / Exchange Plans (${plans.filter((p) => p.category === 'trade').length})`,
+              },
+              {
+                id: 'bonus',
+                label: `VIB Bonus Plan (${plans.filter((p) => p.category === 'bonus').length})`,
+              },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => {
                   if (tab.id === 'trade') {
                     scrollToTradeExchange();
+                  } else if (tab.id === 'bonus') {
+                    scrollToBonusPlan();
                   } else {
                     setSelectedCategory(tab.id as any);
                   }
@@ -695,12 +801,15 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 className={`px-4 py-2 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider transition-all cursor-pointer min-h-[40px] flex items-center gap-1.5 ${
                   tab.id === 'trade'
                     ? 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30'
+                    : tab.id === 'bonus'
+                    ? 'bg-fuchsia-950/40 hover:bg-fuchsia-900/60 text-fuchsia-300 border border-fuchsia-500/30'
                     : selectedCategory === tab.id
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                     : 'bg-[#0d0a1a] hover:bg-[#16122a] text-gray-400 hover:text-white border border-white/5'
                 }`}
               >
                 {tab.id === 'trade' && <Repeat className="w-3.5 h-3.5 text-emerald-400" />}
+                {tab.id === 'bonus' && <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />}
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -719,36 +828,6 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
             <div className="text-xs text-gray-400">
               Looking for weapon swaps? Jump to <button type="button" onClick={scrollToTradeExchange} className="text-emerald-400 underline font-semibold cursor-pointer hover:text-emerald-300">Trade / Exchange Plans below</button>.
             </div>
-          </div>
-
-          {/* Bonus Plan Callout Banner */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/60 via-[#180e2b] to-[#0c0919] border border-fuchsia-500/30 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-400 flex-shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm sm:text-base text-white font-rajdhani uppercase flex items-center gap-2">
-                  <span>Zero-Advance Listing Option</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-fuchsia-950 text-fuchsia-300 border border-fuchsia-500/40">
-                    ₹0 UPFRONT
-                  </span>
-                </h3>
-                <p className="text-xs text-gray-300 leading-relaxed">
-                  List on our public community website for free. An 18% service fee is deducted ONLY after a successful sale. No upfront payment required.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                const bonus = plans.find((p) => p.category === 'bonus');
-                if (bonus) handleStartPurchase(bonus);
-              }}
-              className="px-5 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 flex-shrink-0 cursor-pointer min-h-[44px]"
-            >
-              <span>Get Free Community Listing</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
 
           {/* Package Cards Grid */}
@@ -830,7 +909,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                           : 'bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white shadow-md shadow-purple-600/20'
                       }`}
                     >
-                      <span>{isFree ? 'List Free (18% After Sale)' : `Buy Now — ${priceDisplay}`}</span>
+                      <span>View Plan</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -859,13 +938,13 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 </h2>
               </div>
               <p className="text-xs text-gray-300 max-w-md">
-                Dedicated Instagram story &amp; highlight shoutout campaigns engineered specifically for weapon skin traders and profile swaps across India. Direct buyer tag &amp; optional escrow.
+                Dedicated WhatsApp status &amp; featured highlight shoutout campaigns engineered specifically for weapon skin traders and profile swaps across India. Direct contact &amp; optional escrow.
               </p>
             </div>
 
             {/* 2 Dedicated Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Plan 1: Story Promotion (24 hours) - ₹55 */}
+              {/* Plan 1: Trade Status Promotion - ₹55 */}
               {(() => {
                 const plan55 = plans.find((p) => p.id === 'ad-trade-story-55');
                 if (!plan55) return null;
@@ -886,11 +965,8 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
 
                       <div>
                         <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide leading-tight group-hover:text-emerald-300 transition-colors">
-                          ₹55 — Trade / Exchange Story 24HR
+                          {price55} — {plan55.name}
                         </h3>
-                        <div className="text-[11px] font-mono text-emerald-400/70 pt-0.5">
-                          {plan55.name}
-                        </div>
                         <p className="text-xs text-gray-300 leading-relaxed pt-2 min-h-[36px]">
                           {plan55.description}
                         </p>
@@ -915,13 +991,13 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                       </ul>
                     </div>
 
-                    {/* Buy Now Button */}
+                    {/* View Plan Button */}
                     <div className="pt-6 mt-4 border-t border-emerald-500/20">
                       <button
-                        onClick={() => handleStartPurchase(plan55)}
+                        onClick={() => handleOpenProduct(plan55.id)}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                       >
-                        <span>Buy Now — {price55}</span>
+                        <span>View Plan</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -929,7 +1005,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 );
               })()}
 
-              {/* Plan 2: Story + Highlight Placement - ₹105 */}
+              {/* Plan 2: Trade Status + Highlight Placement - ₹105 */}
               {(() => {
                 const plan105 = plans.find((p) => p.id === 'ad-trade-highlight-105');
                 if (!plan105) return null;
@@ -950,11 +1026,8 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
 
                       <div>
                         <h3 className="text-xl font-black text-white font-rajdhani uppercase tracking-wide leading-tight group-hover:text-cyan-300 transition-colors">
-                          ₹105 — Trade / Exchange Story + Highlight
+                          {price105} — {plan105.name}
                         </h3>
-                        <div className="text-[11px] font-mono text-cyan-400/70 pt-0.5">
-                          {plan105.name}
-                        </div>
                         <p className="text-xs text-gray-300 leading-relaxed pt-2 min-h-[36px]">
                           {plan105.description}
                         </p>
@@ -979,13 +1052,13 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                       </ul>
                     </div>
 
-                    {/* Buy Now Button */}
+                    {/* View Plan Button */}
                     <div className="pt-6 mt-4 border-t border-cyan-500/20">
                       <button
-                        onClick={() => handleStartPurchase(plan105)}
+                        onClick={() => handleOpenProduct(plan105.id)}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                       >
-                        <span>Buy Now — {price105}</span>
+                        <span>View Plan</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -999,7 +1072,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
               <div className="flex items-center gap-3 text-emerald-300">
                 <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                 <span className="text-gray-200 leading-relaxed">
-                  <strong className="text-emerald-300 font-rajdhani uppercase tracking-wide">100% Escrow Mediation:</strong> When potential traders contact you on Instagram, execute the item swap through our verified WhatsApp middleman service for total scam immunity.
+                  <strong className="text-emerald-300 font-rajdhani uppercase tracking-wide">100% Escrow Mediation:</strong> When potential traders contact you through VIB promotions, execute the item swap through our verified WhatsApp middleman service for safer handoffs.
                 </span>
               </div>
               <button
@@ -1008,6 +1081,48 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 className="px-4 py-2 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-500/40 text-emerald-200 text-xs font-bold font-rajdhani uppercase tracking-wider flex-shrink-0 transition-all cursor-pointer min-h-[36px]"
               >
                 Browse Available Skins
+              </button>
+            </div>
+          </section>
+
+          {/* ========================================================================= */}
+          {/* 2C. DEDICATED HORIZONTAL SECTION: VIB BONUS PLAN (BELOW PLAN SECTIONS)    */}
+          {/* ========================================================================= */}
+          <section
+            id="vib-bonus-plan"
+            ref={bonusPlanRef}
+            className="scroll-mt-24 sm:scroll-mt-28 pt-2"
+          >
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-purple-950/60 via-[#180e2b] to-[#0c0919] border border-fuchsia-500/35 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-xl">
+              <div className="flex items-start gap-4 max-w-3xl">
+                <div className="w-11 h-11 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-300 flex-shrink-0 mt-0.5">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-black text-xl sm:text-2xl text-white font-rajdhani uppercase tracking-wide">
+                      VIB BONUS PLAN
+                    </h2>
+                    <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-fuchsia-950 text-fuchsia-300 border border-fuchsia-500/40 uppercase">
+                      {bonusPlan?.badge || '₹0 UPFRONT'}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+                    {bonusPlan?.description ||
+                      'Free public community advertisement with zero upfront fee — 18% service fee charged only after a successful sale through VIB escrow.'}
+                  </p>
+                  <p className="text-[11px] text-fuchsia-300/90 font-mono">
+                    List on the public VIB community website with ₹0 upfront payment. The 18% service fee is deducted only if your account sells.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenProduct(bonusPlan?.id || 'ad-bonus-free-18pct')}
+                className="w-full md:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all shadow-lg shadow-fuchsia-600/25 flex items-center justify-center gap-2 flex-shrink-0 cursor-pointer min-h-[44px]"
+              >
+                <span>View Plan</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </section>
@@ -1027,7 +1142,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 </h2>
               </div>
               <p className="text-xs text-gray-400 max-w-md">
-                Detailed feature breakdown. Note: Instagram Post and Story refer strictly to Instagram social broadcasts; website listings refer to our public community marketplace.
+                Detailed feature breakdown across Status Blasts, Channel Showcase Posts, Featured Highlights, and Website Marketplace listings.
               </p>
             </div>
 
@@ -1043,10 +1158,10 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                       Price
                     </th>
                     <th className="p-3.5 font-bold text-gray-300 uppercase tracking-wider text-center min-w-[75px]">
-                      Insta Story
+                      Status Blast
                     </th>
                     <th className="p-3.5 font-bold text-gray-300 uppercase tracking-wider text-center min-w-[75px]">
-                      Insta Post
+                      Channel Post
                     </th>
                     <th className="p-3.5 font-bold text-gray-300 uppercase tracking-wider text-center min-w-[75px]">
                       Highlight
@@ -1159,10 +1274,10 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                         </td>
                         <td className="p-3.5 text-center">
                           <button
-                            onClick={() => handleStartPurchase(p)}
+                            onClick={() => handleOpenProduct(p.id)}
                             className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] uppercase font-rajdhani cursor-pointer"
                           >
-                            Select
+                            View Plan
                           </button>
                         </td>
                       </tr>
@@ -1251,8 +1366,8 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 <li><strong className="text-white">Do not include cheap or ordinary Battle Pass skins</strong> in your description.</li>
                 <li><strong className="text-white">Upload one clear screenshot showing the main account inventory</strong> collection or weapon grid.</li>
                 <li><strong className="text-white">Do not upload separate screenshots</strong> of every individual skin.</li>
-                <li><strong className="text-white">Keep Instagram direct messages open</strong> to receive buyer inquiries.</li>
-                <li><strong className="text-white">Ensure Instagram tagging is enabled</strong> on your profile so interested buyers can contact you directly.</li>
+                <li><strong className="text-white">Keep your contact channel reachable</strong> so interested buyers can message you directly.</li>
+                <li><strong className="text-white">Respond promptly to VIB coordinator messages</strong> once buyer interest is confirmed.</li>
               </ul>
             </div>
 
@@ -1267,7 +1382,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                     ADVERTISEMENT DETAILS RECEIVED!
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-300 max-w-md mx-auto">
-                    Your account showcase is now queued with our operations team. We will review your inventory, format your graphics, and tag your Instagram profile on the official VIB broadcast channels.
+                    Your account showcase is now queued with our operations team. We will review your inventory, format your graphics, and schedule your promotion on official VIB broadcast channels.
                   </p>
                 </div>
                 <button
@@ -1331,11 +1446,11 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Instagram Username & Selling Price */}
+                {/* 2. Optional Social Handle & Selling Price */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-[11px] font-mono text-gray-400 uppercase mb-1">
-                      Owner's Instagram Username *
+                      Social Handle (Optional)
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-3 text-gray-500 text-xs">@</span>
@@ -1343,12 +1458,11 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                         type="text"
                         value={formInstagram}
                         onChange={(e) => setFormInstagram(e.target.value)}
-                        required
-                        placeholder="your_handle"
+                        placeholder="optional_handle"
                         className="w-full bg-[#0a0714] border border-white/10 rounded-xl pl-7 pr-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-400 min-h-[44px]"
                       />
                     </div>
-                    <span className="text-[10px] text-gray-500">Ensure DMs and tagging are open</span>
+                    <span className="text-[10px] text-gray-500">Optional backup handle if any</span>
                   </div>
 
                   <div>
@@ -1509,13 +1623,24 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
         isOpen={isAdAuthOpen}
         onClose={() => setIsAdAuthOpen(false)}
         selectedPackageName={pendingPackageToBuy?.name || selectedProductPackage?.name || 'Advertisement Package'}
-        selectedPackagePrice={pendingPackageToBuy?.price || selectedProductPackage?.price || 0}
-        onAuthenticated={() => {
+        selectedPackagePrice={pendingPackageToBuy?.price ?? selectedProductPackage?.price ?? 0}
+        onAuthenticated={(authUser?: any) => {
           setIsAdAuthOpen(false);
-          fetch('/api/auth/me')
+          if (authUser && pendingPackageToBuy) {
+            proceedToOrderDraft(pendingPackageToBuy, authUser);
+            return;
+          }
+          const token = localStorage.getItem('vib_auth_token') || '';
+          fetch('/api/auth/me', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          })
             .then((r) => r.json())
             .then((userData) => {
-              const u = userData?.user;
+              let fallbackUser = null;
+              try {
+                fallbackUser = JSON.parse(localStorage.getItem('vib_user') || 'null');
+              } catch {}
+              const u = userData?.user || fallbackUser;
               if (u && pendingPackageToBuy) {
                 proceedToOrderDraft(pendingPackageToBuy, u);
               }

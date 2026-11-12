@@ -39,6 +39,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
   const [riotId, setRiotId] = useState('');
   const [termsAgreed, setTermsAgreed] = useState(false);
@@ -186,6 +187,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       email: email.trim(),
       password,
       terms_accepted: termsAgreed,
+      accountNumber: accountNumber.trim() || undefined,
       phone: phone.trim() || undefined,
       riot_id: riotId.trim() || undefined,
     });
@@ -552,7 +554,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">
-                  WhatsApp / Phone
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="Account number (no phone OTP needed)"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#141224] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-mono uppercase text-gray-300 font-semibold tracking-wider">
+                  WhatsApp / Phone <span className="text-gray-500 text-[10px]">(No OTP)</span>
                 </label>
                 <div className="relative">
                   <Phone className="w-3.5 h-3.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

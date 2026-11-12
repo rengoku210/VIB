@@ -241,7 +241,12 @@ function AppContent() {
       }
 
       const trackId = params.get('orderId') || params.get('track');
-      if (trackId) {
+      const isAdSubmissionUrl =
+        params.has('token') ||
+        params.get('step') === 'submit' ||
+        params.get('page') === 'advertise' ||
+        window.location.pathname.startsWith('/advertise');
+      if (trackId && !isAdSubmissionUrl) {
         setTrackingOrderId(trackId);
         setIsTrackingOpen(true);
       }
@@ -252,7 +257,12 @@ function AppContent() {
     try {
       const params = new URLSearchParams(window.location.search);
       const trackId = params.get('orderId') || params.get('track');
-      if (trackId) {
+      const isAdSubmissionUrl =
+        params.has('token') ||
+        params.get('step') === 'submit' ||
+        params.get('page') === 'advertise' ||
+        window.location.pathname.startsWith('/advertise');
+      if (trackId && !isAdSubmissionUrl) {
         setTrackingOrderId(trackId);
         setIsTrackingOpen(true);
       }

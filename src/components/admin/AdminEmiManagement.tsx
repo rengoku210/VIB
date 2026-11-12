@@ -14,7 +14,9 @@ import {
   ExternalLink,
   ShieldCheck,
   Settings,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { resolveUploadUrl, handleUploadImageError } from '../../utils/uploadUrl';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -195,6 +197,10 @@ const AdminEmiManagement: React.FC = () => {
 
   // Evidence zoom lightbox
   const [zoomEvidence, setZoomEvidence] = useState<string | null>(null);
+  const [zoomImgFailed, setZoomImgFailed] = useState(false);
+  useEffect(() => {
+    setZoomImgFailed(false);
+  }, [zoomEvidence]);
 
   // Settings tab state
   const [activeConsoleTab, setActiveConsoleTab] = useState<'applications' | 'settings'>('applications');
@@ -474,9 +480,12 @@ const AdminEmiManagement: React.FC = () => {
         title="Click to zoom evidence image"
       >
         <img
-          src={evidence}
+          src={resolveUploadUrl(evidence)}
           alt={`Installment evidence ${payment.installment_no}`}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          onError={(e) => {
+            handleUploadImageError(e.currentTarget, evidence);
+          }}
         />
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
           <Eye className="w-3.5 h-3.5" />
@@ -1493,7 +1502,7 @@ const AdminEmiManagement: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <a
-                  href={zoomEvidence}
+                  href={resolveUploadUrl(zoomEvidence)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-black text-xs font-rajdhani font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -1503,7 +1512,10 @@ const AdminEmiManagement: React.FC = () => {
                 </a>
                 <button
                   type="button"
-                  onClick={() => setZoomEvidence(null)}
+                  onClick={() => {
+                    setZoomEvidence(null);
+                    setZoomImgFailed(false);
+                  }}
                   className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
                   aria-label="Close Preview"
                 >
@@ -1511,12 +1523,33 @@ const AdminEmiManagement: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="p-4 max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
-              <img
-                src={zoomEvidence}
-                alt="EMI Payment Evidence Zoom"
-                className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
-              />
+            <div className="p-4 min-h-[220px] max-h-[75vh] overflow-auto flex items-center justify-center bg-black/50">
+              {zoomImgFailed ? (
+                <div className="p-8 text-center space-y-3">
+                  <ImageIcon className="w-12 h-12 text-rose-400 mx-auto" />
+                  <div className="text-white font-bold text-sm">Image preview could not be loaded</div>
+                  <p className="text-gray-400 text-xs font-mono max-w-md">{zoomEvidence}</p>
+                  <a
+                    href={resolveUploadUrl(zoomEvidence)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-black text-xs font-bold uppercase font-rajdhani"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Open Direct File Link</span>
+                  </a>
+                </div>
+              ) : (
+                <img
+                  key={zoomEvidence}
+                  src={resolveUploadUrl(zoomEvidence)}
+                  alt="EMI Payment Evidence Zoom"
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mx-auto shadow-2xl"
+                  onError={(e) => {
+                    handleUploadImageError(e.currentTarget, zoomEvidence, () => setZoomImgFailed(true));
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>

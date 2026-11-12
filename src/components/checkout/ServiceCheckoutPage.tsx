@@ -244,7 +244,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
             contextType: 'order_checkout',
             contextId: data.order.id,
           }),
-        }).catch(() => {});
+        }).then((r) => r.text().catch(() => {})).catch(() => {});
 
         if (isRental) {
           fetch('/api/legal/consent', {
@@ -259,7 +259,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
               contextType: 'rental_checkout',
               contextId: data.order.id,
             }),
-          }).catch(() => {});
+          }).then((r) => r.text().catch(() => {})).catch(() => {});
         }
       }
 

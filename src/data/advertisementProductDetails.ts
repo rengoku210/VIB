@@ -18,49 +18,70 @@ export interface PackageDetailData {
   heroIconType: 'megaphone' | 'repeat' | 'crown' | 'sparkles' | 'shield';
 }
 
+export interface LivePlanInput {
+  id: string;
+  category?: string;
+  name?: string;
+  price?: number;
+  description?: string;
+  badge?: string;
+  story_count?: string;
+  promotion_duration?: string;
+  reach_estimate?: string;
+  placement_tag?: string;
+  benefits?: string[];
+  conditions?: string[];
+  custom_faq?: { question: string; answer: string }[];
+  ai_draft?: { headline?: string; summary?: string; highlights?: string[] } | null;
+}
+
 export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = {
   'ad-story-95': {
     id: 'ad-story-95',
-    name: 'Instagram Story Promotion',
+    name: 'WhatsApp Status Promotion',
     price: 95,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
     badge: 'STARTER',
-    tagline: 'Fast 24-Hour Story Broadcast to Indian Valorant Community',
-    description: 'Get immediate eyes on your Valorant account with a dedicated 24-hour Instagram story shoutout on the official VIB esports channel. Direct seller handle tagging allows interested buyers to slide right into your DMs.',
+    tagline: '24-Hour WhatsApp Status Broadcast to Active Indian Valorant Buyers',
+    description:
+      '24-hour dedicated WhatsApp Status & broadcast showcase to reach active Valorant buyers across India with direct seller contact routing.',
     promotion_duration: '24 Hours',
-    reach: 'VIB Instagram Story Community',
-    placement: 'Instagram Story (24h)',
+    reach: 'VIB WhatsApp Status Network',
+    placement: 'WhatsApp Status (24h)',
     turnaround: 'Reviewed after payment confirmation',
     services: [
-      '24-Hour Instagram Story Promotion',
-      'Direct Seller Instagram Handle Tag',
-      'Clickable DM Link for Fast Buyer Outreach',
-      'Queue Scheduling within 15 Minutes',
+      '24-Hour WhatsApp Status Promotion',
+      'Shared across VIB Buyer Broadcasts',
+      'Direct Seller Contact Tag & Inquiry Link',
+      'Fast Queue Scheduling after Review',
     ],
     benefits: [
-      'Immediate exposure to active Indian gamers looking to buy profiles.',
-      'Direct communication: Buyers message your Instagram directly.',
-      'Transparent verification: Our team verifies and publishes within 45 minutes.',
-      'Optional middleman escrow support once an interested buyer messages you.',
+      'Immediate exposure to active Indian gamers browsing daily WhatsApp status drops.',
+      'Direct communication: Interested buyers connect via your selected contact method.',
+      'Transparent verification: Our team reviews and schedules your campaign after payment approval.',
+      'Optional middleman escrow support when a buyer initiates a purchase.',
     ],
     conditions: [
       'Only list accounts with premium/exclusive skins. Battle pass-only accounts are not accepted.',
-      'Keep your Instagram account public and direct messages open for buyer outreach.',
-      'Provide a single clean screenshot showing the collection grid clearly.',
+      'Keep your primary contact details reachable for incoming buyer inquiries.',
+      'Provide a clean screenshot showing your weapon collection grid clearly.',
     ],
     faqs: [
       {
-        question: 'When will my Instagram story be posted?',
-        answer: 'After payment verification and inventory detail submission, your promotion is queued and published within 15 to 45 minutes during operational hours (10 AM - 12 Midnight IST).',
+        question: 'When will my WhatsApp status promotion be posted?',
+        answer:
+          'After payment verification and inventory detail submission, your status promotion is scheduled during operational hours (10 AM - 12 Midnight IST).',
       },
       {
         question: 'How do interested buyers contact me?',
-        answer: 'We tag your exact Instagram handle (@username) and add a direct tap-to-DM link so buyers can chat with you immediately.',
+        answer:
+          'Buyers use the contact option included in your promotion card (WhatsApp or listed handle) to message you directly or initiate VIB escrow.',
       },
       {
         question: 'Is escrow mediation included?',
-        answer: 'Yes. Once a buyer contacts you, both of you can conduct the deal through VIB middleman escrow on WhatsApp for complete scam protection.',
+        answer:
+          'Yes. Once a buyer contacts you, both sides can complete the deal through VIB middleman escrow on WhatsApp.',
       },
     ],
     heroIconType: 'megaphone',
@@ -68,42 +89,45 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-story-highlight-150': {
     id: 'ad-story-highlight-150',
-    name: 'Story + Highlight',
+    name: 'Status + Featured Highlight',
     price: 150,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
     badge: 'POPULAR',
-    tagline: '24H Story Blast Plus Permanent Profile Showcase Highlight',
-    description: 'Double your visibility. Your profile is broadcast as an active story and permanently saved to our curated VIB Instagram Story Highlights so buyers browsing our feed can view and inquire anytime.',
+    tagline: '24H Status Blast Plus Permanent Featured Highlight Placement',
+    description:
+      'WhatsApp Status promotion plus permanent featured highlight placement so active buyers can discover your listing continuously.',
     promotion_duration: 'Permanent Highlight',
-    reach: 'VIB Instagram Feed & Highlight Readers',
-    placement: 'Instagram Story + Permanent Highlight',
+    reach: 'VIB Status & Highlight Viewers',
+    placement: 'WhatsApp Status + Highlight',
     turnaround: 'Reviewed after payment confirmation',
     services: [
-      '24-Hour Instagram Story Broadcast',
-      'Permanent Highlight Placement on @thevibofficial',
-      'Direct Seller Tag in Story & Highlight',
-      'Continuous Visibility to New Profile Seekers',
+      '24-Hour WhatsApp Status Blast',
+      'Permanent VIB Featured Highlight Slot',
+      'Saved in Curated Account Showcase',
+      'Extended Exposure to Active Buyers',
     ],
     benefits: [
-      'Permanent highlight spot: Stays visible until your profile is marked sold.',
-      'Saves to curated account showcase viewed daily by new visitors.',
-      'Prolonged exposure generates steady inquiries over weeks, not just hours.',
+      'Permanent highlight slot remains visible until your profile is marked sold.',
+      'Saved in curated account showcase viewed regularly by profile buyers.',
+      'Extended exposure generates steady buyer inquiries over multiple days.',
       'Middleman verification assistance included.',
     ],
     conditions: [
-      'Must specify your target selling price in INR.',
-      'Notify VIB once sold so we can update the highlight tag.',
-      'Only high-demand knife and weapon skins featured in the highlight graphic.',
+      'Specify your target selling price in INR.',
+      'Inform VIB support once sold so we can update the highlight status.',
+      'Feature clear collection screenshots with verified skin details.',
     ],
     faqs: [
       {
-        question: 'How long does the highlight stay active?',
-        answer: 'The highlight remains permanently visible on our Instagram profile until you sell the account and notify our team.',
+        question: 'How long does the featured highlight stay active?',
+        answer:
+          'Your featured highlight stays active until your account sells and you notify our support team.',
       },
       {
-        question: 'Can I change my asking price later?',
-        answer: 'Yes, simply message our official WhatsApp support and our team will update your listing notes in the highlight.',
+        question: 'Can I update my asking price later?',
+        answer:
+          'Yes, message our official WhatsApp support and the team will update your listing notes.',
       },
     ],
     heroIconType: 'sparkles',
@@ -111,41 +135,44 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-post-210': {
     id: 'ad-post-210',
-    name: 'Instagram Post Promotion',
+    name: 'Channel Showcase Post Promotion',
     price: 210,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
-    badge: 'HIGH REACH',
-    tagline: 'Permanent High-Res Instagram Grid Post for Broad Explore Reach',
-    description: 'Showcase your high-tier account on our main Instagram grid feed. Grid posts leverage Instagram algorithmic distribution, hashtags, and explore feed reach to reach serious esports collectors across India.',
-    promotion_duration: 'Permanent Grid Post',
-    reach: 'VIB Instagram Feed Distribution',
-    placement: 'Instagram Grid Post Feed',
+    badge: 'FEED FEATURE',
+    tagline: 'Permanent Channel Showcase Post Across Official VIB Buyer Feeds',
+    description:
+      'Dedicated high-resolution channel post promotion across official VIB WhatsApp Channels and Community Feed.',
+    promotion_duration: 'Permanent Channel Post',
+    reach: 'VIB Channel & Community Feed',
+    placement: 'WhatsApp Channel Post',
     turnaround: 'Reviewed after payment confirmation',
     services: [
-      'Permanent High-Resolution Grid Post',
-      'Algorithm-Optimized Caption & Tags',
-      'Direct Seller Tagging in Post Caption',
-      'Broad Explore Page & Hashtag Distribution',
+      'Dedicated High-Resolution Channel Post',
+      'Permanent Placement on VIB Buyer Feed',
+      'Broad Community & Channel Reach',
+      'Direct Seller Contact Included',
     ],
     benefits: [
-      'Permanent feed placement that never expires.',
-      'Higher credibility: Buyers trust verified grid posts over fleeting stories.',
-      'Includes full weapon skin inventory breakdown in caption.',
-      'Direct buyer redirection to your Instagram DM.',
+      'Permanent channel placement that stays searchable in feed history.',
+      'High buyer trust from structured account breakdown posts.',
+      'Includes full weapon skin inventory summary and rank highlights.',
+      'Direct buyer routing to your preferred contact channel.',
     ],
     conditions: [
-      'High-resolution screenshots required (minimum 1080p).',
-      'Must contain at least 2 premium skins (Kuronami, Reaver, Prime, Champions, etc.).',
+      'Clear screenshots required (1080p or readable full-grid view).',
+      'Recommended to include at least 2 premium skins or notable rare items.',
     ],
     faqs: [
       {
-        question: 'Will the post ever be deleted?',
-        answer: 'No, grid posts remain permanently on our page. Once sold, we update the caption to [SOLD] to establish track record.',
+        question: 'Will my channel post remain visible over time?',
+        answer:
+          'Yes, showcase posts stay on the VIB buyer channel feed. Once sold, we mark the listing as [SOLD].',
       },
       {
-        question: 'What information is included in the post caption?',
-        answer: 'Your current competitive rank, premium skins list, region, VP balance, asking price, and your direct Instagram username.',
+        question: 'What information is displayed in the showcase post?',
+        answer:
+          'Your competitive rank, premium skins summary, asking price in INR, and verified contact routing.',
       },
     ],
     heroIconType: 'megaphone',
@@ -153,37 +180,39 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-post-2stories-315': {
     id: 'ad-post-2stories-315',
-    name: 'Post + 2 Free Stories',
+    name: 'Channel Post + 2 Status Boosts',
     price: 315,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
-    badge: 'BEST VALUE',
-    tagline: 'Permanent Grid Post Plus 2 Multi-Touch Story Boosts',
-    description: 'The sweet spot for selling profiles quickly. Get a permanent Instagram feed post combined with 2 strategic story boosts (day 1 launch boost + retargeting boost) to capture maximum buyer attention.',
+    badge: 'BEST COMBO',
+    tagline: 'Permanent Channel Post Paired With 2 Multi-Touch Status Boosts',
+    description:
+      'Dedicated channel post plus 2 scheduled WhatsApp status boosts for maximum buyer reach and multi-touch visibility.',
     promotion_duration: 'Permanent Post + 2 Boosts',
-    reach: 'Multi-Touch Feed & Story Visibility',
-    placement: 'Grid Post + 2 Dedicated Stories',
+    reach: 'Multi-Touch VIB Broadcast',
+    placement: 'Channel Post + 2 Status Boosts',
     turnaround: 'Reviewed after payment confirmation',
     services: [
-      'Dedicated Permanent Grid Post',
-      '2 Free 24-Hour Story Boosts',
-      'Multi-Touch Buyer Retargeting',
-      'Direct Seller Tag & Link in Both Placements',
+      'Dedicated Permanent Channel Post',
+      '2 Free WhatsApp Status Boosts (24h each)',
+      'Multi-touch Buyer Retargeting',
+      'Direct Seller Contact & Inquiry Link',
     ],
     benefits: [
-      'Maximum visibility: Reaches both story viewers and feed scrollers.',
-      '2nd story boost timed 48 hours later to capture buyers who missed the first blast.',
-      'Higher inquiry conversion rate than single placement.',
-      'Full middleman escrow protection included.',
+      'Reaches both daily channel subscribers and status broadcast viewers.',
+      'Second status boost follows up later to re-engage undecided buyers.',
+      'Higher inquiry velocity than single-placement promotions.',
+      'Full VIB middleman escrow coordination available.',
     ],
     conditions: [
-      'Second story boost is triggered 48-72 hours after initial post unless marked sold sooner.',
-      'Keep Instagram account open to receive messages.',
+      'Remember to ping VIB WhatsApp support when your scheduled follow-up status boost is due.',
+      'Keep your primary contact channel active for incoming buyer messages.',
     ],
     faqs: [
       {
-        question: 'When is the second story boost scheduled?',
-        answer: 'The first story goes live simultaneously with the post. The second story boost is dispatched 48 hours later during peak evening gaming hours.',
+        question: 'When are the 2 status boosts scheduled?',
+        answer:
+          'Your initial status boost runs alongside the channel post, and you can request the follow-up status boost after 48 hours via WhatsApp reminder.',
       },
     ],
     heroIconType: 'sparkles',
@@ -196,16 +225,17 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
     category: 'standard',
     categoryLabel: 'Website Marketplace',
     badge: 'WEB EXCLUSIVE',
-    tagline: 'Permanent Showcase on India’s #1 Valorant Marketplace',
-    description: 'Feature your account directly on the VIB 2.0 public community marketplace. Hundreds of daily organic buyers filter by rank, region, and weapon skins to purchase verified accounts with instant escrow checkout.',
+    tagline: 'Permanent Showcase on the VIB 2.0 Public Website Marketplace',
+    description:
+      'Permanent showcase on the VIB 2.0 public community website marketplace with searchable rank, skin, and escrow support.',
     promotion_duration: 'Active Website Listing',
-    reach: 'Listed on VIB Website Marketplace',
-    placement: 'VIB 2.0 Website Marketplace',
+    reach: 'VIB Public Web Marketplace',
+    placement: 'Web Marketplace Showcase',
     turnaround: 'Published after review',
     services: [
-      'Permanent VIB 2.0 Website Marketplace Listing',
+      'Permanent VIB 2.0 Website Listing',
       'Live Search, Filter & Tag Indexing',
-      'Interactive Full Inventory Showcase',
+      'Full Inventory Showcase with Skin Badges',
       'Direct Buyer Escrow Inquiry Button',
     ],
     benefits: [
@@ -215,13 +245,14 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
       'Instant escrow mediation when a buyer initiates checkout.',
     ],
     conditions: [
-      'Account credentials are not required for listing; only public screenshot and inventory breakdown.',
-      'Must keep price competitive with live marketplace valuations.',
+      'Account credentials are not required upfront; submit clean inventory screenshots and details.',
+      'Competitive pricing helps attract faster buyer inquiries on web search.',
     ],
     faqs: [
       {
-        question: 'Can buyers buy my account directly on the website?',
-        answer: 'Buyers can initiate escrow locking through VIB or message you directly. Funds are held safely in escrow before you hand over credentials.',
+        question: 'Can buyers purchase or inquire directly on the website?',
+        answer:
+          'Yes, buyers can initiate VIB escrow lock or contact support from your listing card.',
       },
     ],
     heroIconType: 'shield',
@@ -229,37 +260,39 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-post-6stories-edit-525': {
     id: 'ad-post-6stories-edit-525',
-    name: 'Post + 6 Stories + Inventory Editing',
+    name: 'Channel Post + 6 Status Blasts + Inventory Editing',
     price: 525,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
     badge: 'HIGH CONVERSION',
-    tagline: '14-Day Strategic Campaign with Professional Graphic Design',
-    description: 'Transform raw account screenshots into a studio-grade marketing asset. Our graphics team edits your best skins into a high-converting carousel, paired with 1 permanent grid post and 6 recurring story pushes across 14 days.',
+    tagline: '14-Day Multi-Blast Campaign With Professional Inventory Editing',
+    description:
+      'Channel post plus 6 recurring WhatsApp status blasts and professional graphic editing of your inventory showcase.',
     promotion_duration: '14 Days Campaign',
-    reach: 'Extended Multi-Story & Feed Exposure',
-    placement: 'Grid Post + 6 Stories + Graphic Editing',
+    reach: 'VIB Active Collector Network',
+    placement: 'Channel Post + 6 Blasts + Design',
     turnaround: 'Designed & queued after review',
     services: [
-      'Professional Graphic Editing of Inventory Showcase',
-      'Dedicated Permanent Grid Post',
-      '6 Scheduled Story Blasts Over 14 Days',
+      'Dedicated Permanent Channel Post',
+      '6 Scheduled Status Blasts Over 14 Days',
+      'Professional Graphic Editing of Inventory',
       'Priority Queue Placement & Support',
     ],
     benefits: [
-      'Professional design highlights your most expensive skins (Vandals, Melees, Bundles).',
-      '6 recurring story blasts keep your listing at the top of mind for 2 full weeks.',
-      'Higher selling price: Professional presentation commands top dollar.',
-      'Dedicated agent assistance on pricing appraisal.',
+      'Custom graphic layout highlights your rarest knives, Vandals, and bundles.',
+      'Six status blasts maintain strong buyer visibility over two weeks.',
+      'Clean visual presentation helps command serious buyer offers.',
+      'Dedicated team support on campaign timing.',
     ],
     conditions: [
-      'Send raw screenshots of your collection; our design team handles cropping and layout.',
-      'Campaign runs for 14 days or until sold.',
+      'Upload raw inventory screenshots; our editing desk handles layout and callouts.',
+      'Campaign covers 6 scheduled status blasts across 14 days or until sold.',
     ],
     faqs: [
       {
         question: 'What does inventory editing include?',
-        answer: 'Our professional designers composite your top knives and vandal skins into a branded, clean metallic graphic with badges and stats.',
+        answer:
+          'Our editors organize your top knives, rifles, rank badge, and pricing into a clean showcase banner for higher conversion.',
       },
     ],
     heroIconType: 'sparkles',
@@ -267,38 +300,40 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-weekly-unlimited-1035': {
     id: 'ad-weekly-unlimited-1035',
-    name: 'Weekly Unlimited Stories + Highlights + Inventory Editing + Public Community Website Listing',
+    name: 'Weekly Unlimited Status Blasts (once weekly) + Highlights + Inventory Editing + Public Community Website Listing',
     price: 1035,
     category: 'standard',
     categoryLabel: 'Standard Promotion',
-    badge: 'ALL-IN-ONE',
-    tagline: 'Complete Full-Service Multi-Channel Marketing Until Sold',
-    description: 'Our most comprehensive standard promotional package. Combines weekly story pushes (re-posted once every week until sold), permanent highlight placement, custom graphic editing, and official website listing all in one.',
+    badge: 'ALL-IN-ONE MAX',
+    tagline: 'Full Multi-Channel Campaign Weekly Until Sold',
+    description:
+      'Weekly WhatsApp status blasts (once weekly until sold) + featured highlights + inventory editing + public community website listing.',
     promotion_duration: 'Weekly Until Sold',
-    reach: 'Multi-Channel Storefront & Social Rotation',
-    placement: 'Stories + Highlight + Web + Graphic Edit',
+    reach: 'Full VIB Web & WhatsApp Ecosystem',
+    placement: 'Weekly Blasts + Highlights + Website',
     turnaround: 'Scheduled after payment verification',
     services: [
-      'Weekly Story Pushes (Once Weekly Until Sold)',
-      'Permanent VIB Instagram Highlight Spot',
+      'Weekly Status Pushes (Once Weekly Until Sold)',
+      'Permanent VIB Featured Highlight',
       'Public Community Website Marketplace Listing',
       'Professional Inventory Graphic Editing',
       'Dedicated Buyer Inquiry Forwarding',
     ],
     benefits: [
-      'Zero effort: We promote your account weekly until you confirm it is sold.',
-      'Multi-channel: Instagram Stories + Permanent Highlight + VIB Web Marketplace.',
-      'Maximum credibility: High-tier badge on website and priority support.',
-      'Guaranteed active buyer matchmaking assistance.',
+      'Recurring weekly promotion pushes until your profile sells.',
+      'Combined reach across WhatsApp Status, Featured Highlights, and VIB Web Marketplace.',
+      'Custom graphic creative included at no extra design charge.',
+      'Active buyer forwarding through the VIB operations desk.',
     ],
     conditions: [
-      'Account must have minimum 3 premium upgradable skins.',
-      'Seller must reply to buyer inquiries within 12 hours.',
+      'Recommended for accounts with multiple premium upgradable skins.',
+      'Send a quick WhatsApp reminder when your weekly re-push window comes due.',
     ],
     faqs: [
       {
-        question: 'How does the "weekly until sold" feature work?',
-        answer: 'Every Monday or Friday, our marketing team re-posts your profile creative to our story rotation until you inform us that the account has been sold.',
+        question: 'How do weekly status pushes continue until sold?',
+        answer:
+          'Once a week until your profile sells, you remind our team on WhatsApp and we re-broadcast your showcase creative in the status queue.',
       },
     ],
     heroIconType: 'crown',
@@ -306,41 +341,44 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-trade-story-55': {
     id: 'ad-trade-story-55',
-    name: 'Story Promotion (24 hours)',
+    name: 'Trade / Exchange Status Promotion (24 hours)',
     price: 55,
     category: 'trade',
     categoryLabel: 'Trade / Exchange',
     badge: 'FAST TRADE',
-    tagline: '24-Hour Dedicated Trade Shoutout to Skin Traders Across India',
-    description: 'Looking to swap, trade, or exchange your Valorant account or weapon skins? Broadcast your trade offer directly to thousands of active traders across India for just ₹55.',
+    tagline: '24-Hour Trade Broadcast to Active Skin Traders Across India',
+    description:
+      '24-hour trade shoutout on official VIB WhatsApp Status & trade broadcast to find fast swap partners.',
     promotion_duration: '24 Hours',
-    reach: 'Weapon Skin Traders Across India',
-    placement: 'Instagram Trade Story (24h)',
-    turnaround: '15-minute queue scheduling',
+    reach: 'VIB Trade & Swap Desk',
+    placement: 'Trade Status (24h)',
+    turnaround: 'Reviewed after payment confirmation',
     services: [
-      '24-Hour Dedicated Trade Story',
-      'Direct Tag to Your Instagram Handle',
+      '24-Hour Dedicated Trade Status',
+      'Direct Seller Contact for Trade Offers',
       'Reaches Weapon Skin Traders Across India',
-      'Instant Verification & Placement',
+      'Escrow Coordination Option',
     ],
     benefits: [
-      'Targeted audience: Reaches players actively looking to trade weapon skins.',
-      'Direct contact: Interested traders message you on Instagram directly.',
-      'Middleman safety: Execute the trade through VIB middleman escrow for 100% scam immunity.',
-      'Budget-friendly ₹55 flat pricing.',
+      'Targeted reach to players actively seeking profile or skin swaps.',
+      'Direct contact routing so traders can propose offers quickly.',
+      'Execute final swaps through VIB middleman escrow for safer account handoffs.',
+      'Affordable ₹55 trade broadcast entry.',
     ],
     conditions: [
-      'Specify what skins you have and what skins/accounts you want in return.',
-      'Never trade without verified middleman escrow.',
+      'Clearly state what skins/rank you offer and what trade targets you seek.',
+      'Use official VIB middleman escrow when swapping accounts.',
     ],
     faqs: [
       {
-        question: 'Can I trade my account for another account?',
-        answer: 'Yes! The trade story mentions your current inventory and your desired trade target (e.g. "Trading Kuronami Vandal account for Champions 2024").',
+        question: 'Can I specify exact skins I want in exchange?',
+        answer:
+          'Yes, include your desired swap targets in the notes so matching traders contact you directly.',
       },
       {
-        question: 'How do we safely swap accounts?',
-        answer: 'Once you find a trader, contact VIB WhatsApp escrow. Our middleman holds both accounts, verifies emails, and swaps credentials securely.',
+        question: 'How does VIB escrow help with trades?',
+        answer:
+          'Our middleman verifies both accounts before executing credential swaps so neither trader is exposed.',
       },
     ],
     heroIconType: 'repeat',
@@ -348,37 +386,39 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-trade-highlight-105': {
     id: 'ad-trade-highlight-105',
-    name: 'Story + Highlight Placement',
+    name: 'Trade / Exchange Status + Highlight Placement',
     price: 105,
     category: 'trade',
     categoryLabel: 'Trade / Exchange',
     badge: 'TRADE HIGHLIGHT',
-    tagline: 'Permanent Trade Highlight Spot for Continuous Trade Offers',
-    description: 'Keep your trade offer active until the perfect partner is found. Includes a 24-hour launch story plus a permanent spot in our Instagram Trade Highlights with continuous inbound inquiries.',
+    tagline: 'Trade Status Broadcast Plus Permanent Trade Highlight Placement',
+    description:
+      'Trade status broadcast plus permanent featured highlight placement for extended continuous trade exposure.',
     promotion_duration: 'Permanent Trade Highlight',
-    reach: 'Continuous Trade Community Exposure',
-    placement: 'Trade Story + Permanent Trade Highlight',
-    turnaround: '20-45 minutes activation',
+    reach: 'VIB Trade Highlight & Community',
+    placement: 'Trade Status + Highlight',
+    turnaround: 'Reviewed after payment confirmation',
     services: [
-      '24-Hour Trade Story Blast',
+      '24-Hour Trade Status Blast',
       'Permanent VIB Trade Highlight Spot',
       'Continuous Inquiries Until Trade Closed',
       'Verified Middleman Escrow Support',
     ],
     benefits: [
-      'Permanent highlight spot dedicated exclusively to skin swaps and trade deals.',
-      'Continuous inquiries from traders who check highlights daily.',
-      'Full middleman escrow facilitation when finalizing the swap.',
-      'Best trade visibility at just ₹105.',
+      'Dedicated trade highlight stays active until your swap closes.',
+      'Reaches both immediate status viewers and ongoing trade browsers.',
+      'Full VIB middleman escrow coordination for account exchanges.',
+      'High-value ₹105 trade visibility package.',
     ],
     conditions: [
-      'Notify VIB once trade is completed to mark highlight as traded.',
-      'Accounts must have verified Riot IDs.',
+      'Notify VIB support once your trade closes so the slot is marked traded.',
+      'Account details and collection screenshots must be accurate.',
     ],
     faqs: [
       {
-        question: 'How long will my trade offer stay in highlights?',
-        answer: 'Until you complete your trade and inform our support team.',
+        question: 'How long does my trade listing stay in Highlights?',
+        answer:
+          'It remains featured in the trade highlight showcase until you finalize a trade and inform our support team.',
       },
     ],
     heroIconType: 'repeat',
@@ -391,37 +431,40 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
     category: 'premium',
     categoryLabel: 'Premium Guarantee',
     badge: 'GUARANTEED SALE',
-    tagline: 'Dedicated VIB Agent + Guaranteed Buyer Matchmaking',
-    description: 'High-priority executive promotion for premium collections. Includes unlimited multi-channel story pushes, dedicated VIB sales broker, private Discord VIP buyer pitching, and guaranteed sale commitment.',
+    tagline: 'Dedicated VIB Sales Agent + Priority Multi-Channel Matchmaking',
+    description:
+      'High-priority feature across VIB channels, dedicated agent, and active buyer matchmaking until sold.',
     promotion_duration: 'Guaranteed Until Sold',
-    reach: 'Direct Sales Broker & Multi-Channel Promotion',
-    placement: 'Multi-Channel Unlimited Pushes + Dedicated Agent',
+    reach: 'VIB Priority Collector & Escrow Network',
+    placement: 'Full Priority Multi-Channel',
     turnaround: 'Priority onboarding after payment verification',
     services: [
-      'Unlimited Story Promotions until sold',
-      'Dedicated VIB Personal Sales Executive',
-      'Private VIP Discord & WhatsApp Pitching',
-      'Priority Homepage Placement on VIB 2.0',
-      'Zero Service Fee on Completed Sale',
+      'Continuous Promotion Until Account Sells',
+      'Dedicated Senior VIB Sales Agent',
+      'Priority Multi-Status & Channel Campaigns',
+      'Public Community Website Listing with VIP Badge',
+      'Full Escrow & Verification Included',
     ],
     benefits: [
-      'Dedicated agent handles buyer inquiries, questions, and price negotiation.',
-      'Private matchmaking: Pitched directly to high-net-worth skin collectors in our private circles.',
-      'Featured at top of VIB marketplace with verified gold badge.',
-      '100% Guaranteed sale commitment: We keep promoting until your account is sold.',
+      'Dedicated agent screens buyers, fields questions, and coordinates fair negotiation.',
+      'Direct pitching to verified repeat collectors on VIB WhatsApp & Discord.',
+      'Featured visibility on the public website marketplace.',
+      'Continuous campaign pushes until sale completion.',
     ],
     conditions: [
-      'Account valuation must exceed ₹8,000 in skin inventory value.',
-      'First-party original email (OGE) details verified by our security audit team.',
+      'Recommended for high-tier inventories with rare bundles or strong market demand.',
+      'Cooperate with VIB verification checks before buyer handoff.',
     ],
     faqs: [
       {
-        question: 'What is guaranteed sale?',
-        answer: 'We commit our full marketing resources and dedicated broker until your profile sells at your agreed valuation.',
+        question: 'What does the Premium Guaranteed Sale Plan include?',
+        answer:
+          'You receive multi-channel priority exposure plus dedicated agent matchmaking across VIB channels until your profile sells.',
       },
       {
-        question: 'Does the agent negotiate on my behalf?',
-        answer: 'Yes! Your assigned VIB broker filters out lowballers and only brings qualified buyers willing to pay your asking price.',
+        question: 'Does a dedicated agent coordinate buyer inquiries?',
+        answer:
+          'Yes, your assigned sales coordinator filters serious buyers and assists through escrow settlement.',
       },
     ],
     heroIconType: 'crown',
@@ -434,33 +477,35 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
     category: 'premium',
     categoryLabel: 'VIP Luxury',
     badge: 'VIP LUXURY',
-    tagline: 'White-Glove Concierge Sales for Vaulted & Collector Inventories',
-    description: 'The pinnacle of esports asset brokerage. Tailored for accounts containing vaulted Champions bundles, rare knives, and radiant/immortal accounts. Full video showcase, multi-channel marketing, and white-glove escrow.',
-    promotion_duration: 'White-Glove Until Sold',
-    reach: 'Concierge Multi-Channel Campaign',
-    placement: 'Full Video Reel + Multi-Story + Top Web Banner + Broker',
+    tagline: 'White-Glove Omni-Channel Showcase Across Web, WhatsApp & Discord',
+    description:
+      'Elite promotion across Website, WhatsApp Channels, and Discord with unlimited pushes, VIP badge, and concierge handling.',
+    promotion_duration: 'Full Concierge Until Sold',
+    reach: 'All VIB Official Channels (Web, WhatsApp, Discord)',
+    placement: 'VIP Luxury Omni-Channel',
     turnaround: 'Concierge onboarding after payment verification',
     services: [
-      'Custom 4K Video Reel / TikTok / Shorts Production',
-      'Prominent Hero Banner Feature on VIB Homepage',
-      'Dedicated Senior Broker Available 24/7 on WhatsApp',
-      'Lifetime Guaranteed Escrow Certification',
-      'Weekly Targeted Buyer Retargeting Campaigns',
+      'Multi-Platform Omni-Blast (Web, WhatsApp, Discord)',
+      'Unlimited Status Re-pushes & Channel Features',
+      'Senior Executive 1-on-1 Escrow Concierge',
+      'Professional 4K Graphic Showcase Edit',
+      'Top Featured Spot on Website Homepage & Market',
     ],
     benefits: [
-      'Studio video showcase: 4K video showing inspect animations and finisher effects.',
-      'Top-of-page homepage hero showcase placement across the VIB platform.',
-      'Dedicated marketing pushes prioritized until a buyer completes settlement.',
-      'White-glove instant settlement directly to your bank account upon sale.',
+      'Studio-quality showcase graphic highlighting rare knives, finishers, and Champions sets.',
+      'Priority featured visibility on VIB web storefront alongside channel & Discord pushes.',
+      'Dedicated concierge coordination for serious collector offers.',
+      'Structured escrow payout handling upon completed sale.',
     ],
     conditions: [
-      'Designed for vaulted collections, rare knife combos, or high competitive ranks.',
-      'Pre-listing phone consultation with senior VIB account broker.',
+      'Tailored for vaulted collections, rare knife sets, or Immortal/Radiant profiles.',
+      'Coordinate closely with your assigned senior executive on valuation and buyer offers.',
     ],
     faqs: [
       {
-        question: 'What video production is included?',
-        answer: 'Our motion graphics team records in-game 4K inspect clips, finishers, and sound effects to produce a high-impact Instagram Reel and YouTube Short.',
+        question: 'Which platforms are included in VIP Luxury Promotion?',
+        answer:
+          'Your listing receives top priority across the VIB Website Marketplace, official WhatsApp Channels/Status broadcasts, and VIB Discord communities.',
       },
     ],
     heroIconType: 'crown',
@@ -468,39 +513,123 @@ export const ADVERTISEMENT_PRODUCT_DETAILS: Record<string, PackageDetailData> = 
 
   'ad-bonus-free-18pct': {
     id: 'ad-bonus-free-18pct',
-    name: 'Free Public Community Advertisement (18% Service Fee After Sale)',
+    name: 'VIB Bonus Plan — Free Community Listing (18% Service Fee After Sale)',
     price: 0,
     category: 'bonus',
     categoryLabel: 'Zero Upfront',
     badge: '₹0 UPFRONT',
-    tagline: 'List Today for Free — Pay Only 18% Fee After Successful Sale',
-    description: 'List your Valorant profile on our public community website with zero advance payment. You only pay an 18% facilitation fee deducted from the final sale amount after your account is sold safely through escrow.',
-    promotion_duration: 'Active Until Sold',
-    reach: 'Community Website Visitors',
-    placement: 'VIB Public Community Directory',
-    turnaround: 'Instant approval after review',
+    tagline: 'List Today With ₹0 Upfront — 18% Service Fee Only After Successful Sale',
+    description:
+      'Free public community advertisement with zero advance payment — pay only an 18% facilitation fee after your profile is sold via VIB escrow.',
+    promotion_duration: 'Until Sold',
+    reach: 'VIB Public Community Marketplace',
+    placement: 'Web Listing (0 Advance)',
+    turnaround: 'Reviewed after submission',
     services: [
-      'Zero Upfront Advance Payment Required',
-      'Public Community Website Listing',
-      'Standard Escrow Verification on Sale',
-      '18% Service Fee Deducted Only After Completion',
+      '100% Free Upfront - No Advance Payment',
+      'Permanent Public Community Website Listing',
+      '18% Service Fee ONLY Deducted on Successful Sale',
+      'Zero Upfront Cost If Your Account Does Not Sell',
+      'VIB Safe Escrow Payout Protection',
     ],
     benefits: [
-      'Completely risk-free: Pay ₹0 today.',
-      'If your account does not sell, you owe nothing.',
-      'Safe escrow protection for both buyer and seller upon sale.',
-      'Includes basic community search listing.',
+      'Zero upfront listing payment required.',
+      'Your profile stays searchable on the public VIB community marketplace.',
+      'The 18% service fee applies strictly after a completed escrow sale.',
+      'Managed buyer inquiry routing and escrow mediation.',
     ],
     conditions: [
-      '18% service fee is automatically deducted from buyer funds upon successful transaction completion.',
-      'Does not include Instagram post or story boosts (available as paid add-ons).',
+      '18% facilitation fee is deducted from the final sale amount only after a completed transaction.',
+      'Does not include paid WhatsApp status blasts or paid channel boosts (available in paid packages).',
     ],
     faqs: [
       {
-        question: 'Do I need to pay anything right now?',
-        answer: 'No! The listing is 100% free upfront. The 18% service fee is only deducted from the payout when a buyer purchases your account.',
+        question: 'Do I pay anything upfront under the VIB BONUS PLAN?',
+        answer:
+          'No. Upfront checkout is ₹0. The 18% service fee applies only when a buyer purchases your profile through VIB escrow.',
       },
     ],
     heroIconType: 'shield',
   },
 };
+
+function getCategoryLabel(category?: string): string {
+  switch (category) {
+    case 'trade':
+      return 'Trade / Exchange';
+    case 'premium':
+      return 'Premium Guarantee';
+    case 'bonus':
+      return 'Zero Upfront';
+    default:
+      return 'Standard Promotion';
+  }
+}
+
+function getHeroIconType(category?: string): PackageDetailData['heroIconType'] {
+  switch (category) {
+    case 'trade':
+      return 'repeat';
+    case 'premium':
+      return 'crown';
+    case 'bonus':
+      return 'shield';
+    default:
+      return 'megaphone';
+  }
+}
+
+export function mergeAdvertisementPlanWithDetails(
+  dbPlan?: LivePlanInput | null,
+  fallbackId?: string | null
+): PackageDetailData | null {
+  const key = dbPlan?.id || fallbackId || '';
+  const base = ADVERTISEMENT_PRODUCT_DETAILS[key];
+
+  if (!base && !dbPlan) {
+    return null;
+  }
+
+  if (!dbPlan) {
+    return base || null;
+  }
+
+  const category = (
+    dbPlan.category === 'trade' || dbPlan.category === 'premium' || dbPlan.category === 'bonus'
+      ? dbPlan.category
+      : base?.category || 'standard'
+  ) as PackageDetailData['category'];
+
+  const liveBenefits = Array.isArray(dbPlan.benefits) && dbPlan.benefits.length > 0
+    ? dbPlan.benefits
+    : base?.benefits || [];
+  const liveConditions = Array.isArray(dbPlan.conditions) && dbPlan.conditions.length > 0
+    ? dbPlan.conditions
+    : base?.conditions || ['Provide accurate Valorant rank, skin list, and screenshots.'];
+  const liveFaqs = Array.isArray(dbPlan.custom_faq) && dbPlan.custom_faq.length > 0
+    ? dbPlan.custom_faq
+    : base?.faqs || [];
+  const liveHighlights = Array.isArray(dbPlan.ai_draft?.highlights) && dbPlan.ai_draft.highlights.length > 0
+    ? dbPlan.ai_draft.highlights
+    : liveBenefits;
+
+  return {
+    id: dbPlan.id,
+    name: dbPlan.name?.trim() || base?.name || 'Advertisement Plan',
+    price: typeof dbPlan.price === 'number' && !Number.isNaN(dbPlan.price) ? Number(dbPlan.price) : base?.price || 0,
+    category,
+    categoryLabel: base?.categoryLabel || getCategoryLabel(category),
+    badge: dbPlan.badge !== undefined ? dbPlan.badge : base?.badge,
+    tagline: dbPlan.ai_draft?.headline?.trim() || base?.tagline || dbPlan.description?.trim() || 'Official VIB Profile Promotion',
+    description: dbPlan.description?.trim() || dbPlan.ai_draft?.summary?.trim() || base?.description || '',
+    promotion_duration: dbPlan.promotion_duration?.trim() || base?.promotion_duration || 'Campaign Scheduled',
+    reach: dbPlan.reach_estimate?.trim() || base?.reach || 'VIB Official Buyer Network',
+    placement: dbPlan.placement_tag?.trim() || base?.placement || 'Official VIB Promotion Channels',
+    turnaround: base?.turnaround || 'Reviewed after payment confirmation',
+    services: liveHighlights,
+    benefits: liveBenefits,
+    conditions: liveConditions,
+    faqs: liveFaqs,
+    heroIconType: base?.heroIconType || getHeroIconType(category),
+  };
+}

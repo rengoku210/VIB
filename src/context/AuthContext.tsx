@@ -9,6 +9,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  account_number?: string | null;
   phone: string | null;
   riot_id: string | null;
   riot_verified?: number;
@@ -28,6 +29,7 @@ export interface RegisterData {
   email: string;
   password: string;
   terms_accepted: boolean;
+  accountNumber?: string;
   phone?: string;
   riot_id?: string;
 }
@@ -153,6 +155,7 @@ async function parseJsonResponse(res: Response, defaultError: string): Promise<a
 
     try {
       const res = await fetch('/api/auth/me', {
+        cache: 'no-store',
         headers: {
           Authorization: `Bearer ${savedToken}`,
         },

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { resolveUploadUrl } from '../../utils/uploadUrl';
 import {
   ShoppingCart,
   CreditCard,
@@ -64,6 +65,33 @@ export interface ManualPaymentGatewayProps {
   onSubmitProof: (utr: string, screenshotData: string) => Promise<boolean>;
   onComplete?: () => void;
   issuedCode?: string | null;
+  initialSubmitted?: boolean;
+  initialSubmittedAt?: string | null;
+  initialUtr?: string | null;
+  orderStatus?: string | null;
+  orderStatusEndpoint?: string;
+  verificationStartAt?: string | number | null;
+  approvedRedirectUrl?: string | null;
+  continueButtonLabel?: string;
+  onContinue?: () => void;
+  onOrderStatusChange?: (order: any) => void;
+  highTrafficDelayMs?: number;
+}
+
+function parseStartTimeMs(val?: string | number | null): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  const numeric = Number(val);
+  if (!Number.isNaN(numeric) && String(val).trim().match(/^\d+$/)) return numeric;
+  const parsed = Date.parse(String(val));
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatElapsedTime(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 function formatSubmissionTimestamp(date: Date): string {
@@ -95,8 +123,20 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   onSubmitProof,
   onComplete,
   issuedCode,
+  initialSubmitted = false,
+  initialSubmittedAt = null,
+  initialUtr = null,
+  orderStatus = null,
+  orderStatusEndpoint,
+  verificationStartAt = null,
+  approvedRedirectUrl = null,
+  continueButtonLabel = 'Continue',
+  onContinue,
+  onOrderStatusChange,
+  highTrafficDelayMs = 120000,
 }) => {
-  const [utr, setUtr] = useState('');
+  const verifyStorageKey = `vib_verify_start_${orderId}`;
+  const [utr, setUtr] = useState(initialUtr || '');
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -107,8 +147,120 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   const [copiedPin, setCopiedPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState<boolean>(initialSubmitted);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(() => {
+    const ms = parseStartTimeMs(initialSubmittedAt);
+    return ms ? formatSubmissionTimestamp(new Date(ms)) : null;
+  });
+  const [liveStatus, setLiveStatus] = useState<string | null>(orderStatus);
+  const [liveApprovedUrl, setLiveApprovedUrl] = useState<string | null>(approvedRedirectUrl);
+  const [verificationStartMs, setVerificationStartMs] = useState<number | null>(() => {
+    try {
+      const stored = parseStartTimeMs(localStorage.getItem(verifyStorageKey));
+      if (stored) return stored;
+    } catch {}
+    return parseStartTimeMs(verificationStartAt);
+  });
+  const [elapsedMs, setElapsedMs] = useState<number>(() => {
+    try {
+      const stored = parseStartTimeMs(localStorage.getItem(verifyStorageKey));
+      if (stored) return Math.max(0, Date.now() - stored);
+    } catch {}
+    const parsed = parseStartTimeMs(verificationStartAt);
+    return parsed ? Math.max(0, Date.now() - parsed) : 0;
+  });
+
+  useEffect(() => {
+    if (orderStatus) setLiveStatus(orderStatus);
+    if (approvedRedirectUrl) setLiveApprovedUrl(approvedRedirectUrl);
+  }, [orderStatus, approvedRedirectUrl]);
+
+  useEffect(() => {
+    if (!initialSubmitted) return;
+    setIsSuccess(true);
+    if (initialUtr && !utr) {
+      setUtr(initialUtr);
+    }
+    if (initialSubmittedAt && !submittedAt) {
+      const ms = parseStartTimeMs(initialSubmittedAt);
+      if (ms) setSubmittedAt(formatSubmissionTimestamp(new Date(ms)));
+    }
+    let resolvedStart: number | null = null;
+    try {
+      resolvedStart = parseStartTimeMs(localStorage.getItem(verifyStorageKey));
+    } catch {}
+    if (!resolvedStart) {
+      resolvedStart = parseStartTimeMs(verificationStartAt) || Date.now();
+      try {
+        localStorage.setItem(verifyStorageKey, String(resolvedStart));
+      } catch {}
+    }
+    setVerificationStartMs(resolvedStart);
+    setElapsedMs(Math.max(0, Date.now() - resolvedStart));
+  }, [initialSubmitted, initialSubmittedAt, initialUtr, verificationStartAt, verifyStorageKey]);
+
+  const effectiveStatus = (liveStatus || '').toLowerCase();
+  const isOrderApproved = Boolean(
+    effectiveStatus === 'approved' ||
+      effectiveStatus === 'details_submitted' ||
+      effectiveStatus === 'live' ||
+      effectiveStatus === 'completed'
+  );
+
+  useEffect(() => {
+    if (!isSuccess || issuedCode || isOrderApproved) return;
+    let start = verificationStartMs;
+    if (!start) {
+      try {
+        start = parseStartTimeMs(localStorage.getItem(verifyStorageKey));
+      } catch {}
+    }
+    if (!start) {
+      start = Date.now();
+      try {
+        localStorage.setItem(verifyStorageKey, String(start));
+      } catch {}
+      setVerificationStartMs(start);
+    }
+    setElapsedMs(Math.max(0, Date.now() - start));
+    const timer = window.setInterval(() => {
+      let currentStart = start!;
+      try {
+        const storedNow = parseStartTimeMs(localStorage.getItem(verifyStorageKey));
+        if (storedNow) currentStart = storedNow;
+      } catch {}
+      setElapsedMs(Math.max(0, Date.now() - currentStart));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isSuccess, issuedCode, isOrderApproved, verificationStartMs, verifyStorageKey]);
+
+  useEffect(() => {
+    if (!isSuccess || !orderStatusEndpoint || isOrderApproved || issuedCode) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(orderStatusEndpoint);
+        const data = await res.json();
+        const ord = data?.order;
+        if (!active || !ord) return;
+        if (ord.status) {
+          setLiveStatus(ord.status);
+        }
+        const tok = ord.submission_token || ord.approval_token;
+        if (ord.status === 'approved' && tok) {
+          setLiveApprovedUrl(
+            `/advertise/submit/${encodeURIComponent(orderId)}?token=${encodeURIComponent(tok)}`
+          );
+        }
+        onOrderStatusChange?.(ord);
+      } catch {}
+    };
+    const interval = window.setInterval(poll, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isSuccess, orderStatusEndpoint, isOrderApproved, issuedCode, orderId]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,7 +287,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     payeeName
   )}&am=${encodeURIComponent(itemPrice.toString())}&cu=INR`;
   const qrSource =
-    qrImageUrl ||
+    resolveUploadUrl(qrImageUrl) ||
     `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(
       upiString
     )}`;
@@ -217,7 +369,14 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     try {
       const ok = await onSubmitProof(utr.trim(), screenshotData || '');
       if (ok) {
-        setSubmittedAt(formatSubmissionTimestamp(new Date()));
+        const nowMs = Date.now();
+        try {
+          localStorage.setItem(verifyStorageKey, String(nowMs));
+        } catch {}
+        setVerificationStartMs(nowMs);
+        setElapsedMs(0);
+        setLiveStatus('submitted_for_verification');
+        setSubmittedAt(formatSubmissionTimestamp(new Date(nowMs)));
         setIsSuccess(true);
         try {
           window.scrollTo(0, 0);
@@ -317,9 +476,23 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     const viewOrdersHandler = onViewOrders || onTrackOrder || onBack;
     const isAutoFulfilled = Boolean(issuedCode);
     const displayTimestamp = submittedAt || formatSubmissionTimestamp(new Date());
+    const showHighTrafficNotice = !isAutoFulfilled && !isOrderApproved && elapsedMs >= highTrafficDelayMs;
 
     return (
       <div className="w-full bg-[#05040a] text-white selection:bg-purple-600 selection:text-white pb-20 font-sans min-h-screen relative overflow-x-clip">
+        <style>{`
+          @keyframes vib-clock-hand {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          @keyframes vib-orbit-ring {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .vib-motion-spin { animation: none !important; }
+          }
+        `}</style>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,rgba(147,51,234,0.22),transparent_75%)]"
@@ -366,18 +539,62 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                   isAutoFulfilled ? 'bg-emerald-500/45' : 'bg-purple-500/50'
                 }`}
               />
-              {isAutoFulfilled ? (
+              {isAutoFulfilled || isOrderApproved ? (
                 <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-teal-900/40 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-[0_0_28px_rgba(16,185,129,0.35)]">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
               ) : (
-                <div className="relative w-20 h-20 flex items-center justify-center drop-shadow-[0_0_22px_rgba(168,85,247,0.7)]">
+                <div
+                  data-testid="payment-verification-animation"
+                  className="relative w-24 h-20 flex items-center justify-center drop-shadow-[0_0_22px_rgba(168,85,247,0.7)]"
+                >
                   <div className="w-14 h-16 -rotate-6 rounded-xl bg-gradient-to-br from-purple-400/35 via-fuchsia-500/25 to-indigo-900/60 border border-purple-300/65 flex flex-col justify-center gap-2 px-3 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
-                    <span className="h-1.5 w-7 rounded-full bg-purple-100/90" />
-                    <span className="h-1.5 w-5 rounded-full bg-purple-200/70" />
+                    <span className="h-1.5 w-7 rounded-full bg-purple-100/90 animate-pulse" />
+                    <span className="h-1.5 w-5 rounded-full bg-purple-200/70 animate-pulse" />
                   </div>
-                  <div className="absolute -bottom-0.5 right-0.5 w-10 h-10 rounded-full bg-[#1a0a36] border-2 border-purple-300/80 flex items-center justify-center shadow-[0_0_18px_rgba(192,132,252,0.8)]">
-                    <Clock className="w-5 h-5 text-fuchsia-200" />
+                  <div className="absolute -bottom-1 right-0 w-12 h-12 rounded-full bg-[#1a0a36] border border-purple-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(192,132,252,0.85)]">
+                    <svg
+                      className="vib-motion-spin absolute inset-0 w-full h-full"
+                      style={{ animation: 'vib-orbit-ring 2.6s linear infinite' }}
+                      viewBox="0 0 48 48"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id={`vibRing-${orderId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#e879f9" stopOpacity="1" />
+                          <stop offset="60%" stopColor="#a855f7" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <circle
+                        cx="24"
+                        cy="24"
+                        r="21"
+                        fill="none"
+                        stroke={`url(#vibRing-${orderId})`}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray="78 56"
+                      />
+                    </svg>
+                    <svg className="w-6 h-6 text-fuchsia-200" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.75" opacity="0.7" />
+                      <line
+                        x1="12"
+                        y1="12"
+                        x2="12"
+                        y2="6.5"
+                        stroke="#f0abfc"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        className="vib-motion-spin"
+                        style={{
+                          transformOrigin: '12px 12px',
+                          animation: 'vib-clock-hand 6s linear infinite',
+                        }}
+                      />
+                      <circle cx="12" cy="12" r="1.4" fill="#f0abfc" />
+                    </svg>
                   </div>
                 </div>
               )}
@@ -390,6 +607,13 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                     <span className="text-white">PAYMENT VERIFIED &amp; </span>
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-300 to-purple-400">
                       CODE ISSUED
+                    </span>
+                  </>
+                ) : isOrderApproved ? (
+                  <>
+                    <span className="text-white">PAYMENT </span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300">
+                      VERIFIED
                     </span>
                   </>
                 ) : (
@@ -407,6 +631,10 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                   <>
                     Your payment has been verified and your official Valorant Prepaid PIN is active below and saved in your Order Room.
                   </>
+                ) : isOrderApproved ? (
+                  <>
+                    Payment Successfully verified, thank you for choosing VIB. Continue below to submit your profile showcase details.
+                  </>
                 ) : (
                   <>
                     Your payment details and transaction screenshot have been successfully submitted.
@@ -422,9 +650,14 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <span>Payment Verified &amp; Fulfilled</span>
                 </span>
+              ) : isOrderApproved ? (
+                <span className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-emerald-950/50 border border-emerald-500/45 text-emerald-300 text-xs sm:text-sm font-semibold shadow-[0_0_20px_rgba(16,185,129,0.18)]">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Payment Approved — Ready to Continue</span>
+                </span>
               ) : (
                 <span className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-950/45 border border-amber-500/45 text-amber-300 text-xs sm:text-sm font-semibold shadow-[0_0_20px_rgba(245,158,11,0.16)]">
-                  <Hourglass className="w-4 h-4 text-amber-400" />
+                  <Hourglass className="w-4 h-4 text-amber-400 animate-pulse" />
                   <span>Awaiting Admin Verification</span>
                 </span>
               )}
@@ -520,6 +753,10 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                     <span className="px-3.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/45 text-emerald-300 text-xs font-semibold">
                       Payment Verified &amp; Issued
                     </span>
+                  ) : isOrderApproved ? (
+                    <span className="px-3.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/45 text-emerald-300 text-xs font-semibold">
+                      Verified — Ready to Continue
+                    </span>
                   ) : (
                     <span className="px-3.5 py-1 rounded-full bg-amber-950/60 border border-amber-500/45 text-amber-300 text-xs font-semibold">
                       Awaiting Verification
@@ -530,7 +767,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
             </div>
           </section>
 
-          {/* Card 2: Issued PIN Box OR Experiencing High Traffic Notice Banner */}
+          {/* Card 2: Issued PIN Box OR Approved Continue Box OR Timed High Traffic Notice */}
           {isAutoFulfilled && issuedCode ? (
             <section className="rounded-2xl bg-gradient-to-r from-emerald-950/60 via-[#0d1924] to-[#120b2a] border border-emerald-500/45 p-6 sm:p-7 shadow-[0_0_32px_rgba(16,185,129,0.16)] flex flex-col sm:flex-row items-center gap-6">
               <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shrink-0">
@@ -558,8 +795,44 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                 </p>
               </div>
             </section>
-          ) : (
-            <section className="relative rounded-2xl bg-gradient-to-r from-[#190a2d]/95 via-[#120822] to-[#1e0c36]/95 bg-[radial-gradient(ellipse_at_bottom_left,rgba(147,51,234,0.22),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(192,38,211,0.18),transparent_50%)] border border-purple-500/45 p-6 sm:p-7 shadow-[0_0_34px_rgba(168,85,247,0.22),inset_0_1px_0_rgba(216,180,254,0.2)] overflow-hidden">
+          ) : isOrderApproved ? (
+            <section className="rounded-2xl bg-gradient-to-r from-emerald-950/55 via-[#0b1822] to-[#120b2a] border border-emerald-500/45 p-6 sm:p-7 shadow-[0_0_32px_rgba(16,185,129,0.18)] flex flex-col sm:flex-row items-center justify-between gap-5">
+              <div className="space-y-1.5 text-center sm:text-left">
+                <div className="inline-flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>PAYMENT APPROVED BY ADMIN</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black font-rajdhani uppercase tracking-wide text-white">
+                  Payment Successfully verified, thank you for choosing VIB
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-300">
+                  {liveApprovedUrl || onContinue
+                    ? 'Continue now to submit your profile details and inventory screenshot for publishing.'
+                    : 'Your payment verification and campaign processing are complete.'}
+                </p>
+              </div>
+              {(liveApprovedUrl || onContinue) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onContinue) {
+                      onContinue();
+                    } else if (liveApprovedUrl) {
+                      window.location.assign(liveApprovedUrl);
+                    }
+                  }}
+                  className="shrink-0 min-h-[48px] px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm uppercase font-rajdhani tracking-wider shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span>{continueButtonLabel}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </section>
+          ) : showHighTrafficNotice ? (
+            <section
+              data-testid="high-traffic-notice"
+              className="relative rounded-2xl bg-gradient-to-r from-[#190a2d]/95 via-[#120822] to-[#1e0c36]/95 bg-[radial-gradient(ellipse_at_bottom_left,rgba(147,51,234,0.22),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(192,38,211,0.18),transparent_50%)] border border-purple-500/45 p-6 sm:p-7 shadow-[0_0_34px_rgba(168,85,247,0.22),inset_0_1px_0_rgba(216,180,254,0.2)] overflow-hidden"
+            >
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -right-16 -top-16 w-64 h-64 rounded-full bg-fuchsia-600/10 blur-2xl"
@@ -585,6 +858,30 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                   <p className="text-xs text-gray-400 pt-1">
                     {nextStepsText || 'Thank you for your patience and for choosing VIB Digital Services.'}
                   </p>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section
+              data-testid="active-verification-notice"
+              className="relative rounded-2xl bg-gradient-to-r from-[#120b24] via-[#0e081c] to-[#170b2c] border border-purple-500/35 p-6 sm:p-7 shadow-[0_0_28px_rgba(147,51,234,0.16)] overflow-hidden"
+            >
+              <div className="relative flex flex-col sm:flex-row items-center justify-between gap-5 text-center sm:text-left">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/15 border border-purple-400/40 flex items-center justify-center shrink-0">
+                    <Loader2 className="w-6 h-6 text-purple-300 animate-spin" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg sm:text-xl font-black font-rajdhani uppercase tracking-wide text-white">
+                      VERIFICATION IN <span className="text-purple-400">PROGRESS</span>
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+                      Our verification desk is currently checking your payment proof and transaction reference. You will receive an email update and status change here once reviewed.
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0 px-4 py-2 rounded-xl bg-black/40 border border-purple-500/30 font-mono text-xs text-purple-200">
+                  Elapsed: {formatElapsedTime(elapsedMs)}
                 </div>
               </div>
             </section>

@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import crypto from 'node:crypto';
+import type { DbClient } from './db.js';
 
 export function registerOverhaulRoutes(
   app: express.Express,
-  db: any,
+  db: DbClient,
   authenticate: any,
   staffOnly: any,
   adminOnly: any
@@ -13,9 +14,9 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // 1.1 List available rental listings (Part 1: zero fake profiles; returns only database-backed 'available' records)
-  app.get('/api/rentals', (req: Request, res: Response): void => {
+  app.get('/api/rentals', async (req: Request, res: Response): Promise<void> => {
     try {
-      const listings = db
+      const listings = await db
         .prepare("SELECT * FROM rental_listings WHERE status = 'available' ORDER BY created_at DESC")
         .all();
       res.json({ listings });
@@ -26,9 +27,9 @@ export function registerOverhaulRoutes(
   });
 
   // 1.2 Get single rental listing details
-  app.get('/api/rentals/:id', (req: Request, res: Response): void => {
+  app.get('/api/rentals/:id', async (req: Request, res: Response): Promise<void> => {
     try {
-      const listing = db
+      const listing = await db
         .prepare('SELECT * FROM rental_listings WHERE id = ?')
         .get(req.params.id) as any;
       if (!listing) {
@@ -43,10 +44,10 @@ export function registerOverhaulRoutes(
   });
 
   // 1.3 Customer book rental profile
-  app.post('/api/rentals/:id/book', authenticate, (req: any, res: Response): void => {
+  app.post('/api/rentals/:id/book', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
       const listingId = req.params.id;
-      const listing = db
+      const listing = await db
         .prepare("SELECT * FROM rental_listings WHERE id = ? AND status = 'available'")
         .get(listingId) as any;
 
@@ -77,7 +78,7 @@ export function registerOverhaulRoutes(
       const now = new Date().toISOString();
 
       // Create booking record
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO rental_bookings (
           id, listing_id, user_id, order_id, duration, price_inr, deposit_inr,
           total_paid, status, credentials_vault_json, admin_notes, created_at, updated_at
@@ -98,7 +99,7 @@ export function registerOverhaulRoutes(
       );
 
       // Create order entry for tracking
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO orders (
           id, user_id, type, title, amount, currency, status,
           payment_status, payment_method, details_json, created_at, updated_at
@@ -126,7 +127,7 @@ export function registerOverhaulRoutes(
       // P1-F12: reserve the listing the moment a booking succeeds so a second
       // customer cannot double-book the same profile. The listing is returned to
       // 'available' when an admin completes the booking (see /complete route).
-      db.prepare(`
+      await db.prepare(`
         UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ?
         WHERE id = ?
       `).run(bookingId, now, listing.id);
@@ -154,9 +155,9 @@ export function registerOverhaulRoutes(
   });
 
   // 1.4 Customer list my rentals
-  app.get('/api/user/my-rentals', authenticate, (req: any, res: Response): void => {
+  app.get('/api/user/my-rentals', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const bookings = db.prepare(`
+      const bookings = await db.prepare(`
         SELECT rb.*, rl.title as listing_title, rl.image_url, rl.rank, rl.region, rl.account_identifier
         FROM rental_bookings rb
         LEFT JOIN rental_listings rl ON rb.listing_id = rl.id
@@ -176,10 +177,10 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // List all listings & bookings for admin
-  app.get('/api/admin/rentals', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/rentals', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
-      const listings = db.prepare('SELECT * FROM rental_listings ORDER BY created_at DESC').all();
-      const bookings = db.prepare(`
+      const listings = await db.prepare('SELECT * FROM rental_listings ORDER BY created_at DESC').all();
+      const bookings = await db.prepare(`
         SELECT rb.*, rl.title as listing_title, u.name as customer_name, u.email as customer_email
         FROM rental_bookings rb
         LEFT JOIN rental_listings rl ON rb.listing_id = rl.id
@@ -195,7 +196,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin create rental listing
-  app.post('/api/admin/rentals', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const {
         title,
@@ -223,7 +224,7 @@ export function registerOverhaulRoutes(
       const id = 'rent_' + crypto.randomBytes(6).toString('hex');
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO rental_listings (
           id, title, description, image_url, gallery_json, account_identifier,
           rank, region, featured_skins_json, price_24h, price_3d, price_7d,
@@ -250,7 +251,7 @@ export function registerOverhaulRoutes(
         now
       );
 
-      const listing = db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(id);
+      const listing = await db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(id);
       res.status(201).json({ message: 'Rental profile created successfully.', listing });
     } catch (err: any) {
       console.error('Admin create rental error:', err);
@@ -259,9 +260,9 @@ export function registerOverhaulRoutes(
   });
 
   // Admin update rental listing
-  app.put('/api/admin/rentals/:id', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/rentals/:id', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const listing = db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(req.params.id) as any;
+      const listing = await db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(req.params.id) as any;
       if (!listing) {
         res.status(404).json({ error: 'Rental listing not found.' });
         return;
@@ -283,7 +284,7 @@ export function registerOverhaulRoutes(
       } = req.body || {};
 
       const now = new Date().toISOString();
-      db.prepare(`
+      await db.prepare(`
         UPDATE rental_listings SET
           title = COALESCE(?, title),
           description = COALESCE(?, description),
@@ -316,7 +317,7 @@ export function registerOverhaulRoutes(
         listing.id
       );
 
-      const updated = db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(listing.id);
+      const updated = await db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(listing.id);
       res.json({ message: 'Rental profile updated successfully.', listing: updated });
     } catch (err: any) {
       console.error('Admin update rental error:', err);
@@ -325,9 +326,9 @@ export function registerOverhaulRoutes(
   });
 
   // Admin activate rental booking (sets start & expiry, assigns vault credentials)
-  app.post('/api/admin/rentals/bookings/:id/activate', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals/bookings/:id/activate', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const booking = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
+      const booking = await db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
       if (!booking) {
         res.status(404).json({ error: 'Booking not found.' });
         return;
@@ -352,7 +353,7 @@ export function registerOverhaulRoutes(
         expiresAt,
       });
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE rental_bookings SET
           status = 'active',
           starts_at = ?,
@@ -371,7 +372,7 @@ export function registerOverhaulRoutes(
       );
 
       // Also set the listing to rented (remains rented through the active session).
-      db.prepare("UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ? WHERE id = ?")
+      await db.prepare("UPDATE rental_listings SET status = 'rented', current_rental_id = ?, updated_at = ? WHERE id = ?")
         .run(booking.id, startsAt, booking.listing_id);
 
       res.json({ message: 'Rental session activated and credentials issued to customer.', expiresAt });
@@ -384,7 +385,7 @@ export function registerOverhaulRoutes(
   // Admin mark rental complete/deposit refunded
   
   // Update booking handover status (Admin/Staff)
-  app.put('/api/admin/rentals/bookings/:id/handover-status', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/rentals/bookings/:id/handover-status', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const bookingId = req.params.id;
       const { handover_status, notes } = req.body || {};
@@ -394,7 +395,7 @@ export function registerOverhaulRoutes(
         return;
       }
 
-      const booking = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(bookingId);
+      const booking = await db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(bookingId);
       if (!booking) {
         res.status(404).json({ error: 'Rental booking not found.' });
         return;
@@ -403,7 +404,7 @@ export function registerOverhaulRoutes(
       const now = new Date().toISOString();
       const contactedAt = handover_status === 'contacted' ? now : undefined;
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE rental_bookings
         SET handover_status = ?,
             whatsapp_contacted_at = COALESCE(?, whatsapp_contacted_at),
@@ -413,7 +414,7 @@ export function registerOverhaulRoutes(
       `).run(handover_status, contactedAt, notes, notes, now, bookingId);
 
       try {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
@@ -431,7 +432,7 @@ export function registerOverhaulRoutes(
         // non-fatal
       }
 
-      const updated = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(bookingId);
+      const updated = await db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(bookingId);
       res.json({ message: 'Handover status updated successfully.', booking: updated });
     } catch (err: any) {
       console.error('Update handover status error:', err);
@@ -439,16 +440,16 @@ export function registerOverhaulRoutes(
     }
   });
 
-  app.post('/api/admin/rentals/bookings/:id/complete', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/rentals/bookings/:id/complete', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const booking = db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
+      const booking = await db.prepare('SELECT * FROM rental_bookings WHERE id = ?').get(req.params.id) as any;
       if (!booking) {
         res.status(404).json({ error: 'Booking not found.' });
         return;
       }
 
       const now = new Date().toISOString();
-      db.prepare(`
+      await db.prepare(`
         UPDATE rental_bookings SET
           status = 'expired',
           admin_notes = admin_notes || ' | Session concluded, deposit processed',
@@ -457,7 +458,7 @@ export function registerOverhaulRoutes(
       `).run(now, booking.id);
 
       // Return listing to available and clear the active rental reference.
-      db.prepare("UPDATE rental_listings SET status = 'available', current_rental_id = NULL, updated_at = ? WHERE id = ?")
+      await db.prepare("UPDATE rental_listings SET status = 'available', current_rental_id = NULL, updated_at = ? WHERE id = ?")
         .run(now, booking.listing_id);
 
       res.json({ message: 'Rental session concluded and listing returned to active pool.' });
@@ -472,16 +473,16 @@ export function registerOverhaulRoutes(
   // 2. FINANCIALLY RESPONSIBLE AUCTIONS & BID SECURITY DEPOSIT ENGINE
   // =========================================================================
 
-  const expireAuctionLots = (): void => {
+  const expireAuctionLots = async (): Promise<void> => {
     const now = new Date().toISOString();
     // Check lots that ended, select winner
-    const endedActiveLots = db.prepare(`
+    const endedActiveLots = await db.prepare(`
       SELECT * FROM auction_lots
       WHERE status = 'active' AND ends_at <= ?
     `).all(now) as any[];
 
     for (const lot of endedActiveLots) {
-      const highestBid = db.prepare(`
+      const highestBid = await db.prepare(`
         SELECT * FROM auction_bids
         WHERE lot_id = ?
         ORDER BY amount DESC, created_at ASC
@@ -492,7 +493,7 @@ export function registerOverhaulRoutes(
       const paymentDeadline = new Date(Date.now() + deadlineHours * 3600 * 1000).toISOString();
 
       if (highestBid) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE auction_lots SET
             status = 'ended',
             winner_user_id = ?,
@@ -511,7 +512,7 @@ export function registerOverhaulRoutes(
           lot.id
         );
       } else {
-        db.prepare(`
+        await db.prepare(`
           UPDATE auction_lots SET
             status = 'ended',
             winner_payment_status = 'NO_BIDS',
@@ -523,32 +524,42 @@ export function registerOverhaulRoutes(
   };
 
   // 2.1 List Published / Active Auction Lots
-  app.get('/api/auctions', (req: Request, res: Response): void => {
-    expireAuctionLots();
-    const lots = db.prepare(`
-      SELECT * FROM auction_lots
-      WHERE status IN ('active', 'paused', 'ended')
-      ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at DESC
-    `).all();
-    res.json({ lots });
+  app.get('/api/auctions', async (req: Request, res: Response): Promise<void> => {
+    try {
+      await expireAuctionLots();
+      const lots = await db.prepare(`
+        SELECT * FROM auction_lots
+        WHERE status IN ('active', 'paused', 'ended')
+        ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at DESC
+      `).all();
+      res.json({ lots });
+    } catch (err: any) {
+      console.error('Fetch auctions error:', err);
+      res.status(500).json({ error: 'Failed to retrieve auction lots.' });
+    }
   });
 
   // 2.2 Single Auction Lot Details, Top Bids, and Deposit Rules
-  app.get('/api/auctions/:id', (req: Request, res: Response): void => {
-    expireAuctionLots();
-    const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
-    if (!lot) {
-      res.status(404).json({ error: 'Auction lot not found.' });
-      return;
+  app.get('/api/auctions/:id', async (req: Request, res: Response): Promise<void> => {
+    try {
+      await expireAuctionLots();
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+      if (!lot) {
+        res.status(404).json({ error: 'Auction lot not found.' });
+        return;
+      }
+      const bids = await db.prepare('SELECT id, lot_id, bidder_name, amount, created_at, status FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 25').all(lot.id);
+      res.json({ lot, bids });
+    } catch (err: any) {
+      console.error('Fetch auction lot error:', err);
+      res.status(500).json({ error: 'Failed to retrieve auction details.' });
     }
-    const bids = db.prepare('SELECT id, lot_id, bidder_name, amount, created_at, status FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 25').all(lot.id);
-    res.json({ lot, bids });
   });
 
   // 2.3 Deposit Intent & Calculation (Part 3.2: 50% security deposit with differential credit)
-  app.post('/api/auctions/:id/deposit-intent', authenticate, (req: any, res: Response): void => {
+  app.post('/api/auctions/:id/deposit-intent', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
@@ -583,7 +594,7 @@ export function registerOverhaulRoutes(
       const requiredDeposit = Math.max(minDeposit, Math.round(numBid * (depositPct / 100)));
 
       // Calculate previously paid active security deposits held for this exact user & auction
-      const previouslyPaidRow = db.prepare(`
+      const previouslyPaidRow = await db.prepare(`
         SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
         FROM auction_deposits
         WHERE lot_id = ? AND user_id = ? AND status = 'held'
@@ -596,7 +607,7 @@ export function registerOverhaulRoutes(
       const depositTxId = 'DEP_' + crypto.randomBytes(6).toString('hex').toUpperCase();
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO auction_deposits (
           id, lot_id, user_id, amount, payment_method, status, created_at
         ) VALUES (?, ?, ?, ?, 'UPI_QR', ?, ?)
@@ -609,7 +620,7 @@ export function registerOverhaulRoutes(
         now
       );
 
-      const paymentCfg = db.prepare('SELECT upi_id, payee_name FROM payment_settings WHERE id = ?').get('default') as any;
+      const paymentCfg = await db.prepare('SELECT upi_id, payee_name FROM payment_settings WHERE id = ?').get('default') as any;
 
       res.json({
         depositTxId,
@@ -630,7 +641,7 @@ export function registerOverhaulRoutes(
   });
 
   // 2.4 Confirm Deposit Payment
-  app.post('/api/auctions/:id/deposit-confirm', authenticate, (req: any, res: Response): void => {
+  app.post('/api/auctions/:id/deposit-confirm', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
       const { depositTxId, gatewayRef = '', paymentMethod = 'UPI_QR' } = req.body || {};
       if (!depositTxId) {
@@ -638,7 +649,7 @@ export function registerOverhaulRoutes(
         return;
       }
 
-      const deposit = db.prepare(`
+      const deposit = await db.prepare(`
         SELECT * FROM auction_deposits
         WHERE id = ? AND lot_id = ? AND user_id = ?
       `).get(depositTxId, req.params.id, req.user.id) as any;
@@ -649,7 +660,7 @@ export function registerOverhaulRoutes(
       }
 
       const now = new Date().toISOString();
-      db.prepare(`
+      await db.prepare(`
         UPDATE auction_deposits SET
           status = 'held',
           gateway_ref = ?,
@@ -670,10 +681,10 @@ export function registerOverhaulRoutes(
   });
 
   // 2.5 Place Verified Bid (Part 3.1 & 3.4: requires verified deposit, atomic execution)
-  app.post('/api/auctions/:id/bid', authenticate, (req: any, res: Response): void => {
+  app.post('/api/auctions/:id/bid', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      expireAuctionLots();
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+      await expireAuctionLots();
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
@@ -709,7 +720,7 @@ export function registerOverhaulRoutes(
       }
 
       // FINANCIAL INTEGRITY CHECK: Verify security deposit held for this exact bid
-      const deposit = db.prepare(`
+      const deposit = await db.prepare(`
         SELECT * FROM auction_deposits
         WHERE id = ? AND lot_id = ? AND user_id = ? AND status = 'held'
       `).get(depositTxId, lot.id, req.user.id) as any;
@@ -724,46 +735,42 @@ export function registerOverhaulRoutes(
       const bidId = 'bid_' + crypto.randomBytes(6).toString('hex');
       const now = new Date().toISOString();
 
-      // Atomic SQLite execution
-      const placeBidStmt = db.prepare(`
-        INSERT INTO auction_bids (
-          id, lot_id, user_id, bidder_name, amount, status,
-          deposit_required, deposit_paid, deposit_status, deposit_tx_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, 'HELD', ?, ?, ?)
-      `);
+      await db.transaction(async (tx) => {
+        await tx.prepare(`
+          INSERT INTO auction_bids (
+            id, lot_id, user_id, bidder_name, amount, status,
+            deposit_required, deposit_paid, deposit_status, deposit_tx_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, 'HELD', ?, ?, ?)
+        `).run(
+          bidId,
+          lot.id,
+          req.user.id,
+          req.user.name,
+          numAmount,
+          deposit.amount,
+          deposit.amount,
+          deposit.id,
+          now,
+          now
+        );
 
-      const updateLotStmt = db.prepare(`
-        UPDATE auction_lots SET
-          current_bid = ?,
-          bid_count = bid_count + 1,
-          highest_bidder_id = ?,
-          highest_bidder_name = ?,
-          updated_at = ?
-        WHERE id = ?
-      `);
+        await tx.prepare(`
+          UPDATE auction_lots SET
+            current_bid = ?,
+            bid_count = bid_count + 1,
+            highest_bidder_id = ?,
+            highest_bidder_name = ?,
+            updated_at = ?
+          WHERE id = ?
+        `).run(numAmount, req.user.id, req.user.name, now, lot.id);
 
-      const updateDepositStmt = db.prepare(`
-        UPDATE auction_deposits SET bid_id = ? WHERE id = ?
-      `);
+        await tx.prepare(`
+          UPDATE auction_deposits SET bid_id = ? WHERE id = ?
+        `).run(bidId, deposit.id);
+      });
 
-      placeBidStmt.run(
-        bidId,
-        lot.id,
-        req.user.id,
-        req.user.name,
-        numAmount,
-        deposit.amount,
-        deposit.amount,
-        deposit.id,
-        now,
-        now
-      );
-
-      updateLotStmt.run(numAmount, req.user.id, req.user.name, now, lot.id);
-      updateDepositStmt.run(bidId, deposit.id);
-
-      const updatedLot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id);
-      const bids = db.prepare('SELECT id, lot_id, bidder_name, amount, created_at FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 25').all(lot.id);
+      const updatedLot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id);
+      const bids = await db.prepare('SELECT id, lot_id, bidder_name, amount, created_at FROM auction_bids WHERE lot_id = ? ORDER BY amount DESC, created_at DESC LIMIT 25').all(lot.id);
 
       res.status(201).json({
         message: `Verified bid of ₹${numAmount.toLocaleString()} accepted! You are currently the highest bidder.`,
@@ -778,9 +785,9 @@ export function registerOverhaulRoutes(
   });
 
   // 2.6 Customer My Auctions Hub (Part 4: user auction summary)
-  app.get('/api/user/my-auctions', authenticate, (req: any, res: Response): void => {
+  app.get('/api/user/my-auctions', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const myBids = db.prepare(`
+      const myBids = await db.prepare(`
         SELECT ab.*, al.title as lot_title, al.lot_number, al.status as lot_status, al.ends_at, al.image_url,
                al.current_bid as lot_current_bid, al.highest_bidder_id, al.winner_user_id, al.winning_bid_amount,
                al.winner_payment_deadline, al.winner_payment_status
@@ -790,7 +797,7 @@ export function registerOverhaulRoutes(
         ORDER BY ab.created_at DESC
       `).all(req.user.id);
 
-      const myDeposits = db.prepare(`
+      const myDeposits = await db.prepare(`
         SELECT ad.*, al.title as lot_title, al.lot_number
         FROM auction_deposits ad
         LEFT JOIN auction_lots al ON ad.lot_id = al.id
@@ -798,7 +805,7 @@ export function registerOverhaulRoutes(
         ORDER BY ad.created_at DESC
       `).all(req.user.id);
 
-      const wonAuctions = db.prepare(`
+      const wonAuctions = await db.prepare(`
         SELECT al.*
         FROM auction_lots al
         WHERE al.winner_user_id = ? AND al.status = 'ended'
@@ -817,9 +824,9 @@ export function registerOverhaulRoutes(
   });
 
   // 2.7 Claim Refund for Outbid / Losing Bidders (Part 3.3)
-  app.post('/api/auctions/:id/claim-refund', authenticate, (req: any, res: Response): void => {
+  app.post('/api/auctions/:id/claim-refund', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
@@ -831,7 +838,7 @@ export function registerOverhaulRoutes(
       }
 
       // Check held deposits for this user
-      const deposits = db.prepare(`
+      const deposits = await db.prepare(`
         SELECT * FROM auction_deposits
         WHERE lot_id = ? AND user_id = ? AND status = 'held'
       `).all(lot.id, req.user.id) as any[];
@@ -845,18 +852,20 @@ export function registerOverhaulRoutes(
       const now = new Date().toISOString();
 
       let totalRefunded = 0;
-      for (const dep of deposits) {
-        totalRefunded += dep.amount;
-        db.prepare(`
-          UPDATE auction_deposits SET
-            status = 'refunded',
-            refund_amount = amount,
-            refund_ref = ?,
-            refund_reason = 'Outbid / Auction concluded loss refund',
-            settled_at = ?
-          WHERE id = ?
-        `).run(refundRef, now, dep.id);
-      }
+      await db.transaction(async (tx) => {
+        for (const dep of deposits) {
+          totalRefunded += dep.amount;
+          await tx.prepare(`
+            UPDATE auction_deposits SET
+              status = 'refunded',
+              refund_amount = amount,
+              refund_ref = ?,
+              refund_reason = 'Outbid / Auction concluded loss refund',
+              settled_at = ?
+            WHERE id = ?
+          `).run(refundRef, now, dep.id);
+        }
+      });
 
       res.json({
         success: true,
@@ -871,9 +880,9 @@ export function registerOverhaulRoutes(
   });
 
   // 2.8 Winner Pay Remaining Balance
-  app.post('/api/auctions/:id/winner-pay', authenticate, (req: any, res: Response): void => {
+  app.post('/api/auctions/:id/winner-pay', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
@@ -893,7 +902,7 @@ export function registerOverhaulRoutes(
       const winningAmount = Number(lot.winning_bid_amount) || Number(lot.current_bid);
 
       // Total deposit credited
-      const depositRow = db.prepare(`
+      const depositRow = await db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as total_dep
         FROM auction_deposits
         WHERE lot_id = ? AND user_id = ? AND status = 'held'
@@ -903,27 +912,11 @@ export function registerOverhaulRoutes(
       const remainingBalance = Math.max(0, winningAmount - depositCredited);
       const now = new Date().toISOString();
 
-      // Update deposit to applied_to_winner
-      db.prepare(`
-        UPDATE auction_deposits SET status = 'applied_to_winner'
-        WHERE lot_id = ? AND user_id = ? AND status = 'held'
-      `).run(lot.id, req.user.id);
-
-      // Update lot to PAID
-      db.prepare(`
-        UPDATE auction_lots SET
-          winner_payment_status = 'PAID',
-          delivery_status = 'PROCESSING',
-          updated_at = ?
-        WHERE id = ?
-      `).run(now, lot.id);
-
-      // Create an order record for the winner
-      const orderId = 'ORD-AUC-' + Date.now().toString().slice(-6);
       // Look up the winning bidder's profile from the users table
-      const winnerUser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id) as any;
+      const winnerUser = await db.prepare('SELECT email, name FROM users WHERE id = ?').get(req.user.id) as any;
       const winnerName = winnerUser?.name || req.user.name || 'Auction Winner';
       const winnerEmail = winnerUser?.email || req.user.email || '';
+      const orderId = 'ORD-AUC-' + Date.now().toString().slice(-6);
       const detailsPayload = {
         lotId: lot.id,
         lotNumber: lot.lot_number,
@@ -935,65 +928,84 @@ export function registerOverhaulRoutes(
         customerEmail: winnerEmail,
         deliveryDetails: req.body?.delivery_details || null
       };
-      db.prepare(`
-        INSERT INTO orders (
-          id, user_id, type, title, amount, currency, status,
-          payment_status, payment_method, details_json, created_at, updated_at
-        ) VALUES (?, ?, 'auction', ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?)
-      `).run(
-        orderId,
-        req.user.id,
-        `Auction Winner: ${lot.title} (${lot.lot_number})`,
-        winningAmount,
-        JSON.stringify(detailsPayload),
-        now,
-        now
-      );
 
-      // Mirror the normal order-creation flow: generate a sequential paid invoice
-      const invoiceRows = db.prepare("SELECT id FROM invoices WHERE id LIKE 'VIB-INV-%'").all() as { id: string }[];
-      let maxInvoiceNum = 0;
-      for (const r of invoiceRows) {
-        const match = r.id.match(/^VIB-INV-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxInvoiceNum) maxInvoiceNum = num;
+      await db.transaction(async (tx) => {
+        // Update deposit to applied_to_winner
+        await tx.prepare(`
+          UPDATE auction_deposits SET status = 'applied_to_winner'
+          WHERE lot_id = ? AND user_id = ? AND status = 'held'
+        `).run(lot.id, req.user.id);
+
+        // Update lot to PAID
+        await tx.prepare(`
+          UPDATE auction_lots SET
+            winner_payment_status = 'PAID',
+            delivery_status = 'PROCESSING',
+            updated_at = ?
+          WHERE id = ?
+        `).run(now, lot.id);
+
+        // Create an order record for the winner
+        await tx.prepare(`
+          INSERT INTO orders (
+            id, user_id, type, title, amount, currency, status,
+            payment_status, payment_method, details_json, created_at, updated_at
+          ) VALUES (?, ?, 'auction', ?, ?, 'INR', 'completed', 'PAYMENT_VERIFIED', 'UPI_QR', ?, ?, ?)
+        `).run(
+          orderId,
+          req.user.id,
+          `Auction Winner: ${lot.title} (${lot.lot_number})`,
+          winningAmount,
+          JSON.stringify(detailsPayload),
+          now,
+          now
+        );
+
+        // Mirror the normal order-creation flow: generate a sequential paid invoice
+        const invoiceRows = await tx.prepare("SELECT id FROM invoices WHERE id LIKE 'VIB-INV-%'").all() as { id: string }[];
+        let maxInvoiceNum = 0;
+        for (const r of invoiceRows) {
+          const match = r.id.match(/^VIB-INV-(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxInvoiceNum) maxInvoiceNum = num;
+          }
         }
-      }
-      const invoiceId = 'VIB-INV-' + String(maxInvoiceNum + 1).padStart(4, '0');
-      db.prepare(`
-        INSERT INTO invoices (
-          id, order_id, customer_id, customer_name, customer_email, customer_phone,
-          billing_address, seller_name, product_name, description, quantity,
-          unit_price, subtotal, platform_fee, tax_amount, discount_amount, final_total,
-          currency, status, payment_method, payment_reference, notes, invoice_date, created_at
-        ) VALUES (?, ?, ?, ?, ?, '', 'India', 'VIB Official Store', ?, ?, 1, ?, ?, 0, 0, 0, ?, 'INR', 'paid', 'UPI_QR', ?, 'Auction settlement invoice generated automatically.', ?, ?)
-      `).run(
-        invoiceId,
-        orderId,
-        req.user.id,
-        winnerName,
-        winnerEmail,
-        `Auction Winner: ${lot.title} (${lot.lot_number})`,
-        `Auction settlement for ${lot.lot_number}. Winning bid ₹${winningAmount}, deposit credited ₹${depositCredited}, balance settled ₹${remainingBalance}.`,
-        winningAmount,
-        winningAmount,
-        winningAmount,
-        transactionRef || null,
-        now,
-        now
-      );
+        const invoiceId = 'VIB-INV-' + String(maxInvoiceNum + 1).padStart(4, '0');
+        await tx.prepare(`
+          INSERT INTO invoices (
+            id, order_id, customer_id, customer_name, customer_email, customer_phone,
+            billing_address, seller_name, product_name, description, quantity,
+            unit_price, subtotal, platform_fee, tax_amount, discount_amount, final_total,
+            currency, status, payment_method, payment_reference, notes, invoice_date, created_at
+          ) VALUES (?, ?, ?, ?, ?, '', 'India', 'VIB Official Store', ?, ?, 1, ?, ?, 0, 0, 0, ?, 'INR', 'paid', 'UPI_QR', ?, 'Auction settlement invoice generated automatically.', ?, ?)
+        `).run(
+          invoiceId,
+          orderId,
+          req.user.id,
+          winnerName,
+          winnerEmail,
+          `Auction Winner: ${lot.title} (${lot.lot_number})`,
+          `Auction settlement for ${lot.lot_number}. Winning bid ₹${winningAmount}, deposit credited ₹${depositCredited}, balance settled ₹${remainingBalance}.`,
+          winningAmount,
+          winningAmount,
+          winningAmount,
+          transactionRef || null,
+          now,
+          now
+        );
 
-      // Create initial order room message
-      db.prepare(`
-        INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
-        VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
-      `).run(
-        'msg_' + crypto.randomBytes(6).toString('hex'),
-        orderId,
-        `Auction balance settled for ${lot.title} (${lot.lot_number}). Your winning account credentials will be delivered here after staff verification.`,
-        now
-      );
+        // Create initial order room message
+        await tx.prepare(`
+          INSERT INTO order_messages (id, order_id, sender_id, sender_name, sender_role, message, flagged, created_at)
+          VALUES (?, ?, 'system', 'VIB Dispatch System', 'system', ?, 0, ?)
+        `).run(
+          'msg_' + crypto.randomBytes(6).toString('hex'),
+          orderId,
+          `Auction balance settled for ${lot.title} (${lot.lot_number}). Your winning account credentials will be delivered here after staff verification.`,
+          now
+        );
+      });
 
       res.json({
         success: true,
@@ -1014,9 +1026,9 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // List all auction lots for admin (all statuses)
-  app.get('/api/admin/auctions', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/auctions', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
-      const lots = db.prepare('SELECT * FROM auction_lots ORDER BY created_at DESC').all();
+      const lots = await db.prepare('SELECT * FROM auction_lots ORDER BY created_at DESC').all();
       res.json({ lots });
     } catch (err: any) {
       console.error('Fetch admin auctions error:', err);
@@ -1025,7 +1037,7 @@ export function registerOverhaulRoutes(
   });
 
   // Admin create auction lot with full Part 2.1 schema
-  app.post('/api/admin/auctions', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const {
         title,
@@ -1075,7 +1087,7 @@ export function registerOverhaulRoutes(
       const defaultEndsAt = ends_at || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO auction_lots (
           id, lot_number, title, description, starting_bid, current_bid,
           bid_increment, reserve_price, instant_buy_price, deposit_pct, min_deposit_amount,
@@ -1137,7 +1149,7 @@ export function registerOverhaulRoutes(
         now
       );
 
-      const createdLot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(id);
+      const createdLot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(id);
       res.status(201).json({ message: 'Auction created successfully.', lot: createdLot });
     } catch (err: any) {
       console.error('Admin create auction error:', err);
@@ -1146,9 +1158,9 @@ export function registerOverhaulRoutes(
   });
 
   // Admin edit auction before bidding starts (Part 2.2)
-  app.put('/api/admin/auctions/:id', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.put('/api/admin/auctions/:id', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
@@ -1166,7 +1178,7 @@ export function registerOverhaulRoutes(
       const fields = req.body || {};
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE auction_lots SET
           title = COALESCE(?, title),
           description = COALESCE(?, description),
@@ -1197,7 +1209,7 @@ export function registerOverhaulRoutes(
         lot.id
       );
 
-      const updated = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id);
+      const updated = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(lot.id);
       res.json({ message: 'Auction lot updated successfully.', lot: updated });
     } catch (err: any) {
       console.error('Admin update auction error:', err);
@@ -1206,10 +1218,10 @@ export function registerOverhaulRoutes(
   });
 
   // Admin publish auction draft
-  app.post('/api/admin/auctions/:id/publish', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/publish', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const now = new Date().toISOString();
-      db.prepare("UPDATE auction_lots SET status = 'active', updated_at = ? WHERE id = ?")
+      await db.prepare("UPDATE auction_lots SET status = 'active', updated_at = ? WHERE id = ?")
         .run(now, req.params.id);
       res.json({ message: 'Auction published and live on marketplace.' });
     } catch (err: any) {
@@ -1219,11 +1231,11 @@ export function registerOverhaulRoutes(
   });
 
   // Admin pause auction with reason
-  app.post('/api/admin/auctions/:id/pause', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/pause', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const { reason = 'Administrative verification in progress' } = req.body || {};
       const now = new Date().toISOString();
-      db.prepare("UPDATE auction_lots SET status = 'paused', paused_at = ?, pause_reason = ?, updated_at = ? WHERE id = ?")
+      await db.prepare("UPDATE auction_lots SET status = 'paused', paused_at = ?, pause_reason = ?, updated_at = ? WHERE id = ?")
         .run(now, reason, now, req.params.id);
       res.json({ message: 'Auction paused successfully.' });
     } catch (err: any) {
@@ -1233,10 +1245,10 @@ export function registerOverhaulRoutes(
   });
 
   // Admin resume auction
-  app.post('/api/admin/auctions/:id/resume', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/resume', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const now = new Date().toISOString();
-      db.prepare("UPDATE auction_lots SET status = 'active', paused_at = NULL, pause_reason = NULL, updated_at = ? WHERE id = ?")
+      await db.prepare("UPDATE auction_lots SET status = 'active', paused_at = NULL, pause_reason = NULL, updated_at = ? WHERE id = ?")
         .run(now, req.params.id);
       res.json({ message: 'Auction resumed successfully.' });
     } catch (err: any) {
@@ -1246,22 +1258,24 @@ export function registerOverhaulRoutes(
   });
 
   // Admin cancel auction (marks deposits for 100% refund)
-  app.post('/api/admin/auctions/:id/cancel', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/cancel', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const now = new Date().toISOString();
-      db.prepare("UPDATE auction_lots SET status = 'cancelled', updated_at = ? WHERE id = ?")
-        .run(now, req.params.id);
+      await db.transaction(async (tx) => {
+        await tx.prepare("UPDATE auction_lots SET status = 'cancelled', updated_at = ? WHERE id = ?")
+          .run(now, req.params.id);
 
-      // Mark all held deposits for refund
-      db.prepare(`
-        UPDATE auction_deposits SET
-          status = 'refunded',
-          refund_amount = amount,
-          refund_ref = 'CAN_' || id,
-          refund_reason = 'Auction cancelled by administrator',
-          settled_at = ?
-        WHERE lot_id = ? AND status = 'held'
-      `).run(now, req.params.id);
+        // Mark all held deposits for refund
+        await tx.prepare(`
+          UPDATE auction_deposits SET
+            status = 'refunded',
+            refund_amount = amount,
+            refund_ref = 'CAN_' || id,
+            refund_reason = 'Auction cancelled by administrator',
+            settled_at = ?
+          WHERE lot_id = ? AND status = 'held'
+        `).run(now, req.params.id);
+      });
 
       res.json({ message: 'Auction cancelled and all active security deposits released for 100% refund.' });
     } catch (err: any) {
@@ -1271,15 +1285,15 @@ export function registerOverhaulRoutes(
   });
 
   // Admin close auction lot & lock winner
-  app.post('/api/admin/auctions/:id/close', authenticate, staffOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/auctions/:id/close', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const lot = db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(req.params.id) as any;
       if (!lot) {
         res.status(404).json({ error: 'Auction lot not found.' });
         return;
       }
 
-      const highestBid = db.prepare(`
+      const highestBid = await db.prepare(`
         SELECT * FROM auction_bids
         WHERE lot_id = ?
         ORDER BY amount DESC, created_at ASC
@@ -1291,7 +1305,7 @@ export function registerOverhaulRoutes(
       const paymentDeadline = new Date(Date.now() + deadlineHours * 3600 * 1000).toISOString();
 
       if (highestBid) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE auction_lots SET
             status = 'ended',
             winner_user_id = ?,
@@ -1310,7 +1324,7 @@ export function registerOverhaulRoutes(
           lot.id
         );
       } else {
-        db.prepare(`
+        await db.prepare(`
           UPDATE auction_lots SET
             status = 'ended',
             winner_payment_status = 'NO_BIDS',
@@ -1327,9 +1341,9 @@ export function registerOverhaulRoutes(
   });
 
   // Admin bidder audit breakdown
-  app.get('/api/admin/auctions/:id/bidders', authenticate, staffOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/auctions/:id/bidders', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
-      const bids = db.prepare(`
+      const bids = await db.prepare(`
         SELECT ab.*, u.email as bidder_email, u.phone as bidder_phone
         FROM auction_bids ab
         LEFT JOIN users u ON ab.user_id = u.id
@@ -1337,7 +1351,7 @@ export function registerOverhaulRoutes(
         ORDER BY ab.amount DESC, ab.created_at DESC
       `).all(req.params.id);
 
-      const deposits = db.prepare(`
+      const deposits = await db.prepare(`
         SELECT ad.*, u.name as customer_name, u.email as customer_email
         FROM auction_deposits ad
         LEFT JOIN users u ON ad.user_id = u.id
@@ -1358,9 +1372,9 @@ export function registerOverhaulRoutes(
   // =========================================================================
 
   // 3.1 List all 16 Authoritative Legal Policies
-  app.get('/api/legal/policies', (req: Request, res: Response): void => {
+  app.get('/api/legal/policies', async (req: Request, res: Response): Promise<void> => {
     try {
-      const policies = db.prepare(`
+      const policies = await db.prepare(`
         SELECT p.*, pv.version as current_version, pv.effective_date, pv.content_md
         FROM legal_policies p
         LEFT JOIN legal_policy_versions pv ON p.id = pv.policy_id AND pv.status = 'published'
@@ -1375,7 +1389,7 @@ export function registerOverhaulRoutes(
   });
 
   // 3.2 Single Policy with Markdown Content & Available Versions
-  app.get('/api/legal/policies/:slug', (req: Request, res: Response): void => {
+  app.get('/api/legal/policies/:slug', async (req: Request, res: Response): Promise<void> => {
     try {
       const slugMap: Record<string, string> = {
         'terms-of-service': 'terms-and-conditions',
@@ -1385,20 +1399,20 @@ export function registerOverhaulRoutes(
         'grievance-redressal': 'grievance-policy',
       };
       const resolvedSlug = slugMap[req.params.slug] || req.params.slug;
-      const policy = db.prepare('SELECT * FROM legal_policies WHERE slug = ?').get(resolvedSlug) as any;
+      const policy = await db.prepare('SELECT * FROM legal_policies WHERE slug = ?').get(resolvedSlug) as any;
       if (!policy) {
         res.status(404).json({ error: 'Legal policy document not found.' });
         return;
       }
 
-      const currentVersion = db.prepare(`
+      const currentVersion = await db.prepare(`
         SELECT * FROM legal_policy_versions
         WHERE policy_id = ? AND status = 'published'
         ORDER BY created_at DESC
         LIMIT 1
       `).get(policy.id) as any;
 
-      const versions = db.prepare(`
+      const versions = await db.prepare(`
         SELECT id, version, effective_date, summary_of_changes, status, created_at
         FROM legal_policy_versions
         WHERE policy_id = ?
@@ -1413,7 +1427,7 @@ export function registerOverhaulRoutes(
   });
 
   // 3.3 Historical Policy Version
-  app.get('/api/legal/policies/:slug/versions/:version', (req: Request, res: Response): void => {
+  app.get('/api/legal/policies/:slug/versions/:version', async (req: Request, res: Response): Promise<void> => {
     try {
       const slugMap: Record<string, string> = {
         'terms-of-service': 'terms-and-conditions',
@@ -1423,13 +1437,13 @@ export function registerOverhaulRoutes(
         'grievance-redressal': 'grievance-policy',
       };
       const resolvedSlug = slugMap[req.params.slug] || req.params.slug;
-      const policy = db.prepare('SELECT * FROM legal_policies WHERE slug = ?').get(resolvedSlug) as any;
+      const policy = await db.prepare('SELECT * FROM legal_policies WHERE slug = ?').get(resolvedSlug) as any;
       if (!policy) {
         res.status(404).json({ error: 'Policy not found.' });
         return;
       }
 
-      const versionDoc = db.prepare(`
+      const versionDoc = await db.prepare(`
         SELECT * FROM legal_policy_versions
         WHERE policy_id = ? AND version = ?
       `).get(policy.id, req.params.version) as any;
@@ -1456,7 +1470,7 @@ export function registerOverhaulRoutes(
       return next();
     }
     return authenticate(req, res, next);
-  }, (req: any, res: Response): void => {
+  }, async (req: any, res: Response): Promise<void> => {
     try {
       const b = req.body || {};
       const policySlug = b.policySlug || b.policy_slug;
@@ -1467,7 +1481,7 @@ export function registerOverhaulRoutes(
 
       let policyId = '';
       if (policySlug) {
-        const p = db.prepare('SELECT id FROM legal_policies WHERE slug = ?').get(policySlug) as any;
+        const p = await db.prepare('SELECT id FROM legal_policies WHERE slug = ?').get(policySlug) as any;
         if (p) policyId = p.id;
       }
 
@@ -1477,7 +1491,7 @@ export function registerOverhaulRoutes(
       const id = 'cns_' + crypto.randomBytes(6).toString('hex');
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO user_consents (
           id, user_id, policy_id, policy_version, consent_type, context_type, context_id, ip_address, user_agent, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1502,9 +1516,9 @@ export function registerOverhaulRoutes(
   });
 
   // 3.5 Admin Legal Management: create new draft version
-  app.post('/api/admin/legal/policies/:id/versions', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/legal/policies/:id/versions', authenticate, adminOnly, async (req: any, res: Response): Promise<void> => {
     try {
-      const policy = db.prepare('SELECT * FROM legal_policies WHERE id = ?').get(req.params.id) as any;
+      const policy = await db.prepare('SELECT * FROM legal_policies WHERE id = ?').get(req.params.id) as any;
       if (!policy) {
         res.status(404).json({ error: 'Policy not found.' });
         return;
@@ -1519,7 +1533,7 @@ export function registerOverhaulRoutes(
       const id = 'pv_' + crypto.randomBytes(6).toString('hex');
       const now = new Date().toISOString();
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO legal_policy_versions (
           id, policy_id, version, title, content_md, summary_of_changes, published_by,
           effective_date, status, created_at
@@ -1544,10 +1558,10 @@ export function registerOverhaulRoutes(
   });
 
   // 3.6 Admin Legal Management: publish version
-  app.post('/api/admin/legal/policies/:id/publish', authenticate, adminOnly, (req: any, res: Response): void => {
+  app.post('/api/admin/legal/policies/:id/publish', authenticate, adminOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const { versionId } = req.body || {};
-      const targetVersion = db.prepare('SELECT * FROM legal_policy_versions WHERE id = ? AND policy_id = ?').get(versionId, req.params.id) as any;
+      const targetVersion = await db.prepare('SELECT * FROM legal_policy_versions WHERE id = ? AND policy_id = ?').get(versionId, req.params.id) as any;
       if (!targetVersion) {
         res.status(404).json({ error: 'Target version not found.' });
         return;
@@ -1555,13 +1569,15 @@ export function registerOverhaulRoutes(
 
       const now = new Date().toISOString();
 
-      // Archive previous published versions
-      db.prepare("UPDATE legal_policy_versions SET status = 'archived' WHERE policy_id = ? AND status = 'published'")
-        .run(req.params.id);
+      await db.transaction(async (tx) => {
+        // Archive previous published versions
+        await tx.prepare("UPDATE legal_policy_versions SET status = 'archived' WHERE policy_id = ? AND status = 'published'")
+          .run(req.params.id);
 
-      // Publish new version
-      db.prepare("UPDATE legal_policy_versions SET status = 'published', effective_date = ? WHERE id = ?")
-        .run(now.slice(0, 10), targetVersion.id);
+        // Publish new version
+        await tx.prepare("UPDATE legal_policy_versions SET status = 'published', effective_date = ? WHERE id = ?")
+          .run(now.slice(0, 10), targetVersion.id);
+      });
 
       res.json({ message: `Version ${targetVersion.version} published as current active policy.` });
     } catch (err: any) {
@@ -1571,9 +1587,9 @@ export function registerOverhaulRoutes(
   });
 
   // 3.7 Admin User Consents Log
-  app.get('/api/admin/legal/consents', authenticate, adminOnly, (req: Request, res: Response): void => {
+  app.get('/api/admin/legal/consents', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
     try {
-      const consents = db.prepare(`
+      const consents = await db.prepare(`
         SELECT uc.*, lp.title as policy_title, lp.slug as policy_slug, u.name as user_name, u.email as user_email
         FROM user_consents uc
         LEFT JOIN legal_policies lp ON uc.policy_id = lp.id

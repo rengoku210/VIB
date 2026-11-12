@@ -190,17 +190,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setLoading(true);
     try {
       const [ovRes, ordRes, txnRes, invRes, tktRes, notifRes, lstRes, aucRes, rntRes, adOrdRes, payCfgRes] = await Promise.all([
-        fetch('/api/user/overview', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/orders', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/transactions', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/invoices', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/tickets', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/notifications', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/listings', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/my-auctions', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/my-rentals', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/user/advertisement-orders', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/payment/settings'),
+        fetch('/api/user/overview', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/orders', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/transactions', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/invoices', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/tickets', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/notifications', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/listings', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/my-auctions', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/my-rentals', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/user/advertisement-orders', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/payment/settings', { cache: 'no-store' }),
       ]);
       if (payCfgRes.ok) {
         const cfg = await payCfgRes.json();
@@ -254,6 +254,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   useEffect(() => {
     fetchDashboardData();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchDashboardData();
+      }
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [token]);
 
   // Persist sidebar collapse preference
@@ -2098,7 +2113,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <Megaphone className="w-8 h-8 text-gray-500 mx-auto" />
                 <div className="font-bold text-white font-rajdhani uppercase">No Advertisement Orders Yet</div>
                 <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Promote your Valorant profile on VIB Instagram stories, highlights, and community feeds.
+                  Promote your Valorant profile across official VIB WhatsApp Status, Channel feeds, Discord, and Web listings.
                 </p>
               </div>
             ) : (

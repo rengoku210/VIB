@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { createClient as createLibsqlClient, type Client as LibsqlClient, type InValue, type ResultSet as LibsqlResultSet, type Transaction as LibsqlTransaction } from '@libsql/client/web';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -14,31 +15,283 @@ if (!fs.existsSync(databaseDirectory)) {
   fs.mkdirSync(databaseDirectory, { recursive: true });
 }
 
-// If running in Vercel serverless environment, copy the canonical repository database template if /tmp/data/vib.db does not exist yet
-if (isVercel && !fs.existsSync(dbPath)) {
-  const templateDb = path.resolve(process.cwd(), 'data', 'vib.db');
-  if (fs.existsSync(templateDb)) {
+export interface DbRunResult {
+  changes: number;
+  lastInsertRowid?: number | bigint;
+}
+
+export interface DbStatement {
+  get<T = any>(...params: any[]): Promise<T | undefined>;
+  all<T = any>(...params: any[]): Promise<T[]>;
+  run(...params: any[]): Promise<DbRunResult>;
+}
+
+export interface DbExecutor {
+  prepare(sql: string): DbStatement;
+  exec(sql: string): Promise<void>;
+}
+
+export interface DbClient extends DbExecutor {
+  batch(statements: Array<{ sql: string; args?: any[] }>): Promise<void>;
+  transaction<T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T>;
+  close(): void;
+}
+
+export interface PersistenceInfo {
+  mode: 'turso_cloud' | 'local_sqlite' | 'ephemeral_tmp';
+  isVercel: boolean;
+  remoteConfigured: boolean;
+  warning?: string;
+}
+
+const remoteDbUrl = (process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL || '').trim();
+const remoteAuthToken = (process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN || '').trim() || undefined;
+const useRemoteDb = /^(libsql|https?|wss?):\/\//i.test(remoteDbUrl);
+if (remoteDbUrl && !useRemoteDb) {
+  console.error(`[Database] Unsupported TURSO_DATABASE_URL scheme: ${remoteDbUrl.split(':')[0]}`);
+}
+
+export function getPersistenceInfo(): PersistenceInfo {
+  if (useRemoteDb) {
+    return {
+      mode: 'turso_cloud',
+      isVercel,
+      remoteConfigured: true,
+    };
+  }
+  if (isVercel) {
+    return {
+      mode: 'ephemeral_tmp',
+      isVercel: true,
+      remoteConfigured: false,
+      warning: 'Vercel is using ephemeral /tmp/data/vib.db because TURSO_DATABASE_URL is not configured. Cross-browser sync requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN.',
+    };
+  }
+  return {
+    mode: 'local_sqlite',
+    isVercel: false,
+    remoteConfigured: false,
+  };
+}
+
+function normalizeBindArgs(rawArgs: any[]): InValue[] {
+  const flat = rawArgs.length === 1 && Array.isArray(rawArgs[0]) ? rawArgs[0] : rawArgs;
+  return flat.map((v) => {
+    if (v === undefined) return null;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (v instanceof Date) return v.toISOString();
+    return v as InValue;
+  });
+}
+
+function resultSetToRows<T = any>(rs: LibsqlResultSet): T[] {
+  const cols = rs.columns || [];
+  return rs.rows.map((row) => {
+    const out: Record<string, any> = {};
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i];
+      if (col && !(col in out)) {
+        out[col] = row[col] !== undefined ? row[col] : row[i];
+      }
+    }
+    return out as T;
+  });
+}
+
+function createLibsqlExecutor(runner: {
+  execute(stmt: { sql: string; args?: InValue[] }): Promise<LibsqlResultSet>;
+  executeMultiple(sql: string): Promise<void>;
+}): DbExecutor {
+  return {
+    prepare(sql: string): DbStatement {
+      return {
+        async get<T = any>(...params: any[]): Promise<T | undefined> {
+          const rs = await runner.execute({ sql, args: normalizeBindArgs(params) });
+          return resultSetToRows<T>(rs)[0];
+        },
+        async all<T = any>(...params: any[]): Promise<T[]> {
+          const rs = await runner.execute({ sql, args: normalizeBindArgs(params) });
+          return resultSetToRows<T>(rs);
+        },
+        async run(...params: any[]): Promise<DbRunResult> {
+          const rs = await runner.execute({ sql, args: normalizeBindArgs(params) });
+          return {
+            changes: Number(rs.rowsAffected ?? 0),
+            lastInsertRowid: rs.lastInsertRowid,
+          };
+        },
+      };
+    },
+    async exec(sql: string): Promise<void> {
+      await runner.executeMultiple(sql);
+    },
+  };
+}
+
+function createRemoteDbClient(url: string, authToken?: string): DbClient {
+  const client: LibsqlClient = createLibsqlClient({ url, authToken });
+  const base = createLibsqlExecutor(client);
+  return {
+    ...base,
+    async batch(statements) {
+      if (statements.length === 0) return;
+      await client.batch(
+        statements.map((s) => ({
+          sql: s.sql,
+          args: normalizeBindArgs(s.args || []),
+        })),
+        'write'
+      );
+    },
+    async transaction<T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
+      const tx: LibsqlTransaction = await client.transaction('write');
+      try {
+        const result = await fn(createLibsqlExecutor(tx));
+        await tx.commit();
+        return result;
+      } catch (err) {
+        try {
+          await tx.rollback();
+        } catch {}
+        throw err;
+      } finally {
+        tx.close();
+      }
+    },
+    close() {
+      client.close();
+    },
+  };
+}
+
+function createLocalSqliteClient(raw: DatabaseSync): DbClient {
+  if (isVercel) {
+    raw.exec('PRAGMA journal_mode = MEMORY;');
+  } else {
+    raw.exec('PRAGMA journal_mode = WAL;');
+  }
+  raw.exec('PRAGMA foreign_keys = ON;');
+
+  let txChain: Promise<void> = Promise.resolve();
+  const base: DbExecutor = {
+    prepare(sql: string): DbStatement {
+      return {
+        async get<T = any>(...params: any[]): Promise<T | undefined> {
+          const stmt = raw.prepare(sql);
+          return stmt.get(...(normalizeBindArgs(params) as any[])) as T | undefined;
+        },
+        async all<T = any>(...params: any[]): Promise<T[]> {
+          const stmt = raw.prepare(sql);
+          return stmt.all(...(normalizeBindArgs(params) as any[])) as T[];
+        },
+        async run(...params: any[]): Promise<DbRunResult> {
+          const stmt = raw.prepare(sql);
+          const info = stmt.run(...(normalizeBindArgs(params) as any[])) as any;
+          return {
+            changes: Number(info?.changes ?? 0),
+            lastInsertRowid: info?.lastInsertRowid,
+          };
+        },
+      };
+    },
+    async exec(sql: string): Promise<void> {
+      raw.exec(sql);
+    },
+  };
+
+  async function runSerializedTx<T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
+    let release!: () => void;
+    const prev = txChain;
+    txChain = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await prev;
     try {
-      fs.copyFileSync(templateDb, dbPath);
-      console.log(`[Database] Successfully copied canonical template database to ${dbPath}`);
-    } catch (err) {
-      console.warn('[Database] Warning: Failed to copy template database to /tmp:', err);
+      raw.exec('BEGIN IMMEDIATE;');
+      try {
+        const result = await fn(base);
+        raw.exec('COMMIT;');
+        return result;
+      } catch (err) {
+        try {
+          raw.exec('ROLLBACK;');
+        } catch {}
+        throw err;
+      }
+    } finally {
+      release();
     }
   }
+
+  return {
+    ...base,
+    async batch(statements) {
+      if (statements.length === 0) return;
+      await runSerializedTx(async (tx) => {
+        for (const s of statements) {
+          await tx.prepare(s.sql).run(...(s.args || []));
+        }
+      });
+    },
+    transaction: runSerializedTx,
+    close() {
+      raw.close();
+    },
+  };
 }
 
-export const db = new DatabaseSync(dbPath);
+function createManagedDb(): DbClient {
+  const cacheKey = useRemoteDb ? `remote:${remoteDbUrl}` : `local:${dbPath}`;
+  const g = globalThis as typeof globalThis & { __vibDbRegistry?: Map<string, DbClient> };
+  const registry = (g.__vibDbRegistry ??= new Map<string, DbClient>());
+  const existing = registry.get(cacheKey);
+  if (existing) return existing;
 
-// Enable WAL mode for high concurrency (or MEMORY journal on Vercel read-only serverless filesystem)
-if (isVercel) {
-  db.exec('PRAGMA journal_mode = MEMORY;');
-} else {
-  db.exec('PRAGMA journal_mode = WAL;');
+  // If running in Vercel serverless without remote Turso DB, copy canonical template to /tmp/data/vib.db
+  if (!useRemoteDb && isVercel && !fs.existsSync(dbPath)) {
+    const templateDb = path.resolve(process.cwd(), 'data', 'vib.db');
+    if (fs.existsSync(templateDb)) {
+      try {
+        fs.copyFileSync(templateDb, dbPath);
+        console.log(`[Database] Successfully copied canonical template database to ${dbPath}`);
+      } catch (err) {
+        console.warn('[Database] Warning: Failed to copy template database to /tmp:', err);
+      }
+    }
+  }
+
+  if (isVercel && !useRemoteDb && !process.env.VIB_DATABASE_PATH) {
+    console.warn('[Database] Running on Vercel without TURSO_DATABASE_URL — using ephemeral /tmp/data/vib.db.');
+  }
+
+  const inner = useRemoteDb
+    ? createRemoteDbClient(remoteDbUrl, remoteAuthToken)
+    : createLocalSqliteClient(new DatabaseSync(dbPath));
+
+  const managed: DbClient = {
+    prepare: (sql: string) => inner.prepare(sql),
+    exec: (sql: string) => inner.exec(sql),
+    batch: (statements) => inner.batch(statements),
+    transaction: (fn) => inner.transaction(fn),
+    close() {
+      registry.delete(cacheKey);
+      inner.close();
+    },
+  };
+  registry.set(cacheKey, managed);
+  return managed;
 }
-db.exec('PRAGMA foreign_keys = ON;');
 
-// Initialize tables
-db.exec(`
+export const db: DbClient = createManagedDb();
+
+// Core platform schema DDL executed by ensureDbReady()
+const CORE_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS uploaded_assets (
+    filename TEXT PRIMARY KEY,
+    mime_type TEXT NOT NULL,
+    data_base64 TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -541,38 +794,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_ad_orders_status ON advertisement_orders(status);
   CREATE INDEX IF NOT EXISTS idx_ad_orders_token ON advertisement_orders(submission_token);
-`);
 
-// Safe column migrations
-// Older login audit rows stored the bearer token as the target identifier. Keep the
-// audit event while replacing that secret with the actor's stable user ID.
-db.prepare(`
-  UPDATE audit_logs
-  SET target_id = actor_id
-  WHERE target_type = 'session'
-    AND action IN ('USER_LOGIN', 'FIREBASE_GOOGLE_LOGIN')
-    AND target_id != actor_id
-`).run();
-
-try {
-  db.exec('ALTER TABLE users ADD COLUMN firebase_uid TEXT');
-} catch {}
-try {
-  db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'");
-} catch {}
-try {
-  db.exec('ALTER TABLE users ADD COLUMN riot_verified INTEGER DEFAULT 0');
-} catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN terms_version TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN reset_token_expires_at TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN first_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN last_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN city TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN state TEXT'); } catch {}
-try { db.exec('ALTER TABLE users ADD COLUMN pincode TEXT'); } catch {}
-
-db.exec(`
   CREATE TABLE IF NOT EXISTS email_otps (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL,
@@ -583,83 +805,7 @@ db.exec(`
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_email_otps_lookup ON email_otps(email, purpose);
-`);
 
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN documentation_text TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN ai_draft_json TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN custom_faq_json TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN conditions_json TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN reach_estimate TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN placement_tag TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_plans ADD COLUMN hero_icon TEXT'); } catch {}
-
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_first_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_last_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_city TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_state TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN customer_pincode TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN user_id TEXT'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN whatsapp_contact_enabled INTEGER DEFAULT 1'); } catch {}
-try { db.exec('ALTER TABLE advertisement_orders ADD COLUMN inventory_screenshots_json TEXT'); } catch {}
-
-// Order Workflow & Manual Payment Safe Column Migrations
-try { db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'AWAITING_PAYMENT'"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN fulfillment_status TEXT DEFAULT 'PENDING'"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN payment_evidence_ref TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN payment_evidence_image TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN admin_notes TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN verified_by TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN verified_at TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN timeline_json TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN issued_code TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN code_issued_at TEXT"); } catch {}
-try { db.exec("ALTER TABLE orders ADD COLUMN regional_notes TEXT"); } catch {}
-
-// A completed order with a successful transaction and paid invoice must not be
-// presented as awaiting payment or pending fulfillment. Repair those legacy rows
-// only when both linked accounting records independently confirm the payment.
-db.prepare(`
-  UPDATE orders
-  SET payment_status = 'PAYMENT_VERIFIED'
-  WHERE status = 'completed'
-    AND payment_status = 'AWAITING_PAYMENT'
-    AND EXISTS (SELECT 1 FROM transactions t WHERE t.order_id = orders.id AND t.status = 'success')
-    AND EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = orders.id AND i.status = 'paid')
-`).run();
-db.prepare(`
-  UPDATE orders SET fulfillment_status = 'COMPLETED'
-  WHERE status = 'completed'
-    AND payment_status = 'PAYMENT_VERIFIED'
-    AND fulfillment_status = 'PENDING'
-`).run();
-db.prepare(`
-  UPDATE transactions
-  SET status = 'pending'
-  WHERE status = 'success'
-    AND order_id IN (
-      SELECT id FROM orders
-      WHERE payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
-    )
-`).run();
-db.prepare(`
-  UPDATE invoices
-  SET status = 'pending'
-  WHERE status = 'paid'
-    AND order_id IN (
-      SELECT id FROM orders
-      WHERE payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
-    )
-`).run();
-db.prepare(`
-  UPDATE orders
-  SET status = 'pending'
-  WHERE status = 'processing'
-    AND fulfillment_status = 'PENDING'
-    AND payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
-`).run();
-
-// Staff Permissions & Extended Feature Columns (fresh-DB parity with canonical template)
-db.exec(`
   CREATE TABLE IF NOT EXISTS staff_permissions (
     user_id TEXT PRIMARY KEY,
     permissions_json TEXT NOT NULL,
@@ -667,74 +813,7 @@ db.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-`);
 
-// auction_lots extended columns
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN category TEXT DEFAULT 'valorant_profile'"); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN account_type TEXT DEFAULT 'radiant_full_access'"); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN visibility TEXT DEFAULT 'public'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN account_name TEXT'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN server_region TEXT DEFAULT 'AP / Mumbai'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN account_level INTEGER DEFAULT 1'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN inventory_details TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN included_benefits TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN restrictions TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN transfer_info TEXT'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN additional_info_json TEXT DEFAULT '{}'"); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN gallery_images_json TEXT DEFAULT '[]'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN starts_at TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN reserve_price REAL'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN instant_buy_price REAL'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN deposit_pct REAL DEFAULT 50.0'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN min_deposit_amount REAL DEFAULT 500'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline_hours INTEGER DEFAULT 24'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_payment_deadline TEXT'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN currency TEXT DEFAULT 'INR'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN tax_rate_pct REAL DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN platform_fee_pct REAL DEFAULT 0'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_method TEXT DEFAULT 'escrow_instant_transfer'"); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_eta TEXT DEFAULT 'Instant (< 15 mins)'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN transfer_instructions TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN delivery_conditions TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN customer_info_required TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN post_purchase_support TEXT'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN min_eligibility TEXT DEFAULT 'verified_email'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN verification_required INTEGER DEFAULT 1'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN allow_bid_raise INTEGER DEFAULT 1'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN allow_cancellation INTEGER DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN deposit_refund_rules TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN forfeiture_rules TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_user_id TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN winner_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN winning_bid_amount REAL'); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN winner_payment_status TEXT DEFAULT 'unpaid'"); } catch {}
-try { db.exec("ALTER TABLE auction_lots ADD COLUMN delivery_status TEXT DEFAULT 'pending'"); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN paused_at TEXT'); } catch {}
-try { db.exec('ALTER TABLE auction_lots ADD COLUMN pause_reason TEXT'); } catch {}
-
-// payment_settings extended columns
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN account_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN bank_name TEXT'); } catch {}
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN account_number TEXT'); } catch {}
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN ifsc_code TEXT'); } catch {}
-try { db.exec("ALTER TABLE payment_settings ADD COLUMN status TEXT DEFAULT 'active'"); } catch {}
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN payment_methods_json TEXT'); } catch {}
-try { db.exec('ALTER TABLE payment_settings ADD COLUMN is_active INTEGER DEFAULT 1'); } catch {}
-
-// rental_listings extended columns
-try { db.exec('ALTER TABLE rental_listings ADD COLUMN seller_whatsapp TEXT'); } catch {}
-try { db.exec('ALTER TABLE rental_listings ADD COLUMN handover_instructions TEXT'); } catch {}
-try { db.exec('ALTER TABLE rental_listings ADD COLUMN whatsapp_handover_enabled INTEGER DEFAULT 1'); } catch {}
-
-// rental_bookings extended columns
-try { db.exec("ALTER TABLE rental_bookings ADD COLUMN handover_status TEXT DEFAULT 'pending'"); } catch {}
-try { db.exec('ALTER TABLE rental_bookings ADD COLUMN whatsapp_contacted_at TEXT'); } catch {}
-
-// orders extended columns
-try { db.exec('ALTER TABLE orders ADD COLUMN delivery_data_json TEXT'); } catch {}
-
-// Riot ID Verification Registry Cache Table
-db.exec(`
   CREATE TABLE IF NOT EXISTS riot_accounts (
     id TEXT PRIMARY KEY,
     game_name TEXT NOT NULL COLLATE NOCASE,
@@ -751,12 +830,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_riot_id ON riot_accounts(riot_id);
   CREATE INDEX IF NOT EXISTS idx_riot_name_tag ON riot_accounts(game_name, tag_line);
-`);
 
-// =============================================================================
-// KYC VERIFICATION SUBMISSIONS
-// =============================================================================
-db.exec(`
   CREATE TABLE IF NOT EXISTS kyc_submissions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -776,12 +850,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_kyc_user ON kyc_submissions(user_id);
   CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc_submissions(status);
-`);
 
-// =============================================================================
-// EMI FINANCING APPLICATIONS & INSTALLMENT SCHEDULE
-// =============================================================================
-db.exec(`
   CREATE TABLE IF NOT EXISTS emi_applications (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -806,9 +875,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_emi_user ON emi_applications(user_id);
   CREATE INDEX IF NOT EXISTS idx_emi_status ON emi_applications(status);
-`);
 
-db.exec(`
   CREATE TABLE IF NOT EXISTS emi_payments (
     id TEXT PRIMARY KEY,
     application_id TEXT NOT NULL,
@@ -834,38 +901,326 @@ db.exec(`
     updated_at TEXT NOT NULL,
     updated_by TEXT
   );
-`);
+`;
 
-// Migration for emi_applications to support comprehensive Flexible Payment Plans
-try {
-  const existingCols = new Set(
-    (db.prepare("PRAGMA table_info(emi_applications)").all() as any[]).map(c => c.name)
-  );
-  const colsToAdd: [string, string][] = [
-    ['service_type', 'TEXT DEFAULT "account"'],
-    ['region', 'TEXT'],
-    ['listing_id', 'TEXT'],
-    ['plan_type', 'TEXT'],
-    ['payment_frequency', 'TEXT DEFAULT "monthly"'],
-    ['fixed_profit', 'REAL DEFAULT 0'],
-    ['total_payable', 'REAL DEFAULT 0'],
-    ['agreement_ref', 'TEXT'],
-    ['agreement_version', 'TEXT'],
-    ['agreement_html', 'TEXT'],
-    ['customer_signature', 'TEXT'],
-    ['signed_at', 'TEXT'],
-    ['ip_address', 'TEXT'],
-    ['customer_details_json', 'TEXT'],
-    ['kyc_submission_id', 'TEXT'],
-    ['admin_remarks', 'TEXT']
-  ];
-  for (const [col, typeDef] of colsToAdd) {
-    if (!existingCols.has(col)) {
-      db.exec(`ALTER TABLE emi_applications ADD COLUMN ${col} ${typeDef}`);
+const COLUMN_MIGRATIONS: Array<[string, string, string]> = [
+  ['users', 'firebase_uid', 'TEXT'],
+  ['users', 'auth_provider', "TEXT DEFAULT 'local'"],
+  ['users', 'riot_verified', 'INTEGER DEFAULT 0'],
+  ['users', 'terms_accepted_at', 'TEXT'],
+  ['users', 'terms_version', 'TEXT'],
+  ['users', 'reset_token_expires_at', 'TEXT'],
+  ['users', 'first_name', 'TEXT'],
+  ['users', 'last_name', 'TEXT'],
+  ['users', 'city', 'TEXT'],
+  ['users', 'state', 'TEXT'],
+  ['users', 'pincode', 'TEXT'],
+  ['users', 'account_number', 'TEXT'],
+  ['advertisement_plans', 'documentation_text', 'TEXT'],
+  ['advertisement_plans', 'ai_draft_json', 'TEXT'],
+  ['advertisement_plans', 'custom_faq_json', 'TEXT'],
+  ['advertisement_plans', 'conditions_json', 'TEXT'],
+  ['advertisement_plans', 'reach_estimate', 'TEXT'],
+  ['advertisement_plans', 'placement_tag', 'TEXT'],
+  ['advertisement_plans', 'hero_icon', 'TEXT'],
+  ['advertisement_orders', 'customer_first_name', 'TEXT'],
+  ['advertisement_orders', 'customer_last_name', 'TEXT'],
+  ['advertisement_orders', 'customer_city', 'TEXT'],
+  ['advertisement_orders', 'customer_state', 'TEXT'],
+  ['advertisement_orders', 'customer_pincode', 'TEXT'],
+  ['advertisement_orders', 'customer_account_number', 'TEXT'],
+  ['advertisement_orders', 'user_id', 'TEXT'],
+  ['advertisement_orders', 'whatsapp_contact_enabled', 'INTEGER DEFAULT 1'],
+  ['advertisement_orders', 'inventory_screenshots_json', 'TEXT'],
+  ['advertisement_orders', 'reviewed_by', 'TEXT'],
+  ['advertisement_orders', 'reviewed_by_name', 'TEXT'],
+  ['advertisement_orders', 'reviewed_at', 'TEXT'],
+  ['advertisement_orders', 'approval_email_status', 'TEXT'],
+  ['advertisement_orders', 'approval_email_error', 'TEXT'],
+  ['advertisement_orders', 'last_email_at', 'TEXT'],
+  ['orders', 'payment_status', "TEXT DEFAULT 'AWAITING_PAYMENT'"],
+  ['orders', 'fulfillment_status', "TEXT DEFAULT 'PENDING'"],
+  ['orders', 'payment_evidence_ref', 'TEXT'],
+  ['orders', 'payment_evidence_image', 'TEXT'],
+  ['orders', 'admin_notes', 'TEXT'],
+  ['orders', 'verified_by', 'TEXT'],
+  ['orders', 'verified_at', 'TEXT'],
+  ['orders', 'timeline_json', 'TEXT'],
+  ['orders', 'issued_code', 'TEXT'],
+  ['orders', 'code_issued_at', 'TEXT'],
+  ['orders', 'regional_notes', 'TEXT'],
+  ['orders', 'delivery_data_json', 'TEXT'],
+  ['auction_lots', 'category', "TEXT DEFAULT 'valorant_profile'"],
+  ['auction_lots', 'account_type', "TEXT DEFAULT 'radiant_full_access'"],
+  ['auction_lots', 'visibility', "TEXT DEFAULT 'public'"],
+  ['auction_lots', 'account_name', 'TEXT'],
+  ['auction_lots', 'server_region', "TEXT DEFAULT 'AP / Mumbai'"],
+  ['auction_lots', 'account_level', 'INTEGER DEFAULT 1'],
+  ['auction_lots', 'inventory_details', 'TEXT'],
+  ['auction_lots', 'included_benefits', 'TEXT'],
+  ['auction_lots', 'restrictions', 'TEXT'],
+  ['auction_lots', 'transfer_info', 'TEXT'],
+  ['auction_lots', 'additional_info_json', "TEXT DEFAULT '{}'"],
+  ['auction_lots', 'gallery_images_json', "TEXT DEFAULT '[]'"],
+  ['auction_lots', 'starts_at', 'TEXT'],
+  ['auction_lots', 'reserve_price', 'REAL'],
+  ['auction_lots', 'instant_buy_price', 'REAL'],
+  ['auction_lots', 'deposit_pct', 'REAL DEFAULT 50.0'],
+  ['auction_lots', 'min_deposit_amount', 'REAL DEFAULT 500'],
+  ['auction_lots', 'winner_payment_deadline_hours', 'INTEGER DEFAULT 24'],
+  ['auction_lots', 'winner_payment_deadline', 'TEXT'],
+  ['auction_lots', 'currency', "TEXT DEFAULT 'INR'"],
+  ['auction_lots', 'tax_rate_pct', 'REAL DEFAULT 0'],
+  ['auction_lots', 'platform_fee_pct', 'REAL DEFAULT 0'],
+  ['auction_lots', 'delivery_method', "TEXT DEFAULT 'escrow_instant_transfer'"],
+  ['auction_lots', 'delivery_eta', "TEXT DEFAULT 'Instant (< 15 mins)'"],
+  ['auction_lots', 'transfer_instructions', 'TEXT'],
+  ['auction_lots', 'delivery_conditions', 'TEXT'],
+  ['auction_lots', 'customer_info_required', 'TEXT'],
+  ['auction_lots', 'post_purchase_support', 'TEXT'],
+  ['auction_lots', 'min_eligibility', "TEXT DEFAULT 'verified_email'"],
+  ['auction_lots', 'verification_required', 'INTEGER DEFAULT 1'],
+  ['auction_lots', 'allow_bid_raise', 'INTEGER DEFAULT 1'],
+  ['auction_lots', 'allow_cancellation', 'INTEGER DEFAULT 0'],
+  ['auction_lots', 'deposit_refund_rules', 'TEXT'],
+  ['auction_lots', 'forfeiture_rules', 'TEXT'],
+  ['auction_lots', 'winner_user_id', 'TEXT'],
+  ['auction_lots', 'winner_name', 'TEXT'],
+  ['auction_lots', 'winning_bid_amount', 'REAL'],
+  ['auction_lots', 'winner_payment_status', "TEXT DEFAULT 'unpaid'"],
+  ['auction_lots', 'delivery_status', "TEXT DEFAULT 'pending'"],
+  ['auction_lots', 'paused_at', 'TEXT'],
+  ['auction_lots', 'pause_reason', 'TEXT'],
+  ['payment_settings', 'account_name', 'TEXT'],
+  ['payment_settings', 'bank_name', 'TEXT'],
+  ['payment_settings', 'account_number', 'TEXT'],
+  ['payment_settings', 'ifsc_code', 'TEXT'],
+  ['payment_settings', 'status', "TEXT DEFAULT 'active'"],
+  ['payment_settings', 'payment_methods_json', 'TEXT'],
+  ['payment_settings', 'is_active', 'INTEGER DEFAULT 1'],
+  ['rental_listings', 'seller_whatsapp', 'TEXT'],
+  ['rental_listings', 'handover_instructions', 'TEXT'],
+  ['rental_listings', 'whatsapp_handover_enabled', 'INTEGER DEFAULT 1'],
+  ['rental_bookings', 'handover_status', "TEXT DEFAULT 'pending'"],
+  ['rental_bookings', 'whatsapp_contacted_at', 'TEXT'],
+  ['emi_applications', 'service_type', 'TEXT DEFAULT "account"'],
+  ['emi_applications', 'region', 'TEXT'],
+  ['emi_applications', 'listing_id', 'TEXT'],
+  ['emi_applications', 'plan_type', 'TEXT'],
+  ['emi_applications', 'payment_frequency', 'TEXT DEFAULT "monthly"'],
+  ['emi_applications', 'fixed_profit', 'REAL DEFAULT 0'],
+  ['emi_applications', 'total_payable', 'REAL DEFAULT 0'],
+  ['emi_applications', 'agreement_ref', 'TEXT'],
+  ['emi_applications', 'agreement_version', 'TEXT'],
+  ['emi_applications', 'agreement_html', 'TEXT'],
+  ['emi_applications', 'customer_signature', 'TEXT'],
+  ['emi_applications', 'signed_at', 'TEXT'],
+  ['emi_applications', 'ip_address', 'TEXT'],
+  ['emi_applications', 'customer_details_json', 'TEXT'],
+  ['emi_applications', 'kyc_submission_id', 'TEXT'],
+  ['emi_applications', 'admin_remarks', 'TEXT'],
+];
+
+const BOOTSTRAP_TABLE_ORDER = [
+  'users',
+  'sessions',
+  'profiles',
+  'products',
+  'vp_codes',
+  'listings',
+  'vip_plans',
+  'skins',
+  'payment_settings',
+  'email_templates',
+  'advertisement_plans',
+  'legal_policies',
+  'legal_policy_versions',
+  'emi_settings',
+  'staff_permissions',
+  'riot_accounts',
+  'orders',
+  'transactions',
+  'order_messages',
+  'invoices',
+  'notifications',
+  'audit_logs',
+  'support_tickets',
+  'expenses',
+  'staff_tasks',
+  'user_crm_notes',
+  'email_logs',
+  'email_otps',
+  'auction_lots',
+  'auction_bids',
+  'auction_deposits',
+  'rental_listings',
+  'rental_bookings',
+  'user_consents',
+  'advertisement_orders',
+  'kyc_submissions',
+  'emi_applications',
+  'emi_payments',
+  'uploaded_assets',
+];
+
+async function ensureColumnMigrations() {
+  const tableRows = await db
+    .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql IS NOT NULL")
+    .all<{ name: string; sql: string }>();
+  const ddlByTable = new Map(tableRows.map((r) => [r.name, r.sql || '']));
+  const verifiedCols = new Map<string, Set<string>>();
+
+  for (const [table, col, typeDef] of COLUMN_MIGRATIONS) {
+    const ddl = ddlByTable.get(table) || '';
+    if (new RegExp(`\\b${col}\\b`, 'i').test(ddl)) continue;
+
+    let cols = verifiedCols.get(table);
+    if (!cols) {
+      const infoRows = await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+      cols = new Set(infoRows.map((c) => c.name));
+      verifiedCols.set(table, cols);
+    }
+    if (!cols.has(col)) {
+      try {
+        await db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${typeDef}`);
+        cols.add(col);
+      } catch (err) {
+        console.warn(`[DB Migration Warning] ${table}.${col}:`, err);
+      }
     }
   }
-} catch (e) {
-  console.warn('[DB Migration Warning] emi_applications:', e);
+}
+
+async function runLegacyConsistencyRepairs() {
+  await db.batch([
+    {
+      sql: `
+        UPDATE audit_logs
+        SET target_id = actor_id
+        WHERE target_type = 'session'
+          AND action IN ('USER_LOGIN', 'FIREBASE_GOOGLE_LOGIN')
+          AND target_id != actor_id
+      `,
+    },
+    {
+      sql: `
+        UPDATE orders
+        SET payment_status = 'PAYMENT_VERIFIED'
+        WHERE status = 'completed'
+          AND payment_status = 'AWAITING_PAYMENT'
+          AND EXISTS (SELECT 1 FROM transactions t WHERE t.order_id = orders.id AND t.status = 'success')
+          AND EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = orders.id AND i.status = 'paid')
+      `,
+    },
+    {
+      sql: `
+        UPDATE orders SET fulfillment_status = 'COMPLETED'
+        WHERE status = 'completed'
+          AND payment_status = 'PAYMENT_VERIFIED'
+          AND fulfillment_status = 'PENDING'
+      `,
+    },
+    {
+      sql: `
+        UPDATE transactions
+        SET status = 'pending'
+        WHERE status = 'success'
+          AND order_id IN (
+            SELECT id FROM orders
+            WHERE payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
+          )
+      `,
+    },
+    {
+      sql: `
+        UPDATE invoices
+        SET status = 'pending'
+        WHERE status = 'paid'
+          AND order_id IN (
+            SELECT id FROM orders
+            WHERE payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
+          )
+      `,
+    },
+    {
+      sql: `
+        UPDATE orders
+        SET status = 'pending'
+        WHERE status = 'processing'
+          AND fulfillment_status = 'PENDING'
+          AND payment_status IN ('AWAITING_PAYMENT', 'SUBMITTED_FOR_VERIFICATION', 'PAYMENT_REJECTED')
+      `,
+    },
+  ]);
+}
+
+async function bootstrapTursoFromBundledDb() {
+  if (!useRemoteDb) return;
+  const existingUsers = await db.prepare('SELECT COUNT(*) as count FROM users').get<{ count: number }>();
+  if ((existingUsers?.count ?? 0) > 0) return;
+
+  const templateDb = path.resolve(process.cwd(), 'data', 'vib.db');
+  if (!fs.existsSync(templateDb)) return;
+
+  console.log('[Database] Empty Turso database detected — bootstrapping initial snapshot from bundled data/vib.db...');
+  const src = new DatabaseSync(templateDb, { readOnly: true });
+  try {
+    const srcTables = new Set(
+      (src.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => String(r.name))
+    );
+
+    for (const table of BOOTSTRAP_TABLE_ORDER) {
+      if (!srcTables.has(table)) continue;
+      const countRow = src.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number };
+      if (!countRow || countRow.count === 0) continue;
+
+      const srcCols = (src.prepare(`PRAGMA table_info(${table})`).all() as any[]).map((c) => String(c.name));
+      const dstCols = new Set((await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()).map((c) => c.name));
+      const cols = srcCols.filter((c) => dstCols.has(c));
+      if (cols.length === 0) continue;
+
+      const colList = cols.map((c) => `"${c}"`).join(', ');
+      const placeholders = cols.map(() => '?').join(', ');
+      const sql = `INSERT OR IGNORE INTO ${table} (${colList}) VALUES (${placeholders})`;
+      const rows = src.prepare(`SELECT ${colList} FROM ${table}`).all() as any[];
+
+      const chunkSize = table === 'uploaded_assets' ? 5 : 40;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        await db.batch(
+          chunk.map((row) => ({
+            sql,
+            args: cols.map((c) => (row[c] === undefined ? null : row[c])),
+          }))
+        );
+      }
+    }
+    console.log('[Database] Initial snapshot bootstrap into Turso completed.');
+  } finally {
+    try {
+      src.close();
+    } catch {}
+  }
+}
+
+let dbInitPromise: Promise<void> | null = null;
+
+async function initializeDatabaseInternal(): Promise<void> {
+  await db.exec(CORE_SCHEMA_SQL);
+  await ensureColumnMigrations();
+  await bootstrapTursoFromBundledDb();
+  await runLegacyConsistencyRepairs();
+  await seedDatabaseInternal();
+}
+
+export async function ensureDbReady(): Promise<void> {
+  if (!dbInitPromise) {
+    dbInitPromise = initializeDatabaseInternal().catch((err) => {
+      dbInitPromise = null;
+      throw err;
+    });
+  }
+  await dbInitPromise;
 }
 
 
@@ -925,6 +1280,102 @@ export function validateImageMagicBytes(buffer: Buffer, mime: string): boolean {
 
   // Unknown declared type: reject rather than accept unsniffed bytes.
   return false;
+}
+
+const UPLOAD_MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.pdf': 'application/pdf',
+};
+
+export function inferUploadMimeType(filename: string, fallback = 'application/octet-stream'): string {
+  const ext = path.extname(filename).toLowerCase();
+  return UPLOAD_MIME_BY_EXT[ext] || fallback;
+}
+
+export async function saveUploadedAsset(filename: string, mimeType: string, buffer: Buffer): Promise<string> {
+  const safeName = path.basename(filename);
+  const resolvedMime = mimeType || inferUploadMimeType(safeName);
+  const uploadsDir = path.join(databaseDirectory, 'uploads');
+
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(uploadsDir, safeName), buffer);
+  } catch (fsErr) {
+    if (!useRemoteDb) {
+      throw fsErr;
+    }
+  }
+
+  await db.prepare(`
+    INSERT INTO uploaded_assets (filename, mime_type, data_base64, created_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(filename) DO UPDATE SET
+      mime_type = excluded.mime_type,
+      data_base64 = excluded.data_base64,
+      created_at = excluded.created_at
+  `).run(safeName, resolvedMime, buffer.toString('base64'), new Date().toISOString());
+
+  return `/api/uploads/${safeName}`;
+}
+
+export async function readUploadedAsset(rawName: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const safeName = path.basename(String(rawName || '').split('?')[0].split('#')[0]);
+  if (!safeName || safeName === '.' || safeName === '..') return null;
+
+  try {
+    const row = await db
+      .prepare('SELECT mime_type, data_base64 FROM uploaded_assets WHERE filename = ?')
+      .get<{ mime_type: string; data_base64: string }>(safeName);
+
+    if (row?.data_base64) {
+      return {
+        buffer: Buffer.from(row.data_base64, 'base64'),
+        mimeType: row.mime_type || inferUploadMimeType(safeName),
+      };
+    }
+  } catch {
+    // Ignore DB read issues and fall back to disk
+  }
+
+  const candidatePaths = [
+    path.join(databaseDirectory, 'uploads', safeName),
+    path.join(process.cwd(), 'data', 'uploads', safeName),
+  ];
+
+  for (const filePath of candidatePaths) {
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        return {
+          buffer: fs.readFileSync(filePath),
+          mimeType: inferUploadMimeType(safeName),
+        };
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  return null;
+}
+
+export async function deleteUploadedAsset(urlOrName: string): Promise<void> {
+  const safeName = path.basename(String(urlOrName || '').split('?')[0].split('#')[0]);
+  if (!safeName || safeName === '.' || safeName === '..') return;
+
+  try {
+    const filePath = path.join(databaseDirectory, 'uploads', safeName);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch { /* best-effort cleanup */ }
+
+  try {
+    await db.prepare('DELETE FROM uploaded_assets WHERE filename = ?').run(safeName);
+  } catch { /* best-effort cleanup */ }
 }
 
 if ((process.env.NODE_ENV === 'production' || process.env.VERCEL) && !process.env.SESSION_SECRET) {
@@ -997,82 +1448,93 @@ export function generateToken(user?: { id: string; email: string; name: string; 
 }
 
 // Seed default accounts if database is empty
-export function seedDatabase() {
-  const checkUserStmt = db.prepare('SELECT COUNT(*) as count FROM users');
-  const result = checkUserStmt.get() as { count: number };
+async function seedDatabaseInternal() {
+  const result = await db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 
   if (result.count === 0) {
     console.log('[Database] Seeding default accounts...');
     const now = new Date().toISOString();
 
-    // 1. Super Admin
     const adminPass = hashPassword('AdminPassword@123');
     const adminId = 'usr_superadmin_01';
-    db.prepare(`
-      INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, role, status, email_verified, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      adminId,
-      'admin@vib.gg',
-      adminPass.hash,
-      adminPass.salt,
-      'VIB Executive Superadmin',
-      '+91 80996 41606',
-      'VIB_Director#EXEC',
-      'superadmin',
-      'active',
-      1,
-      now,
-      now
-    );
-
-    db.prepare(`
-      INSERT INTO profiles (user_id, bio, avatar, discord_tag, wallet_balance, kyc_status, total_orders, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      adminId,
-      'Chief Operations & Security Officer for VIB Digital Services Platform.',
-      null,
-      null,
-      0.0,
-      'verified',
-      0,
-      now
-    );
-
-    // Initial Audit Log
-    db.prepare(`
-      INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      'audit_001',
-      adminId,
-      'VIB Executive Superadmin',
-      'INITIALIZE_SYSTEM',
-      'system',
-      'vib_platform',
-      JSON.stringify({ status: 'Operational', securityProtocol: 'v2.4' }),
-      '127.0.0.1',
-      now
-    );
+    await db.batch([
+      {
+        sql: `
+          INSERT INTO users (id, email, password_hash, salt, name, phone, riot_id, role, status, email_verified, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          adminId,
+          'admin@vib.gg',
+          adminPass.hash,
+          adminPass.salt,
+          'VIB Executive Superadmin',
+          '+91 80996 41606',
+          'VIB_Director#EXEC',
+          'superadmin',
+          'active',
+          1,
+          now,
+          now,
+        ],
+      },
+      {
+        sql: `
+          INSERT INTO profiles (user_id, bio, avatar, discord_tag, wallet_balance, kyc_status, total_orders, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          adminId,
+          'Chief Operations & Security Officer for VIB Digital Services Platform.',
+          null,
+          null,
+          0.0,
+          'verified',
+          0,
+          now,
+        ],
+      },
+      {
+        sql: `
+          INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          'audit_001',
+          adminId,
+          'VIB Executive Superadmin',
+          'INITIALIZE_SYSTEM',
+          'system',
+          'vib_platform',
+          JSON.stringify({ status: 'Operational', securityProtocol: 'v2.4' }),
+          '127.0.0.1',
+          now,
+        ],
+      },
+    ]);
 
     console.log('[Database] Seeding default accounts completed.');
   }
 
-  seedCatalogAndBilling();
+  await seedCatalogAndBilling();
 }
 
-export function seedCatalogAndBilling() {
+export async function seedDatabase() {
+  await ensureDbReady();
+  await seedDatabaseInternal();
+}
+
+export async function seedCatalogAndBilling() {
   const now = new Date().toISOString();
 
   // 1. Seed Products if empty
-  const productCount = (db.prepare('SELECT COUNT(*) as count FROM products').get() as any).count;
+  const productCount = ((await db.prepare('SELECT COUNT(*) as count FROM products').get()) as any).count;
   if (productCount === 0) {
     console.log('[Database] Seeding real catalog products...');
-    const insertProduct = db.prepare(`
+    const insertProductSql = `
       INSERT INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-    `);
+    `;
 
     const products = [
       { id: 'vp-475', title: '475 Valorant Points Pack', category: 'vp', price: 499, orig: 599, badge: 'POPULAR', desc: 'Viper tier quick top-up pack with instant Riot PIN redemption.', details: { vp: 475, agent: 'VIPER', delivery: 'Instant PIN / Direct Top-Up' } },
@@ -1092,9 +1554,12 @@ export function seedCatalogAndBilling() {
       { id: 'rankup-plat-to-dia', title: 'Platinum to Diamond Rankup Journey', category: 'rankup', price: 2999, orig: 3999, badge: 'FAST', desc: 'Professional duo queue assistance from Platinum to Diamond with guaranteed win rate and middleman safety.', details: { guaranteed: true, duoMode: true, streamAvailable: true } }
     ];
 
-    for (const p of products) {
-      insertProduct.run(p.id, p.title, p.category, p.price, p.orig, p.badge, p.desc, JSON.stringify(p.details), -1, now);
-    }
+    await db.batch(
+      products.map((p) => ({
+        sql: insertProductSql,
+        args: [p.id, p.title, p.category, p.price, p.orig, p.badge, p.desc, JSON.stringify(p.details), -1, now],
+      }))
+    );
   }
 
   // Region-specific packs have distinct prices and must not share the generic
@@ -1122,21 +1587,10 @@ export function seedCatalogAndBilling() {
     { id: 'vp-ph-3050', vp: 3050, price: 1599 },
     { id: 'vp-ph-3650', vp: 3650, price: 1999 },
   ];
-  const insertRegionalVpPack = db.prepare(`
+  const insertRegionalVpPackSql = `
     INSERT OR IGNORE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
     VALUES (?, ?, 'vp', ?, NULL, NULL, ?, ?, -1, 1, ?)
-  `);
-  for (const pack of regionalVpPacks) {
-    const region = pack.id.startsWith('vp-in-') ? 'Indian' : 'Philippines';
-    insertRegionalVpPack.run(
-      pack.id,
-      `${pack.vp.toLocaleString('en-IN')} VP (${region} Region Top-Up)`,
-      pack.price,
-      `${pack.vp.toLocaleString('en-IN')} Valorant Points for the ${region} region.`,
-      JSON.stringify({ vp: pack.vp, region }),
-      now
-    );
-  }
+  `;
 
   // Persist the fixed price points shown by customer service cards. Keeping
   // these in the same catalog lets checkout ignore browser supplied prices.
@@ -1155,113 +1609,144 @@ export function seedCatalogAndBilling() {
     { id: 'service-coaching-legacy-single', title: 'Valorant 1-on-1 Coaching (Single 1-Hour Session)', price: 799 },
     { id: 'service-coaching-legacy-bootcamp', title: 'Valorant 5-Session Mastery Bootcamp', price: 3499 },
   ];
-  const insertFixedService = db.prepare(`
+  const insertFixedServiceSql = `
     INSERT OR IGNORE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
     VALUES (?, ?, 'service', ?, NULL, NULL, 'Fixed price service available through customer checkout.', '{}', -1, 1, ?)
-  `);
-  for (const service of fixedServices) {
-    insertFixedService.run(service.id, service.title, service.price, now);
-  }
+  `;
 
-  // Persist each rank transition rate so rank-up checkout can be recalculated
-  // from the server catalog rather than trusting a browser quote.
-  const insertRankRate = db.prepare(`
+  const insertRankRateSql = `
     INSERT OR IGNORE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
     VALUES (?, ?, 'rank_rate', ?, NULL, NULL, ?, ?, -1, 1, ?)
-  `);
-  for (const tier of VALORANT_RANKS.slice(0, -1)) {
-    insertRankRate.run(
-      `rankrate_${tier.id}`,
-      `Rank progression rate: ${tier.name} to next tier`,
-      tier.costToNext,
-      `Persisted INR rate for the transition starting at ${tier.name}.`,
-      JSON.stringify({ rankId: tier.id, tierIndex: tier.tierIndex, stdDeliveryHours: tier.stdDeliveryHours, priorityDeliveryHours: tier.priorityDeliveryHours }),
-      now
-    );
-  }
+  `;
 
-  // Clean out any legacy placeholder or demonstration rental products
-  db.prepare("DELETE FROM products WHERE category = 'rental' AND id LIKE 'service-rent-%'").run();
-
-  // Ensure vp-7400 is always present in products table
-  const vp7400Exists = db.prepare('SELECT id FROM products WHERE id = ?').get('vp-7400');
-  if (!vp7400Exists) {
-    db.prepare(`
-      INSERT OR REPLACE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-    `).run(
-      'vp-7400',
-      '7,400 Valorant Points Pack',
-      'vp',
-      6199,
-      7199,
-      'HOT',
-      'Sova tier reconnaissance master pack with instant Riot PIN redemption.',
-      JSON.stringify({ vp: 7400, agent: 'SOVA', delivery: 'Instant PIN' }),
-      -1,
-      now
-    );
-  }
+  await db.batch([
+    ...regionalVpPacks.map((pack) => {
+      const region = pack.id.startsWith('vp-in-') ? 'Indian' : 'Philippines';
+      return {
+        sql: insertRegionalVpPackSql,
+        args: [
+          pack.id,
+          `${pack.vp.toLocaleString('en-IN')} VP (${region} Region Top-Up)`,
+          pack.price,
+          `${pack.vp.toLocaleString('en-IN')} Valorant Points for the ${region} region.`,
+          JSON.stringify({ vp: pack.vp, region }),
+          now,
+        ],
+      };
+    }),
+    ...fixedServices.map((service) => ({
+      sql: insertFixedServiceSql,
+      args: [service.id, service.title, service.price, now],
+    })),
+    ...VALORANT_RANKS.slice(0, -1).map((tier) => ({
+      sql: insertRankRateSql,
+      args: [
+        `rankrate_${tier.id}`,
+        `Rank progression rate: ${tier.name} to next tier`,
+        tier.costToNext,
+        `Persisted INR rate for the transition starting at ${tier.name}.`,
+        JSON.stringify({
+          rankId: tier.id,
+          tierIndex: tier.tierIndex,
+          stdDeliveryHours: tier.stdDeliveryHours,
+          priorityDeliveryHours: tier.priorityDeliveryHours,
+        }),
+        now,
+      ],
+    })),
+    {
+      sql: "DELETE FROM products WHERE category = 'rental' AND id LIKE 'service-rent-%'",
+      args: [],
+    },
+    {
+      sql: `
+        INSERT OR IGNORE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      `,
+      args: [
+        'vp-7400',
+        '7,400 Valorant Points Pack',
+        'vp',
+        6199,
+        7199,
+        'HOT',
+        'Sova tier reconnaissance master pack with instant Riot PIN redemption.',
+        JSON.stringify({ vp: 7400, agent: 'SOVA', delivery: 'Instant PIN' }),
+        -1,
+        now,
+      ],
+    },
+  ]);
 
   // 6. Seed Email Templates if empty
-  const tplCount = (db.prepare('SELECT COUNT(*) as count FROM email_templates').get() as any).count;
+  const tplCount = ((await db.prepare('SELECT COUNT(*) as count FROM email_templates').get()) as any).count;
   if (tplCount === 0) {
     console.log('[Database] Seeding communication email templates...');
-    const insertTpl = db.prepare(`
+    const insertTplSql = `
       INSERT INTO email_templates (id, name, subject, category, body, variables_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    insertTpl.run(
-      'tpl_welcome',
-      'Welcome to VIB Platform',
-      'Welcome to VIB Digital Services Platform!',
-      'onboarding',
-      'Hello {{name}},\n\nWelcome to VIB! Your account has been registered under Riot ID: {{riot_id}}. All digital assets are protected through official escrow middleman security.\n\nBest regards,\nVIB Operations Team',
-      JSON.stringify(['name', 'riot_id']),
-      now,
-      now
-    );
-
-    insertTpl.run(
-      'tpl_order_confirmed',
-      'Order Confirmation & Dispatch Notice',
-      'Order Received: {{order_id}}',
-      'orders',
-      'Hello {{name}},\n\nYour order #{{order_id}} for {{title}} has been received and entered our automated dispatch queue. Payment method: {{payment_method}}.\n\nTrack your live order status in your VIB Dashboard.',
-      JSON.stringify(['name', 'order_id', 'title', 'payment_method']),
-      now,
-      now
-    );
-
-    insertTpl.run(
-      'tpl_kyc_approved',
-      'Seller Verification Approved',
-      'Verification Complete: Verified Seller',
-      'verification',
-      'Hello {{name}},\n\nCongratulations! Your seller verification has been reviewed and approved by compliance staff. Your listings are now eligible for instant dispatch.',
-      JSON.stringify(['name']),
-      now,
-      now
-    );
-
-    insertTpl.run(
-      'tpl_maintenance',
-      'Scheduled Maintenance Notification',
-      'Scheduled System Maintenance Notice',
-      'system',
-      'Hello {{name}},\n\nOur platform will undergo scheduled regional payment gateway maintenance from 02:00 AM to 04:00 AM IST. Orders placed during this period will be queued automatically.',
-      JSON.stringify(['name']),
-      now,
-      now
-    );
+    `;
+    await db.batch([
+      {
+        sql: insertTplSql,
+        args: [
+          'tpl_welcome',
+          'Welcome to VIB Platform',
+          'Welcome to VIB Digital Services Platform!',
+          'onboarding',
+          'Hello {{name}},\n\nWelcome to VIB! Your account has been registered under Riot ID: {{riot_id}}. All digital assets are protected through official escrow middleman security.\n\nBest regards,\nVIB Operations Team',
+          JSON.stringify(['name', 'riot_id']),
+          now,
+          now,
+        ],
+      },
+      {
+        sql: insertTplSql,
+        args: [
+          'tpl_order_confirmed',
+          'Order Confirmation & Dispatch Notice',
+          'Order Received: {{order_id}}',
+          'orders',
+          'Hello {{name}},\n\nYour order #{{order_id}} for {{title}} has been received and entered our automated dispatch queue. Payment method: {{payment_method}}.\n\nTrack your live order status in your VIB Dashboard.',
+          JSON.stringify(['name', 'order_id', 'title', 'payment_method']),
+          now,
+          now,
+        ],
+      },
+      {
+        sql: insertTplSql,
+        args: [
+          'tpl_kyc_approved',
+          'Seller Verification Approved',
+          'Verification Complete: Verified Seller',
+          'verification',
+          'Hello {{name}},\n\nCongratulations! Your seller verification has been reviewed and approved by compliance staff. Your listings are now eligible for instant dispatch.',
+          JSON.stringify(['name']),
+          now,
+          now,
+        ],
+      },
+      {
+        sql: insertTplSql,
+        args: [
+          'tpl_maintenance',
+          'Scheduled Maintenance Notification',
+          'Scheduled System Maintenance Notice',
+          'system',
+          'Hello {{name}},\n\nOur platform will undergo scheduled regional payment gateway maintenance from 02:00 AM to 04:00 AM IST. Orders placed during this period will be queued automatically.',
+          JSON.stringify(['name']),
+          now,
+          now,
+        ],
+      },
+    ]);
   }
 
   // 7. Seed Payment Settings if empty
-  const paymentSettingCount = (db.prepare('SELECT COUNT(*) as count FROM payment_settings').get() as any).count;
+  const paymentSettingCount = ((await db.prepare('SELECT COUNT(*) as count FROM payment_settings').get()) as any).count;
   if (paymentSettingCount === 0) {
     console.log('[Database] Seeding manual QR payment settings...');
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO payment_settings (
         id, upi_id, payee_name, qr_image_url, instructions, currency,
         support_whatsapp, support_email, manual_payment_enabled, verification_instructions, updated_at
@@ -1281,37 +1766,48 @@ export function seedCatalogAndBilling() {
   }
 
   // 8. Seed VIP / Promotional Listing Plans if empty
-  const vipCount = (db.prepare('SELECT COUNT(*) as count FROM vip_plans').get() as any).count;
+  const vipCount = ((await db.prepare('SELECT COUNT(*) as count FROM vip_plans').get()) as any).count;
   if (vipCount === 0) {
     console.log('[Database] Seeding VIP promotion plans...');
-    const insertVip = db.prepare(`
+    const insertVipSql = `
       INSERT INTO vip_plans (id, name, duration_days, price_inr, badge_label, features_json, active)
       VALUES (?, ?, ?, ?, ?, ?, 1)
-    `);
-    insertVip.run(
-      'plan_silver',
-      'Silver Feature Plan',
-      7,
-      499,
-      'VIP SILVER',
-      JSON.stringify(['Featured placement on Marketplace for 7 days', 'Silver verified badge', 'Standard middleman escrow priority'])
-    );
-    insertVip.run(
-      'plan_gold',
-      'Gold High-Impact Plan',
-      14,
-      899,
-      'VIP GOLD',
-      JSON.stringify(['Top search results position for 14 days', 'Golden border highlight', 'Priority middleman dispatch', 'Verified seller badge'])
-    );
-    insertVip.run(
-      'plan_platinum',
-      'Spotlight Pro Masterplan',
-      30,
-      1499,
-      'SPOTLIGHT PRO',
-      JSON.stringify(['Homepage spotlight carousel for 30 days', 'Instant broadcast to VIB Discord community', 'Zero seller transaction fees', 'Dedicated escrow manager'])
-    );
+    `;
+    await db.batch([
+      {
+        sql: insertVipSql,
+        args: [
+          'plan_silver',
+          'Silver Feature Plan',
+          7,
+          499,
+          'VIP SILVER',
+          JSON.stringify(['Featured placement on Marketplace for 7 days', 'Silver verified badge', 'Standard middleman escrow priority']),
+        ],
+      },
+      {
+        sql: insertVipSql,
+        args: [
+          'plan_gold',
+          'Gold High-Impact Plan',
+          14,
+          899,
+          'VIP GOLD',
+          JSON.stringify(['Top search results position for 14 days', 'Golden border highlight', 'Priority middleman dispatch', 'Verified seller badge']),
+        ],
+      },
+      {
+        sql: insertVipSql,
+        args: [
+          'plan_platinum',
+          'Spotlight Pro Masterplan',
+          30,
+          1499,
+          'SPOTLIGHT PRO',
+          JSON.stringify(['Homepage spotlight carousel for 30 days', 'Instant broadcast to VIB Discord community', 'Zero seller transaction fees', 'Dedicated escrow manager']),
+        ],
+      },
+    ]);
   }
 
   // Never seed redeemable VP PINs. Inventory must be supplier-provided through
@@ -1320,14 +1816,14 @@ export function seedCatalogAndBilling() {
 
   // 10. Seed Authentic Valorant Skin Catalog with Official Riot Assets
   console.log('[Database] Checking & Updating Valorant skin catalog with official Riot API assets...');
-  const insertOrUpdateSkin = db.prepare(`
+  const insertOrUpdateSkinSql = `
     INSERT INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     ON CONFLICT(id) DO UPDATE SET
       image_url = excluded.image_url,
       video_url = excluded.video_url,
       variants_json = excluded.variants_json
-  `);
+  `;
 
   const skinsList = [
     {
@@ -1512,312 +2008,399 @@ export function seedCatalogAndBilling() {
     }
   ];
 
-  for (const s of skinsList) {
-    insertOrUpdateSkin.run(s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now);
-  }
+  await db.batch(
+    skinsList.map((s) => ({
+      sql: insertOrUpdateSkinSql,
+      args: [s.id, s.name, s.weapon, s.collection, s.tier, s.image, s.video, JSON.stringify(s.variants), now],
+    }))
+  );
 
   // 11. Mock listings and auction lots removed. Only VP packages and genuine user data retained.
 
-  // 12. Seed Official VIB Advertisement Packages
-  const adPlanCount = (db.prepare('SELECT COUNT(*) as count FROM advertisement_plans').get() as any).count;
+  // 12. Seed Official VIB Advertisement Packages (non-Instagram channels, original pricing preserved)
+  const standardPlans = [
+    {
+      id: 'ad-story-95',
+      category: 'standard',
+      name: 'WhatsApp Status Promotion',
+      price: 95,
+      description: '24-hour dedicated WhatsApp Status & broadcast showcase to reach active Valorant buyers across India.',
+      badge: 'STARTER',
+      display_order: 1,
+      instagram_story: 1,
+      instagram_post: 0,
+      highlight_placement: 0,
+      story_count: '1 Status Blast (24h)',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: '24 Hours',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB WhatsApp Status Network',
+      placement_tag: 'WhatsApp Status (24h)',
+      benefits: ['24-Hour WhatsApp Status Promotion', 'Shared across VIB Buyer Broadcasts', 'Direct Seller Contact Tag & Inquiry Link', 'Fast Queue Scheduling'],
+    },
+    {
+      id: 'ad-story-highlight-150',
+      category: 'standard',
+      name: 'Status + Featured Highlight',
+      price: 150,
+      description: 'WhatsApp Status promotion plus permanent featured highlight placement for extended continuous buyer visibility.',
+      badge: 'POPULAR',
+      display_order: 2,
+      instagram_story: 1,
+      instagram_post: 0,
+      highlight_placement: 1,
+      story_count: '1 Status + Highlight',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: 'Permanent Highlight',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Status & Highlight Viewers',
+      placement_tag: 'WhatsApp Status + Highlight',
+      benefits: ['24-Hour WhatsApp Status Blast', 'Permanent VIB Featured Highlight Slot', 'Saved in Curated Account Showcase', 'Extended Exposure to Active Buyers'],
+    },
+    {
+      id: 'ad-post-210',
+      category: 'standard',
+      name: 'Channel Showcase Post Promotion',
+      price: 210,
+      description: 'Dedicated high-resolution channel post promotion across official VIB WhatsApp Channels and Community Feed.',
+      badge: 'FEED FEATURE',
+      display_order: 3,
+      instagram_story: 0,
+      instagram_post: 1,
+      highlight_placement: 0,
+      story_count: 'None',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: 'Permanent Channel Post',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Channel & Community Feed',
+      placement_tag: 'WhatsApp Channel Post',
+      benefits: ['Dedicated High-Resolution Channel Post', 'Permanent Placement on VIB Buyer Feed', 'Broad Community & Channel Reach', 'Direct Seller Contact Included'],
+    },
+    {
+      id: 'ad-post-2stories-315',
+      category: 'standard',
+      name: 'Channel Post + 2 Status Boosts',
+      price: 315,
+      description: 'Dedicated channel post plus 2 scheduled WhatsApp status boosts for maximum buyer reach and multi-touch visibility.',
+      badge: 'BEST COMBO',
+      display_order: 4,
+      instagram_story: 1,
+      instagram_post: 1,
+      highlight_placement: 0,
+      story_count: '2 Status Boosts',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: 'Permanent Post + 2 Boosts',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'Multi-Touch VIB Broadcast',
+      placement_tag: 'Channel Post + 2 Status Boosts',
+      benefits: ['Dedicated Permanent Channel Post', '2 Free WhatsApp Status Boosts (24h each)', 'Multi-touch Buyer Retargeting', 'Direct Seller Contact & Inquiry Link'],
+    },
+    {
+      id: 'ad-web-listing-420',
+      category: 'standard',
+      name: 'Public Community Website Listing only',
+      price: 420,
+      description: 'Permanent showcase on the VIB 2.0 public community website marketplace.',
+      badge: 'WEB EXCLUSIVE',
+      display_order: 5,
+      instagram_story: 0,
+      instagram_post: 0,
+      highlight_placement: 0,
+      story_count: 'None',
+      website_listing: 1,
+      inventory_editing: 0,
+      promotion_duration: 'Active Website Listing',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Public Web Marketplace',
+      placement_tag: 'Web Marketplace Showcase',
+      benefits: ['Permanent VIB 2.0 Website Listing', 'Live Search, Filter & Tag Indexing', 'Full Inventory Showcase with Skin Badges', 'Direct Buyer Escrow Inquiry Button'],
+    },
+    {
+      id: 'ad-post-6stories-edit-525',
+      category: 'standard',
+      name: 'Channel Post + 6 Status Blasts + Inventory Editing',
+      price: 525,
+      description: 'Channel post plus 6 recurring WhatsApp status blasts and professional graphic editing of your inventory showcase.',
+      badge: 'HIGH CONVERSION',
+      display_order: 6,
+      instagram_story: 1,
+      instagram_post: 1,
+      highlight_placement: 0,
+      story_count: '6 Status Blasts',
+      website_listing: 0,
+      inventory_editing: 1,
+      promotion_duration: '14 Days Campaign',
+      buyer_assistance: 1,
+      priority_placement: 1,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Active Collector Network',
+      placement_tag: 'Channel Post + 6 Blasts + Design',
+      benefits: ['Dedicated Permanent Channel Post', '6 Scheduled Status Blasts Over 14 Days', 'Professional Graphic Editing of Inventory', 'Priority Queue Placement & Support'],
+    },
+    {
+      id: 'ad-weekly-unlimited-1035',
+      category: 'standard',
+      name: 'Weekly Unlimited Status Blasts (once weekly) + Highlights + Inventory Editing + Public Community Website Listing',
+      price: 1035,
+      description: 'Weekly WhatsApp status blasts (once weekly until sold) + featured highlights + inventory editing + public community website listing.',
+      badge: 'ALL-IN-ONE MAX',
+      display_order: 7,
+      instagram_story: 1,
+      instagram_post: 1,
+      highlight_placement: 1,
+      story_count: 'Weekly Unlimited',
+      website_listing: 1,
+      inventory_editing: 1,
+      promotion_duration: 'Weekly Until Sold',
+      buyer_assistance: 1,
+      priority_placement: 1,
+      dedicated_agent: 1,
+      lifetime_guaranteed: 1,
+      reach_estimate: 'Full VIB Web & WhatsApp Ecosystem',
+      placement_tag: 'Weekly Blasts + Highlights + Website',
+      benefits: ['Weekly Status Pushes (Once Weekly Until Sold)', 'Permanent VIB Featured Highlight', 'Public Community Website Marketplace Listing', 'Professional Inventory Graphic Editing', 'Dedicated Buyer Inquiry Forwarding'],
+    },
+    {
+      id: 'ad-trade-story-55',
+      category: 'trade',
+      name: 'Trade / Exchange Status Promotion (24 hours)',
+      price: 55,
+      description: '24-hour trade shoutout on official VIB WhatsApp Status & trade broadcast to find fast swap partners.',
+      badge: 'FAST TRADE',
+      display_order: 8,
+      instagram_story: 1,
+      instagram_post: 0,
+      highlight_placement: 0,
+      story_count: '1 Trade Status',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: '24 Hours',
+      buyer_assistance: 0,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Trade & Swap Desk',
+      placement_tag: 'Trade Status (24h)',
+      benefits: ['24-Hour Dedicated Trade Status', 'Direct Seller Contact for Trade Offers', 'Reaches Weapon Skin Traders Across India', 'Escrow Coordination Option'],
+    },
+    {
+      id: 'ad-trade-highlight-105',
+      category: 'trade',
+      name: 'Trade / Exchange Status + Highlight Placement',
+      price: 105,
+      description: 'Trade status broadcast plus permanent featured highlight placement for extended continuous trade exposure.',
+      badge: 'TRADE HIGHLIGHT',
+      display_order: 9,
+      instagram_story: 1,
+      instagram_post: 0,
+      highlight_placement: 1,
+      story_count: '1 Status + Highlight',
+      website_listing: 0,
+      inventory_editing: 0,
+      promotion_duration: 'Permanent Trade Highlight',
+      buyer_assistance: 1,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Trade Highlight & Community',
+      placement_tag: 'Trade Status + Highlight',
+      benefits: ['24-Hour Trade Status Blast', 'Permanent VIB Trade Highlight Spot', 'Continuous Inquiries Until Trade Closed', 'Verified Middleman Escrow Support'],
+    },
+    {
+      id: 'ad-premium-guaranteed-2050',
+      category: 'premium',
+      name: 'Premium Guaranteed Sale Plan',
+      price: 2050,
+      description: 'High-priority feature across VIB channels, dedicated agent, and active buyer matchmaking until sold.',
+      badge: 'GUARANTEED SALE',
+      display_order: 10,
+      instagram_story: 1,
+      instagram_post: 1,
+      highlight_placement: 1,
+      story_count: 'Unlimited Blasts',
+      website_listing: 1,
+      inventory_editing: 1,
+      promotion_duration: 'Guaranteed Until Sold',
+      buyer_assistance: 1,
+      priority_placement: 1,
+      dedicated_agent: 1,
+      lifetime_guaranteed: 1,
+      reach_estimate: 'VIB Priority Collector & Escrow Network',
+      placement_tag: 'Full Priority Multi-Channel',
+      benefits: ['Continuous Promotion Until Account Sells', 'Dedicated Senior VIB Sales Agent', 'Priority Multi-Status & Channel Campaigns', 'Public Community Website Listing with VIP Badge', 'Full Escrow & Verification Included'],
+    },
+    {
+      id: 'ad-vip-luxury-3080',
+      category: 'premium',
+      name: 'VIP Luxury Promotion Plan',
+      price: 3080,
+      description: 'Elite promotion across Website, WhatsApp Channels, and Discord with unlimited pushes, VIP badge, and concierge handling.',
+      badge: 'VIP LUXURY',
+      display_order: 11,
+      instagram_story: 1,
+      instagram_post: 1,
+      highlight_placement: 1,
+      story_count: 'VIP Unlimited Push',
+      website_listing: 1,
+      inventory_editing: 1,
+      promotion_duration: 'Full Concierge Until Sold',
+      buyer_assistance: 1,
+      priority_placement: 1,
+      dedicated_agent: 1,
+      lifetime_guaranteed: 1,
+      reach_estimate: 'All VIB Official Channels (Web, WhatsApp, Discord)',
+      placement_tag: 'VIP Luxury Omni-Channel',
+      benefits: ['Multi-Platform Omni-Blast (Web, WhatsApp, Discord)', 'Unlimited Status Re-pushes & Channel Features', 'Senior Executive 1-on-1 Escrow Concierge', 'Professional 4K Graphic Showcase Edit', 'Top Featured Spot on Website Homepage & Market'],
+    },
+    {
+      id: 'ad-bonus-free-18pct',
+      category: 'bonus',
+      name: 'VIB Bonus Plan — Free Community Listing (18% Service Fee After Sale)',
+      price: 0,
+      description: 'Free public community advertisement with zero upfront fee — 18% service fee charged only after a successful sale.',
+      badge: '₹0 UPFRONT',
+      display_order: 12,
+      instagram_story: 0,
+      instagram_post: 0,
+      highlight_placement: 0,
+      story_count: 'None',
+      website_listing: 1,
+      inventory_editing: 0,
+      promotion_duration: 'Until Sold',
+      buyer_assistance: 1,
+      priority_placement: 0,
+      dedicated_agent: 0,
+      lifetime_guaranteed: 0,
+      reach_estimate: 'VIB Public Community Marketplace',
+      placement_tag: 'Web Listing (0 Advance)',
+      benefits: ['100% Free Upfront - No Advance Payment', 'Permanent Public Community Website Listing', '18% Service Fee ONLY Deducted on Successful Sale', 'Zero Risk If Your Account Does Not Sell', 'VIB Safe Escrow Payout Protection'],
+    },
+  ];
+
+  const adPlanCount = ((await db.prepare('SELECT COUNT(*) as count FROM advertisement_plans').get()) as any).count;
   if (adPlanCount === 0) {
     console.log('[Database] Seeding 12 authentic VIB advertisement plans...');
-    const insertAdPlan = db.prepare(`
+    const insertAdPlanSql = `
       INSERT OR REPLACE INTO advertisement_plans (
         id, category, name, price, description, badge, display_order, is_active,
         instagram_story, instagram_post, highlight_placement, story_count, website_listing,
         inventory_editing, promotion_duration, buyer_assistance, priority_placement,
-        dedicated_agent, lifetime_guaranteed, benefits_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+        dedicated_agent, lifetime_guaranteed, benefits_json, reach_estimate, placement_tag,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-    const standardPlans = [
-      {
-        id: 'ad-story-95',
-        category: 'standard',
-        name: 'Instagram Story Promotion',
-        price: 95,
-        description: '24-hour Story Promotion on VIB official Instagram to reach active Valorant buyers.',
-        badge: 'STARTER',
-        display_order: 1,
-        instagram_story: 1,
-        instagram_post: 0,
-        highlight_placement: 0,
-        story_count: '1 Story (24h)',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: '24 Hours',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['24-Hour Instagram Story Promotion', 'Shared across VIB Instagram Community', 'Direct Seller Tag & Link in Story', 'Fast 15-Minute Queue Scheduling'],
-      },
-      {
-        id: 'ad-story-highlight-150',
-        category: 'standard',
-        name: 'Story + Highlight',
-        price: 150,
-        description: 'Story promotion + permanent highlight placement for extended continuous visibility.',
-        badge: 'POPULAR',
-        display_order: 2,
-        instagram_story: 1,
-        instagram_post: 0,
-        highlight_placement: 1,
-        story_count: '1 Story',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: 'Permanent Highlight',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['24-Hour Instagram Story Blast', 'Permanent VIB Highlight Placement', 'Saves to Curated Account Showcase', 'Prolonged Exposure to Serious Buyers'],
-      },
-      {
-        id: 'ad-post-210',
-        category: 'standard',
-        name: 'Instagram Post Promotion',
-        price: 210,
-        description: 'Dedicated Instagram grid post promotion with high-resolution inventory showcase.',
-        badge: 'FEED FEATURE',
-        display_order: 3,
-        instagram_story: 0,
-        instagram_post: 1,
-        highlight_placement: 0,
-        story_count: 'None',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: 'Permanent Feed Post',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['Dedicated High-Resolution Grid Post', 'Permanent Placement on VIB Feed', 'Broad Algorithmic Reach & Explore Page', 'Direct Seller Tagging in Post Caption'],
-      },
-      {
-        id: 'ad-post-2stories-315',
-        category: 'standard',
-        name: 'Post + 2 Free Stories',
-        price: 315,
-        description: 'Dedicated grid post plus 2 free story boosts for maximum reach and multi-touch promotion.',
-        badge: 'BEST COMBO',
-        display_order: 4,
-        instagram_story: 1,
-        instagram_post: 1,
-        highlight_placement: 0,
-        story_count: '2 Free Stories',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: 'Permanent Post + 2 Boosts',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['Dedicated Permanent Grid Post', '2 Free Story Boosts (24h each)', 'Multi-touch Buyer Retargeting', 'Direct Account Tag & DM Link'],
-      },
-      {
-        id: 'ad-web-listing-420',
-        category: 'standard',
-        name: 'Public Community Website Listing only',
-        price: 420,
-        description: 'Permanent showcase on the VIB 2.0 public community website marketplace.',
-        badge: 'WEB EXCLUSIVE',
-        display_order: 5,
-        instagram_story: 0,
-        instagram_post: 0,
-        highlight_placement: 0,
-        story_count: 'None',
-        website_listing: 1,
-        inventory_editing: 0,
-        promotion_duration: 'Active Website Listing',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['Permanent VIB 2.0 Website Listing', 'Live Search, Filter & Tag Indexing', 'Full Inventory Showcase with Skin Badges', 'Direct Buyer Escrow Inquiry Button'],
-      },
-      {
-        id: 'ad-post-6stories-edit-525',
-        category: 'standard',
-        name: 'Post + 6 Stories + Inventory Editing',
-        price: 525,
-        description: 'Grid post + 6 recurring stories + professional graphic editing of your inventory showcase.',
-        badge: 'HIGH CONVERSION',
-        display_order: 6,
-        instagram_story: 1,
-        instagram_post: 1,
-        highlight_placement: 0,
-        story_count: '6 Stories',
-        website_listing: 0,
-        inventory_editing: 1,
-        promotion_duration: '14 Days Campaign',
-        buyer_assistance: 1,
-        priority_placement: 1,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['Dedicated Permanent Grid Post', '6 Scheduled Story Blasts Over 14 Days', 'Professional Graphic Editing of Inventory', 'Priority Queue Placement & Support'],
-      },
-      {
-        id: 'ad-weekly-unlimited-1035',
-        category: 'standard',
-        name: 'Weekly Unlimited Stories (once weekly) + Highlights + Inventory Editing + Public Community Website Listing',
-        price: 1035,
-        description: 'Weekly unlimited stories (once weekly until sold) + highlights + inventory editing + public community website listing.',
-        badge: 'ALL-IN-ONE MAX',
-        display_order: 7,
-        instagram_story: 1,
-        instagram_post: 1,
-        highlight_placement: 1,
-        story_count: 'Weekly Unlimited',
-        website_listing: 1,
-        inventory_editing: 1,
-        promotion_duration: 'Weekly Until Sold',
-        buyer_assistance: 1,
-        priority_placement: 1,
-        dedicated_agent: 1,
-        lifetime_guaranteed: 1,
-        benefits: ['Weekly Story Pushes (Once Weekly Until Sold)', 'Permanent VIB Instagram Highlight', 'Public Community Website Marketplace Listing', 'Professional Inventory Graphic Editing', 'Dedicated Buyer Inquiry Forwarding'],
-      },
-      {
-        id: 'ad-trade-story-55',
-        category: 'trade',
-        name: 'Story Promotion (24 hours)',
-        price: 55,
-        description: '24-hour trade shoutout on VIB Instagram to find fast trade partners.',
-        badge: 'FAST TRADE',
-        display_order: 8,
-        instagram_story: 1,
-        instagram_post: 0,
-        highlight_placement: 0,
-        story_count: '1 Trade Story',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: '24 Hours',
-        buyer_assistance: 0,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['24-Hour Dedicated Trade Story', 'Direct Tag to Your Instagram Handle', 'Reaches Weapon Skin Traders Across India', 'Instant Verification & Placement'],
-      },
-      {
-        id: 'ad-trade-highlight-105',
-        category: 'trade',
-        name: 'Story + Highlight Placement',
-        price: 105,
-        description: 'Trade story + permanent highlight placement for extended continuous trade exposure.',
-        badge: 'TRADE HIGHLIGHT',
-        display_order: 9,
-        instagram_story: 1,
-        instagram_post: 0,
-        highlight_placement: 1,
-        story_count: '1 Story + Highlight',
-        website_listing: 0,
-        inventory_editing: 0,
-        promotion_duration: 'Permanent Trade Highlight',
-        buyer_assistance: 1,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['24-Hour Trade Story Blast', 'Permanent VIB Trade Highlight Spot', 'Continuous Inquiries Until Trade Closed', 'Verified Middleman Escrow Support'],
-      },
-      {
-        id: 'ad-premium-guaranteed-2050',
-        category: 'premium',
-        name: 'Premium Guaranteed Sale Plan',
-        price: 2050,
-        description: 'High-priority feature, dedicated agent, and guaranteed active buyer matchmaking.',
-        badge: 'GUARANTEED SALE',
-        display_order: 10,
-        instagram_story: 1,
-        instagram_post: 1,
-        highlight_placement: 1,
-        story_count: 'Unlimited Stories',
-        website_listing: 1,
-        inventory_editing: 1,
-        promotion_duration: 'Guaranteed Until Sold',
-        buyer_assistance: 1,
-        priority_placement: 1,
-        dedicated_agent: 1,
-        lifetime_guaranteed: 1,
-        benefits: ['Continuous Promotion Until Account Sells', 'Dedicated Senior VIB Sales Agent', 'Priority Multi-Story & Feed Campaigns', 'Public Community Website Listing with VIP Badge', 'Full Escrow & Verification Included'],
-      },
-      {
-        id: 'ad-vip-luxury-3080',
-        category: 'premium',
-        name: 'VIP Luxury Promotion Plan',
-        price: 3080,
-        description: 'Elite promotion across all channels, unlimited pushes, VIP badge, and full concierge handling.',
-        badge: 'VIP LUXURY',
-        display_order: 11,
-        instagram_story: 1,
-        instagram_post: 1,
-        highlight_placement: 1,
-        story_count: 'VIP Unlimited Push',
-        website_listing: 1,
-        inventory_editing: 1,
-        promotion_duration: 'Full Concierge Until Sold',
-        buyer_assistance: 1,
-        priority_placement: 1,
-        dedicated_agent: 1,
-        lifetime_guaranteed: 1,
-        benefits: ['Multi-Platform Omni-Blast (Insta, Web, Discord)', 'Unlimited Story Re-pushes & Grid Features', 'Senior Executive 1-on-1 Escrow Concierge', 'Professional 4K Graphic Showcase Edit', 'Top Featured Spot on Website Homepage & Market'],
-      },
-      {
-        id: 'ad-bonus-free-18pct',
-        category: 'bonus',
-        name: 'Free Public Community Advertisement (18% Service Fee After Sale)',
-        price: 0,
-        description: 'Free public community advertisement with an 18% service fee charged only after a successful sale.',
-        badge: '₹0 UPFRONT',
-        display_order: 12,
-        instagram_story: 0,
-        instagram_post: 0,
-        highlight_placement: 0,
-        story_count: 'None',
-        website_listing: 1,
-        inventory_editing: 0,
-        promotion_duration: 'Until Sold',
-        buyer_assistance: 1,
-        priority_placement: 0,
-        dedicated_agent: 0,
-        lifetime_guaranteed: 0,
-        benefits: ['100% Free Upfront - No Advance Payment', 'Permanent Public Community Website Listing', '18% Service Fee ONLY Deducted on Successful Sale', 'Zero Risk If Your Account Does Not Sell', 'VIB Safe Escrow Payout Protection'],
-      },
-    ];
-
+    await db.batch(
+      standardPlans.map((p) => ({
+        sql: insertAdPlanSql,
+        args: [
+          p.id,
+          p.category,
+          p.name,
+          p.price,
+          p.description,
+          p.badge,
+          p.display_order,
+          1,
+          p.instagram_story,
+          p.instagram_post,
+          p.highlight_placement,
+          p.story_count,
+          p.website_listing,
+          p.inventory_editing,
+          p.promotion_duration,
+          p.buyer_assistance,
+          p.priority_placement,
+          p.dedicated_agent,
+          p.lifetime_guaranteed,
+          JSON.stringify(p.benefits),
+          p.reach_estimate,
+          p.placement_tag,
+          now,
+          now,
+        ],
+      }))
+    );
+  } else {
+    // Non-destructively migrate legacy Instagram copy in existing rows while preserving Admin prices and edits
+    const legacyPlanNames = new Set([
+      'Instagram Story Promotion',
+      'Story + Highlight',
+      'Instagram Post Promotion',
+      'Post + 2 Free Stories',
+      'Post + 6 Stories + Inventory Editing',
+      'Weekly Unlimited Stories (once weekly) + Highlights + Inventory Editing + Public Community Website Listing',
+      'Story Promotion (24 hours)',
+      'Story + Highlight Placement',
+      'Free Public Community Advertisement (18% Service Fee After Sale)',
+    ]);
+    const existingAdRows = await db
+      .prepare('SELECT id, name, description, story_count, benefits_json FROM advertisement_plans')
+      .all<any>();
+    const existingAdById = new Map(existingAdRows.map((r) => [r.id, r]));
+    const migrateCopySql = `
+      UPDATE advertisement_plans
+      SET name = ?,
+          description = ?,
+          story_count = ?,
+          promotion_duration = ?,
+          benefits_json = ?,
+          reach_estimate = COALESCE(reach_estimate, ?),
+          placement_tag = COALESCE(placement_tag, ?),
+          updated_at = ?
+      WHERE id = ?
+    `;
+    const copyUpdates: Array<{ sql: string; args: any[] }> = [];
     for (const p of standardPlans) {
-      insertAdPlan.run(
-        p.id,
-        p.category,
-        p.name,
-        p.price,
-        p.description,
-        p.badge,
-        p.display_order,
-        1,
-        p.instagram_story,
-        p.instagram_post,
-        p.highlight_placement,
-        p.story_count,
-        p.website_listing,
-        p.inventory_editing,
-        p.promotion_duration,
-        p.buyer_assistance,
-        p.priority_placement,
-        p.dedicated_agent,
-        p.lifetime_guaranteed,
-        JSON.stringify(p.benefits),
-        now,
-        now
-      );
+      const migrateRow = existingAdById.get(p.id);
+      if (!migrateRow) continue;
+      const blob = `${migrateRow.name || ''} ${migrateRow.description || ''} ${migrateRow.benefits_json || ''}`.toLowerCase();
+      if (blob.includes('instagram') || blob.includes('insta,') || blob.includes('multi-story') || legacyPlanNames.has(migrateRow.name)) {
+        copyUpdates.push({
+          sql: migrateCopySql,
+          args: [
+            p.name,
+            p.description,
+            p.story_count,
+            p.promotion_duration,
+            JSON.stringify(p.benefits),
+            p.reach_estimate,
+            p.placement_tag,
+            now,
+            p.id,
+          ],
+        });
+      }
+    }
+    if (copyUpdates.length > 0) {
+      await db.batch(copyUpdates);
     }
   }
 
   // 13. Do not auto-seed demo auctions; auction lots must be created cleanly by staff.
   // The profile count is a cached aggregate. Repair it from persisted orders so
   // legacy/demo counts never appear as customer order history in CRM or dashboards.
-  db.prepare(`
+  await db.prepare(`
     UPDATE profiles
     SET total_orders = (
       SELECT COUNT(*) FROM orders WHERE orders.user_id = profiles.user_id
@@ -1831,6 +2414,7 @@ export function seedCatalogAndBilling() {
  */
 export async function syncOfficialValorantSkins(): Promise<number> {
   try {
+    await ensureDbReady();
     const res = await fetch('https://valorant-api.com/v1/weapons/skins');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
@@ -1861,36 +2445,36 @@ export async function syncOfficialValorantSkins(): Promise<number> {
       return col || 'Standard';
     }
 
-    const insertOrReplace = db.prepare(`
+    const insertOrReplaceSql = `
       INSERT OR REPLACE INTO skins (id, name, weapon, collection, tier, image_url, video_url, variants_json, active, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-    `);
+    `;
 
     const now = new Date().toISOString();
-    let count = 0;
+    const skinStatements: Array<{ sql: string; args: any[] }> = [];
 
-    db.exec('BEGIN TRANSACTION;');
-    try {
-      for (const s of (json.data || [])) {
-        if (!s.displayName || s.displayName.startsWith('Standard') || s.displayName.startsWith('Random') || !s.displayIcon) {
-          continue;
-        }
+    for (const s of (json.data || [])) {
+      if (!s.displayName || s.displayName.startsWith('Standard') || s.displayName.startsWith('Random') || !s.displayIcon) {
+        continue;
+      }
 
-        const weapon = getWeapon(s.displayName, s.assetPath);
-        const collection = getCollection(s.displayName, weapon);
-        const video = (s.levels && Array.isArray(s.levels))
-          ? (s.levels.filter((l: any) => l.streamedVideo).pop()?.streamedVideo || null)
-          : null;
+      const weapon = getWeapon(s.displayName, s.assetPath);
+      const collection = getCollection(s.displayName, weapon);
+      const video = (s.levels && Array.isArray(s.levels))
+        ? (s.levels.filter((l: any) => l.streamedVideo).pop()?.streamedVideo || null)
+        : null;
 
-        const variants = (s.chromas && Array.isArray(s.chromas))
-          ? s.chromas.map((c: any) => ({
-              name: c.displayName,
-              icon: c.displayIcon || c.fullRender || null,
-              video: c.streamedVideo || null
-            }))
-          : [];
+      const variants = (s.chromas && Array.isArray(s.chromas))
+        ? s.chromas.map((c: any) => ({
+            name: c.displayName,
+            icon: c.displayIcon || c.fullRender || null,
+            video: c.streamedVideo || null
+          }))
+        : [];
 
-        insertOrReplace.run(
+      skinStatements.push({
+        sql: insertOrReplaceSql,
+        args: [
           s.uuid,
           s.displayName,
           weapon,
@@ -1900,16 +2484,17 @@ export async function syncOfficialValorantSkins(): Promise<number> {
           video,
           JSON.stringify(variants),
           now
-        );
-        count++;
-      }
-      db.exec('COMMIT;');
-    } catch (txErr) {
-      try { db.exec('ROLLBACK;'); } catch {}
-      throw txErr;
+        ],
+      });
     }
-    console.log(`[Database] Synced ${count} official Valorant skins with real API images and upgrade clips.`);
-    return count;
+
+    const chunkSize = 100;
+    for (let i = 0; i < skinStatements.length; i += chunkSize) {
+      await db.batch(skinStatements.slice(i, i + chunkSize));
+    }
+
+    console.log(`[Database] Synced ${skinStatements.length} official Valorant skins with real API images and upgrade clips.`);
+    return skinStatements.length;
   } catch (err: any) {
     console.warn('[Database] Could not sync skins from valorant-api.com:', err.message);
     return 0;

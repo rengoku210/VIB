@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   Mail,
-  Instagram,
   Phone,
   ShieldCheck,
   CheckCircle2,
@@ -304,12 +303,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
       return;
     }
 
-    // Instagram username is MANDATORY (per explicit user instruction)
     const cleanInstagram = instagramUsername.trim().replace(/^@/, '');
-    if (!cleanInstagram) {
-      setSubmitError('Instagram Username is mandatory. Please provide your Instagram username.');
-      return;
-    }
 
     if (!currentRank || currentRank === 'Select Current Rank') {
       setSubmitError('Please select your current Valorant rank.');
@@ -436,7 +430,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
               PROMOTION DETAILS RECEIVED!
             </h2>
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-md mx-auto">
-              Thank you, <strong className="text-white">{order.customer_name || 'Customer'}</strong>. Your complete profile information, screenshots, and Instagram tag have been dispatched to the VIB operations desk.
+              Thank you, <strong className="text-white">{order.customer_name || 'Customer'}</strong>. Your complete profile information, inventory screenshots, and contact details have been dispatched to the VIB operations desk.
             </p>
           </div>
 
@@ -450,8 +444,14 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
               <strong className="text-purple-300 font-rajdhani">{order.plan_name}</strong>
             </div>
             <div>
-              <span className="text-[10px] font-mono text-gray-400 uppercase block">Target Handle</span>
-              <strong className="text-pink-400 font-mono">@{instagramUsername.replace(/^@/, '')}</strong>
+              <span className="text-[10px] font-mono text-gray-400 uppercase block">Contact Channel</span>
+              <strong className="text-pink-400 font-mono">
+                {instagramUsername.trim()
+                  ? `@${instagramUsername.trim().replace(/^@/, '')}`
+                  : whatsappContactEnabled
+                  ? 'WhatsApp Direct'
+                  : 'VIB Coordinator'}
+              </strong>
             </div>
           </div>
 
@@ -675,12 +675,12 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                 <div className="flex items-start gap-2.5 p-3 rounded-lg bg-[#0a0714]/80 border border-purple-500/20 text-[11px] text-purple-200 leading-relaxed">
                   <Info className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
                   <span>
-                    <strong>Note:</strong> If disabled, your WhatsApp number will remain private and only your Instagram ID will be displayed as the contact option. Keeping WhatsApp contact enabled generally receives higher buyer inquiries, as most customers find it more convenient.
+                    <strong>Note:</strong> If disabled, your WhatsApp number will stay private and interested buyers will be routed through VIB operations or your optional social handle. Keeping WhatsApp contact enabled generally receives faster direct buyer inquiries.
                   </span>
                 </div>
               </div>
 
-              {/* Field 4: Row with Email Address & Instagram Username (MANDATORY) */}
+              {/* Field 4: Row with Email Address & Instagram Username (Optional) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-gray-200">
@@ -702,7 +702,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-semibold text-gray-200">
-                      Instagram Username <span className="text-rose-400">*</span>
+                      Instagram Username <span className="text-gray-400 font-normal">(Optional)</span>
                     </label>
                   </div>
                   <div className="relative flex items-center">
@@ -713,13 +713,12 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                       type="text"
                       value={instagramUsername}
                       onChange={(e) => setInstagramUsername(e.target.value)}
-                      required
-                      placeholder="e.g., your_instagram"
+                      placeholder="e.g., your_handle (optional)"
                       className="w-full bg-[#0a0714] border border-white/10 rounded-xl pl-8 pr-4 py-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all min-h-[44px]"
                     />
                   </div>
                   <span className="text-[10px] text-gray-400 block">
-                    Required for tag and buyer communication. Keep DMs open.
+                    Optional backup contact handle — not required for campaign publishing.
                   </span>
                 </div>
               </div>
@@ -1051,7 +1050,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
-                  <span>Ensure your contact details (WhatsApp, Email, Instagram) are correct and active.</span>
+                  <span>Ensure your contact details (WhatsApp and Email) are correct and active.</span>
                 </li>
               </ul>
             </div>
@@ -1141,7 +1140,7 @@ export const AdvertisementSubmissionPage: React.FC<AdvertisementSubmissionPagePr
                 <Users className="w-4 h-4" />
               </div>
               <span className="block text-xs font-bold text-white font-rajdhani">Direct</span>
-              <span className="text-[10px] text-gray-400 block">Instagram Tagging</span>
+              <span className="text-[10px] text-gray-400 block">Buyer Contact</span>
             </div>
 
             <div className="space-y-0.5">
