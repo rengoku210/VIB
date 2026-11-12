@@ -3,6 +3,7 @@ import { createClient as createLibsqlClient, type Client as LibsqlClient, type I
 import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { VALORANT_RANKS } from '../src/data/rank-pricing.js';
 
 const isVercel = Boolean(process.env.VERCEL);
@@ -1163,7 +1164,15 @@ async function bootstrapTursoFromBundledDb() {
   if (!fs.existsSync(templateDb)) return;
 
   console.log('[Database] Empty Turso database detected — bootstrapping initial snapshot from bundled data/vib.db...');
-  const src = new DatabaseSync(templateDb, { readOnly: true });
+  // Vercel mounts /var/task read-only, so SQLite throws errcode 14 opening data/vib.db directly. Copy to tmp first.
+  const tmpCopy = path.join(os.tmpdir(), `vib-bootstrap-${process.pid}-${Date.now()}.db`);
+  fs.copyFileSync(templateDb, tmpCopy);
+  for (const suffix of ['-wal', '-shm']) {
+    if (fs.existsSync(templateDb + suffix)) {
+      fs.copyFileSync(templateDb + suffix, tmpCopy + suffix);
+    }
+  }
+  const src = new DatabaseSync(tmpCopy);
   try {
     const srcTables = new Set(
       (src.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => String(r.name))
@@ -1200,6 +1209,11 @@ async function bootstrapTursoFromBundledDb() {
     try {
       src.close();
     } catch {}
+    for (const p of [tmpCopy, tmpCopy + '-wal', tmpCopy + '-shm']) {
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      } catch {}
+    }
   }
 }
 

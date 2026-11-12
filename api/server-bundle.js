@@ -44,7 +44,7 @@ var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
     var fs8 = __require("fs");
     var path8 = __require("path");
-    var os4 = __require("os");
+    var os5 = __require("os");
     var crypto18 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
@@ -190,7 +190,7 @@ var require_main = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path8.join(os4.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path8.join(os5.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -29341,7 +29341,7 @@ __export(supports_color_exports, {
   default: () => supports_color_default
 });
 import process2 from "node:process";
-import os3 from "node:os";
+import os4 from "node:os";
 import tty from "node:tty";
 function hasFlag(flag, argv = globalThis.Deno ? globalThis.Deno.args : process2.argv) {
   const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
@@ -29407,7 +29407,7 @@ function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
     return min;
   }
   if (process2.platform === "win32") {
-    const osRelease = os3.release().split(".");
+    const osRelease = os4.release().split(".");
     if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
       return Number(osRelease[2]) >= 14931 ? 3 : 2;
     }
@@ -40081,7 +40081,7 @@ var require_util2 = __commonJS({
     exports.isValidFile = isValidFile;
     exports.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
     var fs8 = __require("fs");
-    var os4 = __require("os");
+    var os5 = __require("os");
     var path8 = __require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
@@ -40179,7 +40179,7 @@ var require_util2 = __commonJS({
       return path8.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
-      return os4.platform().startsWith("win");
+      return os5.platform().startsWith("win");
     }
   }
 });
@@ -45562,7 +45562,7 @@ var require_googleauth = __commonJS({
     var fs8 = __require("fs");
     var gaxios_1 = require_src6();
     var gcpMetadata = require_src8();
-    var os4 = __require("os");
+    var os5 = __require("os");
     var path8 = __require("path");
     var crypto_1 = require_crypto3();
     var computeclient_1 = require_computeclient();
@@ -46071,7 +46071,7 @@ var require_googleauth = __commonJS({
        * @api private
        */
       _isWindows() {
-        const sys = os4.platform();
+        const sys = os5.platform();
         if (sys && sys.length >= 3) {
           if (sys.substring(0, 3).toLowerCase() === "win") {
             return true;
@@ -74736,6 +74736,7 @@ function _createClient3(config) {
 import crypto2 from "node:crypto";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 
 // src/data/rank-pricing.ts
 var groups = [
@@ -75866,7 +75867,14 @@ async function bootstrapTursoFromBundledDb() {
   const templateDb = path.resolve(process.cwd(), "data", "vib.db");
   if (!fs.existsSync(templateDb)) return;
   console.log("[Database] Empty Turso database detected \u2014 bootstrapping initial snapshot from bundled data/vib.db...");
-  const src = new DatabaseSync(templateDb, { readOnly: true });
+  const tmpCopy = path.join(os.tmpdir(), `vib-bootstrap-${process.pid}-${Date.now()}.db`);
+  fs.copyFileSync(templateDb, tmpCopy);
+  for (const suffix of ["-wal", "-shm"]) {
+    if (fs.existsSync(templateDb + suffix)) {
+      fs.copyFileSync(templateDb + suffix, tmpCopy + suffix);
+    }
+  }
+  const src = new DatabaseSync(tmpCopy);
   try {
     const srcTables = new Set(
       src.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r2) => String(r2.name))
@@ -75899,6 +75907,12 @@ async function bootstrapTursoFromBundledDb() {
     try {
       src.close();
     } catch {
+    }
+    for (const p of [tmpCopy, tmpCopy + "-wal", tmpCopy + "-shm"]) {
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      } catch {
+      }
     }
   }
 }
@@ -79619,7 +79633,7 @@ var fetch_default = nmfetch;
 // node_modules/nodemailer/dist/esm/shared/index.js
 import dns from "node:dns";
 import net4 from "node:net";
-import os from "node:os";
+import os2 from "node:os";
 import { finished } from "node:stream";
 var DNS_TTL = 5 * 60 * 1e3;
 var CACHE_CLEANUP_INTERVAL = 30 * 1e3;
@@ -79631,7 +79645,7 @@ var _readNetworkInterfaces = () => {
   if (!networkInterfacesRead) {
     networkInterfacesRead = true;
     try {
-      networkInterfaces = os.networkInterfaces();
+      networkInterfaces = os2.networkInterfaces();
     } catch (_err) {
     }
   }
@@ -86644,7 +86658,7 @@ import { EventEmitter as EventEmitter4 } from "node:events";
 import { EventEmitter as EventEmitter2 } from "node:events";
 import net7 from "node:net";
 import tls2 from "node:tls";
-import os2 from "node:os";
+import os3 from "node:os";
 import crypto10 from "node:crypto";
 
 // node_modules/nodemailer/dist/esm/smtp-connection/data-stream.js
@@ -88436,7 +88450,7 @@ var SMTPConnection = class extends EventEmitter2 {
   _getHostname() {
     let defaultHostname;
     try {
-      defaultHostname = os2.hostname() || "";
+      defaultHostname = os3.hostname() || "";
     } catch (_err) {
       defaultHostname = "localhost";
     }
