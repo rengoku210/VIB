@@ -11,6 +11,7 @@ import {
   Shield,
   Crown,
   Eye,
+  EyeOff,
   Loader2,
   Edit2,
   Trash2,
@@ -23,7 +24,7 @@ export const AdminListingsModeration: React.FC = () => {
   const { token, isAdmin } = useAuth();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('submitted');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Rejection modal
@@ -59,6 +60,7 @@ export const AdminListingsModeration: React.FC = () => {
       if (statusFilter !== 'all') url += `status=${statusFilter}&`;
 
       const res = await fetch(url, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -72,7 +74,7 @@ export const AdminListingsModeration: React.FC = () => {
     }
   };
 
-  const handleUpdateListingStatus = async (listingId: string, status: 'published' | 'rejected', reason?: string) => {
+  const handleUpdateListingStatus = async (listingId: string, status: 'published' | 'hidden' | 'rejected', reason?: string) => {
     if (!token) return;
     setProcessingId(listingId);
 
@@ -225,8 +227,8 @@ export const AdminListingsModeration: React.FC = () => {
           Listings Queue ({listings.length})
         </div>
 
-        <div className="flex items-center gap-2">
-          {(['submitted', 'published', 'rejected', 'draft', 'all'] as const).map((s) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {(['all', 'submitted', 'published', 'hidden', 'rejected', 'draft'] as const).map((s) => (
             <button
               key={s}
               type="button"
@@ -275,6 +277,7 @@ export const AdminListingsModeration: React.FC = () => {
 
                   const isSubmitted = item.status === 'submitted';
                   const isPublished = item.status === 'published';
+                  const isHidden = item.status === 'hidden';
                   const isRejected = item.status === 'rejected';
 
                   return (
@@ -295,7 +298,7 @@ export const AdminListingsModeration: React.FC = () => {
                       </td>
 
                       <td className="p-3.5">
-                        <div className="font-bold text-amber-300 font-rajdhani text-xs">{item.rank_tier}</div>
+                        <div className="font-bold text-amber-300 font-rajdhani text-xs">{item.rank || item.rank_tier}</div>
                         <div className="text-gray-400 font-mono text-[10px] uppercase">{item.region}</div>
                       </td>
 
@@ -327,6 +330,8 @@ export const AdminListingsModeration: React.FC = () => {
                           className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
                             isPublished
                               ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                              : isHidden
+                              ? 'bg-amber-950 text-amber-300 border border-amber-500/30'
                               : isSubmitted
                               ? 'bg-sky-950 text-sky-300 border border-sky-500/30 animate-pulse'
                               : isRejected
@@ -369,6 +374,19 @@ export const AdminListingsModeration: React.FC = () => {
                             </button>
                           )}
 
+                          {isPublished && (
+                            <button
+                              type="button"
+                              disabled={processingId === item.id}
+                              onClick={() => handleUpdateListingStatus(item.id, 'hidden')}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 font-bold font-rajdhani uppercase text-xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title="Hide from Public Storefront"
+                            >
+                              <EyeOff className="w-3.5 h-3.5" />
+                              <span>Hide</span>
+                            </button>
+                          )}
+
                           {!isPublished && (
                             <button
                               type="button"
@@ -381,7 +399,7 @@ export const AdminListingsModeration: React.FC = () => {
                               ) : (
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               )}
-                              <span>Approve</span>
+                              <span>{isHidden ? 'Unhide' : 'Approve'}</span>
                             </button>
                           )}
 
@@ -594,7 +612,8 @@ export const AdminListingsModeration: React.FC = () => {
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-[#111425] border border-white/15 text-white text-xs focus:ring-2 focus:ring-purple-400"
                   >
-                    <option value="published">Published</option>
+                    <option value="published">Published (Visible Publicly)</option>
+                    <option value="hidden">Hidden (Not Shown to Public)</option>
                     <option value="submitted">Submitted (Under Review)</option>
                     <option value="draft">Draft</option>
                     <option value="rejected">Rejected</option>

@@ -4877,8 +4877,12 @@ app.get('/api/listings', async (req: Request, res: Response): Promise<void> => {
       params.push(region);
     }
     if (guarantee_type) {
-      query += ' AND guarantee_type = ?';
-      params.push(guarantee_type);
+      if (guarantee_type === 'lifetime_guaranteed' || guarantee_type === 'guaranteed') {
+        query += " AND guarantee_type IN ('lifetime_guaranteed', 'guaranteed')";
+      } else {
+        query += ' AND guarantee_type = ?';
+        params.push(guarantee_type);
+      }
     }
     if (featured === '1' || featured === 'true') {
       query += ' AND featured = 1';
@@ -4897,8 +4901,12 @@ app.get('/api/listings', async (req: Request, res: Response): Promise<void> => {
     let countQuery = "SELECT COUNT(*) as count FROM listings WHERE status = 'published'";
     const countParams: any[] = [];
     if (guarantee_type) {
-      countQuery += ' AND guarantee_type = ?';
-      countParams.push(guarantee_type);
+      if (guarantee_type === 'lifetime_guaranteed' || guarantee_type === 'guaranteed') {
+        countQuery += " AND guarantee_type IN ('lifetime_guaranteed', 'guaranteed')";
+      } else {
+        countQuery += ' AND guarantee_type = ?';
+        countParams.push(guarantee_type);
+      }
     }
     if (featured === '1' || featured === 'true') {
       countQuery += ' AND featured = 1';
@@ -5178,6 +5186,8 @@ app.post('/api/admin/listings', authenticate, staffOnly, async (req: AuthRequest
     const now = new Date().toISOString();
 
     const resolvedSellerName = (seller_name && String(seller_name).trim()) || req.user?.name || 'VIB Official Vault';
+    const normalizedGuarantee =
+      guarantee_type === 'guaranteed' ? 'lifetime_guaranteed' : String(guarantee_type || 'escrow_protected').trim();
     const parsedPrice = Number(price_inr);
     const parsedLevel = Math.max(1, parseInt(String(level), 10) || 1);
     const parsedSkins = Array.isArray(skins) ? skins : [];
@@ -5196,7 +5206,7 @@ app.post('/api/admin/listings', authenticate, staffOnly, async (req: AuthRequest
       req.user!.id,
       resolvedSellerName,
       seller_role,
-      guarantee_type,
+      normalizedGuarantee,
       String(title).trim(),
       String(description).trim(),
       parsedPrice,
@@ -5245,7 +5255,7 @@ app.put('/api/admin/listings/:id/status', authenticate, staffOnly, async (req: A
     const { status, featured } = req.body;
     const reason = req.body.reason || req.body.reject_reason || req.body.rejection_reason || null;
 
-    const validStatuses = ['approved', 'published', 'rejected', 'archived', 'draft', 'pending_review', 'submitted'];
+    const validStatuses = ['approved', 'published', 'hidden', 'rejected', 'archived', 'draft', 'pending_review', 'submitted'];
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: `Invalid listing status: ${status}` });
       return;
@@ -5315,7 +5325,8 @@ app.put('/api/admin/listings/:id', authenticate, staffOnly, async (req: AuthRequ
     const updatedImages = images !== undefined ? JSON.stringify(images) : existing.images_json;
     const updatedSkins = skins !== undefined ? JSON.stringify(skins) : existing.skins_json;
     const updatedSellerRole = seller_role !== undefined ? String(seller_role).trim() : existing.seller_role;
-    const updatedGuarantee = guarantee_type !== undefined ? String(guarantee_type).trim() : existing.guarantee_type;
+    const updatedGuaranteeRaw = guarantee_type !== undefined ? String(guarantee_type).trim() : existing.guarantee_type;
+    const updatedGuarantee = updatedGuaranteeRaw === 'guaranteed' ? 'lifetime_guaranteed' : updatedGuaranteeRaw;
     const updatedStatus = status !== undefined ? String(status).trim() : existing.status;
     const updatedReason = rejection_reason !== undefined ? rejection_reason : existing.rejection_reason;
 

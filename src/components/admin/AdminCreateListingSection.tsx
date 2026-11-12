@@ -73,10 +73,10 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
   const [peakRank, setPeakRank] = useState(VALORANT_RANKS[0]?.name || 'Unranked');
   const [level, setLevel] = useState<number>(1);
   const [region, setRegion] = useState('Asia Pacific (Mumbai)');
-  const [guaranteeType, setGuaranteeType] = useState<'guaranteed' | 'escrow_protected'>('escrow_protected');
+  const [guaranteeType, setGuaranteeType] = useState<'lifetime_guaranteed' | 'escrow_protected'>('lifetime_guaranteed');
   const [sellerName, setSellerName] = useState('');
   const [featured, setFeatured] = useState(false);
-  const [status, setStatus] = useState<'published' | 'draft'>('published');
+  const [status, setStatus] = useState<'published' | 'hidden' | 'draft'>('published');
   const [selectedThumbnail, setSelectedThumbnail] = useState('');
   const [customThumbnail, setCustomThumbnail] = useState('');
   const [selectedSkins, setSelectedSkins] = useState<string[]>([]);
@@ -163,6 +163,8 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
       setSuccessMessage(
         status === 'published'
           ? `Listing "${title}" is now live on the public marketplace!`
+          : status === 'hidden'
+          ? `Listing "${title}" saved as hidden (staff-only until unhidden).`
           : `Draft listing "${title}" saved successfully.`
       );
 
@@ -371,11 +373,11 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
                 onChange={(e) => setGuaranteeType(e.target.value as any)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/15 focus:border-purple-400 text-white text-xs font-sans focus:outline-none"
               >
-                <option value="escrow_protected" className="bg-gray-900">
-                  Escrow Protected (Community)
+                <option value="lifetime_guaranteed" className="bg-gray-900">
+                  Lifetime Guaranteed (Main Storefront Tab)
                 </option>
-                <option value="guaranteed" className="bg-gray-900">
-                  VIB Guaranteed (Official Verified)
+                <option value="escrow_protected" className="bg-gray-900">
+                  Escrow Protected (Public Community Tab)
                 </option>
               </select>
             </div>
@@ -541,6 +543,17 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
               </button>
               <button
                 type="button"
+                onClick={() => setStatus('hidden')}
+                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  status === 'hidden'
+                    ? 'bg-zinc-600 text-white shadow-md'
+                    : 'bg-white/5 text-gray-400 hover:text-white'
+                }`}
+              >
+                Hidden
+              </button>
+              <button
+                type="button"
                 onClick={() => setStatus('published')}
                 className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
                   status === 'published'
@@ -591,7 +604,13 @@ export const AdminCreateListingSection: React.FC<AdminCreateListingSectionProps>
               </>
             ) : (
               <>
-                <span>{status === 'published' ? 'Publish to Marketplace' : 'Save as Draft'}</span>
+                <span>
+                  {status === 'published'
+                    ? 'Publish to Marketplace'
+                    : status === 'hidden'
+                    ? 'Save as Hidden'
+                    : 'Save as Draft'}
+                </span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

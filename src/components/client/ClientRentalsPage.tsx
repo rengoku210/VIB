@@ -53,7 +53,7 @@ export const ClientRentalsPage: React.FC<ClientRentalsPageProps> = ({
 
   useEffect(() => {
     let active = true;
-    fetch('/api/rentals')
+    fetch('/api/rentals', { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load rentals');
         return res.json();

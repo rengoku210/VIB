@@ -38,7 +38,13 @@ export const AdminAuctionsManagement: React.FC = () => {
   const [isBiddersOpen, setIsBiddersOpen] = useState(false);
   const [selectedLot, setSelectedLot] = useState<any | null>(null);
   const [biddersList, setBiddersList] = useState<any[]>([]);
+  const [lotDepositsList, setLotDepositsList] = useState<any[]>([]);
+  const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
   const [loadingBidders, setLoadingBidders] = useState(false);
+  const [processingDepositId, setProcessingDepositId] = useState<string | null>(null);
+  const [previewEvidenceUrl, setPreviewEvidenceUrl] = useState<string | null>(null);
+  const [rejectDepositTarget, setRejectDepositTarget] = useState<any | null>(null);
+  const [rejectDepositReason, setRejectDepositReason] = useState('UTR or payment screenshot could not be verified.');
 
   // Pause reason state
   const [pauseLotId, setPauseLotId] = useState<string | null>(null);
@@ -92,13 +98,31 @@ export const AdminAuctionsManagement: React.FC = () => {
 
   useEffect(() => {
     fetchLots();
+    fetchPendingDeposits();
   }, [token]);
+
+  const fetchPendingDeposits = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/auctions/deposits?status=submitted_for_verification', {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingDeposits(data.deposits || []);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch pending auction deposits:', err);
+    }
+  };
 
   const fetchLots = async () => {
     if (!token) return;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/auctions', {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -118,16 +142,74 @@ export const AdminAuctionsManagement: React.FC = () => {
     setLoadingBidders(true);
     try {
       const res = await fetch(`/api/admin/auctions/${lot.id}/bidders`, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setBiddersList(data.bidders || []);
+        setBiddersList(data.bids || data.bidders || []);
+        setLotDepositsList(data.deposits || []);
       }
     } catch (err) {
       console.warn('Failed to fetch bidders:', err);
     } finally {
       setLoadingBidders(false);
+    }
+  };
+
+  const handleVerifyDeposit = async (depositId: string) => {
+    if (!token) return;
+    setProcessingDepositId(depositId);
+    try {
+      const res = await fetch(`/api/admin/auctions/deposits/${encodeURIComponent(depositId)}/verify`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        fetchPendingDeposits();
+        fetchLots();
+        if (selectedLot && isBiddersOpen) {
+          handleOpenBidders(selectedLot);
+        }
+        if (data?.message) alert(data.message);
+      } else {
+        alert(data?.error || 'Failed to verify auction deposit.');
+      }
+    } catch {
+      alert('Network failure while verifying deposit.');
+    } finally {
+      setProcessingDepositId(null);
+    }
+  };
+
+  const handleRejectDeposit = async () => {
+    if (!token || !rejectDepositTarget) return;
+    setProcessingDepositId(rejectDepositTarget.id);
+    try {
+      const res = await fetch(
+        `/api/admin/auctions/deposits/${encodeURIComponent(rejectDepositTarget.id)}/reject`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ reason: rejectDepositReason.trim() || 'Payment proof could not be verified.' }),
+        }
+      );
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        setRejectDepositTarget(null);
+        fetchPendingDeposits();
+        fetchLots();
+        if (selectedLot && isBiddersOpen) {
+          handleOpenBidders(selectedLot);
+        }
+      } else {
+        alert(data?.error || 'Failed to reject deposit.');
+      }
+    } catch {
+      alert('Network failure while rejecting deposit.');
+    } finally {
+      setProcessingDepositId(null);
     }
   };
 
@@ -271,7 +353,10 @@ export const AdminAuctionsManagement: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={fetchLots}
+            onClick={() => {
+              fetchLots();
+              fetchPendingDeposits();
+            }}
             className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 transition-colors cursor-pointer"
             title="Refresh Auctions"
           >
@@ -323,6 +408,95 @@ export const AdminAuctionsManagement: React.FC = () => {
           </select>
         </div>
       </div>
+
+      {/* Pending Deposit Verifications Queue */}
+      {pendingDeposits.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-950/20 p-5 space-y-3 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
+              <h3 className="text-sm sm:text-base font-black font-rajdhani text-amber-200 uppercase tracking-wider">
+                Pending Auction Deposit Verifications ({pendingDeposits.length})
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono text-amber-300/90">
+              Bids remain locked until payment proof is inspected &amp; approved
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#0b0c19]">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10 font-rajdhani font-bold">
+                <tr>
+                  <th className="p-3">Bidder</th>
+                  <th className="p-3">Lot</th>
+                  <th className="p-3">Queued Bid / Deposit</th>
+                  <th className="p-3">UTR &amp; Proof</th>
+                  <th className="p-3 text-right">Verification Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {pendingDeposits.map((dep) => (
+                  <tr key={dep.id} className="hover:bg-white/[0.02]">
+                    <td className="p-3">
+                      <div className="font-bold text-white font-rajdhani">{dep.customer_name || dep.user_id}</div>
+                      <div className="text-[10px] text-gray-400">{dep.customer_email || ''}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-purple-300 font-rajdhani">{dep.lot_title || dep.lot_id}</div>
+                      <div className="text-[10px] text-gray-400">{dep.lot_number || dep.id}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-white">Bid: ₹{Number(dep.pending_bid_amount || 0).toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-amber-300 font-bold">Deposit: ₹{Number(dep.amount || 0).toLocaleString('en-IN')}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-white font-bold">{dep.gateway_ref || '—'}</div>
+                      {dep.payment_evidence_image ? (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewEvidenceUrl(dep.payment_evidence_image)}
+                          className="mt-1 inline-flex items-center gap-1 text-[11px] text-cyan-300 hover:underline cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Inspect Receipt</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-rose-400">No screenshot</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={processingDepositId === dep.id}
+                          onClick={() => handleVerifyDeposit(dep.id)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-rajdhani uppercase text-[11px] cursor-pointer disabled:opacity-50"
+                        >
+                          {processingDepositId === dep.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <span>Verify &amp; Approve</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={processingDepositId === dep.id}
+                          onClick={() => {
+                            setRejectDepositTarget(dep);
+                            setRejectDepositReason('UTR or payment screenshot could not be verified.');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/40 text-rose-300 font-bold font-rajdhani uppercase text-[11px] cursor-pointer disabled:opacity-50"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Auction Lots Table */}
       <div className="rounded-2xl border border-white/10 overflow-hidden bg-[#0c0d1b] shadow-xl">
@@ -830,63 +1004,170 @@ export const AdminAuctionsManagement: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto rounded-xl border border-white/10">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10 font-rajdhani font-bold">
-                  <tr>
-                    <th className="p-3">Bidder</th>
-                    <th className="p-3">Submitted Bid</th>
-                    <th className="p-3">Deposit Held</th>
-                    <th className="p-3">Deposit Status</th>
-                    <th className="p-3">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {loadingBidders ? (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Lot Deposit Proofs & Verification Audit */}
+              <div className="rounded-xl border border-white/10 overflow-hidden">
+                <div className="bg-white/5 px-3.5 py-2 text-[11px] font-rajdhani font-bold uppercase tracking-wider text-amber-300 border-b border-white/10">
+                  Security Deposit Submissions ({lotDepositsList.length})
+                </div>
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-white/[0.03] text-gray-400 uppercase tracking-wider border-b border-white/10 font-rajdhani font-bold">
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-gray-400">
-                        <Loader2 className="w-5 h-5 animate-spin mx-auto text-purple-400" />
-                      </td>
+                      <th className="p-2.5">Customer</th>
+                      <th className="p-2.5">Queued Bid / Paid</th>
+                      <th className="p-2.5">UTR &amp; Receipt</th>
+                      <th className="p-2.5">Status</th>
+                      <th className="p-2.5 text-right">Actions</th>
                     </tr>
-                  ) : biddersList.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-6 text-center text-gray-400 font-sans">
-                        Zero bids recorded for this auction.
-                      </td>
-                    </tr>
-                  ) : (
-                    biddersList.map((bid) => (
-                      <tr key={bid.id} className="hover:bg-white/[0.02]">
-                        <td className="p-3 font-bold text-white font-rajdhani">
-                          {bid.bidder_name}
-                        </td>
-                        <td className="p-3 font-bold text-purple-300">
-                          ₹{Number(bid.amount).toLocaleString('en-IN')}
-                        </td>
-                        <td className="p-3 text-yellow-300 font-bold">
-                          ₹{Number(bid.deposit_paid || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              bid.deposit_status === 'applied_to_winner'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : bid.deposit_status === 'refunded'
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : 'bg-yellow-500/20 text-yellow-300'
-                            }`}
-                          >
-                            {bid.deposit_status || 'held'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-gray-400 text-[10px]">
-                          {new Date(bid.created_at).toLocaleString('en-IN')}
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {loadingBidders ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-gray-400">
+                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-purple-400" />
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : lotDepositsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-gray-400 font-sans">
+                          No deposit submissions recorded for this lot yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      lotDepositsList.map((dep) => (
+                        <tr key={dep.id} className="hover:bg-white/[0.02]">
+                          <td className="p-2.5">
+                            <div className="font-bold text-white font-rajdhani">{dep.customer_name || dep.user_id}</div>
+                            <div className="text-[10px] text-gray-400">{dep.id}</div>
+                          </td>
+                          <td className="p-2.5">
+                            <div className="text-purple-300 font-bold">Bid: ₹{Number(dep.pending_bid_amount || 0).toLocaleString('en-IN')}</div>
+                            <div className="text-yellow-300">Deposit: ₹{Number(dep.amount || 0).toLocaleString('en-IN')}</div>
+                          </td>
+                          <td className="p-2.5">
+                            <div className="text-white">{dep.gateway_ref || '—'}</div>
+                            {dep.payment_evidence_image && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewEvidenceUrl(dep.payment_evidence_image)}
+                                className="inline-flex items-center gap-1 text-[10px] text-cyan-300 hover:underline cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>View Receipt</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="p-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                dep.status === 'held' || dep.status === 'applied_to_winner'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : dep.status === 'submitted_for_verification'
+                                  ? 'bg-amber-500/20 text-amber-300'
+                                  : dep.status === 'rejected'
+                                  ? 'bg-rose-500/20 text-rose-300'
+                                  : 'bg-zinc-500/20 text-zinc-300'
+                              }`}
+                            >
+                              {dep.status}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right">
+                            {(dep.status === 'submitted_for_verification' || dep.status === 'pending') ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={processingDepositId === dep.id}
+                                  onClick={() => handleVerifyDeposit(dep.id)}
+                                  className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-rajdhani font-bold uppercase text-[10px] cursor-pointer disabled:opacity-50"
+                                >
+                                  Verify
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={processingDepositId === dep.id}
+                                  onClick={() => {
+                                    setRejectDepositTarget(dep);
+                                    setRejectDepositReason('UTR or payment screenshot could not be verified.');
+                                  }}
+                                  className="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/40 text-rose-300 font-rajdhani font-bold uppercase text-[10px] cursor-pointer disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-500">{dep.rejection_reason ? 'Rejected' : 'Audited'}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Accepted Bids Table */}
+              <div className="rounded-xl border border-white/10 overflow-hidden">
+                <div className="bg-white/5 px-3.5 py-2 text-[11px] font-rajdhani font-bold uppercase tracking-wider text-purple-300 border-b border-white/10">
+                  Verified Accepted Bids ({biddersList.length})
+                </div>
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-white/[0.03] text-gray-400 uppercase tracking-wider border-b border-white/10 font-rajdhani font-bold">
+                    <tr>
+                      <th className="p-3">Bidder</th>
+                      <th className="p-3">Accepted Bid</th>
+                      <th className="p-3">Deposit Held</th>
+                      <th className="p-3">Deposit Status</th>
+                      <th className="p-3">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {loadingBidders ? (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-gray-400">
+                          <Loader2 className="w-5 h-5 animate-spin mx-auto text-purple-400" />
+                        </td>
+                      </tr>
+                    ) : biddersList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-gray-400 font-sans">
+                          Zero verified bids recorded for this auction.
+                        </td>
+                      </tr>
+                    ) : (
+                      biddersList.map((bid) => (
+                        <tr key={bid.id} className="hover:bg-white/[0.02]">
+                          <td className="p-3 font-bold text-white font-rajdhani">
+                            {bid.bidder_name}
+                          </td>
+                          <td className="p-3 font-bold text-purple-300">
+                            ₹{Number(bid.amount).toLocaleString('en-IN')}
+                          </td>
+                          <td className="p-3 text-yellow-300 font-bold">
+                            ₹{Number(bid.deposit_paid || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                bid.deposit_status === 'applied_to_winner'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : bid.deposit_status === 'refunded'
+                                  ? 'bg-blue-500/20 text-blue-400'
+                                  : 'bg-yellow-500/20 text-yellow-300'
+                              }`}
+                            >
+                              {bid.deposit_status || 'held'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-gray-400 text-[10px]">
+                            {new Date(bid.created_at).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex justify-end pt-2">
@@ -934,6 +1215,74 @@ export const AdminAuctionsManagement: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer"
               >
                 Confirm Pause
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL 4: RECEIPT EVIDENCE LIGHTBOX */}
+      {previewEvidenceUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+          onClick={() => setPreviewEvidenceUrl(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full bg-[#0b0c19] border border-cyan-500/40 rounded-2xl p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-rajdhani font-bold uppercase text-cyan-300">
+                Auction Deposit Payment Receipt
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewEvidenceUrl(null)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <img
+              src={previewEvidenceUrl}
+              alt="Payment Evidence Screenshot"
+              className="w-full max-h-[75vh] object-contain rounded-xl bg-black"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: REJECT DEPOSIT REASON */}
+      {rejectDepositTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-[#0b0c19] border border-rose-500/40 rounded-2xl p-6 shadow-2xl space-y-4">
+            <h3 className="text-base font-black font-rajdhani text-rose-300 uppercase tracking-wider flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-rose-400" />
+              <span>Reject Deposit Submission ({rejectDepositTarget.id})</span>
+            </h3>
+            <p className="text-xs text-gray-400">
+              State why this UTR ({rejectDepositTarget.gateway_ref || '—'}) / receipt could not be verified. The bidder will see this reason.
+            </p>
+            <textarea
+              rows={3}
+              value={rejectDepositReason}
+              onChange={(e) => setRejectDepositReason(e.target.value)}
+              className="w-full bg-[#14162e] border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-400"
+            />
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectDepositTarget(null)}
+                className="px-3.5 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white text-xs font-bold font-rajdhani uppercase cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={processingDepositId === rejectDepositTarget.id}
+                onClick={handleRejectDeposit}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-rajdhani uppercase cursor-pointer disabled:opacity-50"
+              >
+                Confirm Rejection
               </button>
             </div>
           </div>

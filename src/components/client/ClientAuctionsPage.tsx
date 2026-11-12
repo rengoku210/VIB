@@ -19,6 +19,8 @@ import {
   Lock,
   RefreshCw,
   Info,
+  Upload,
+  FileImage,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { ClientPage } from './Header';
@@ -62,8 +64,16 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
     refundPolicySummary: string;
   } | null>(null);
   const [paymentUtr, setPaymentUtr] = useState('');
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+  const [paymentScreenshotName, setPaymentScreenshotName] = useState('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [depositModalError, setDepositModalError] = useState<string | null>(null);
   const [isConfirmingDeposit, setIsConfirmingDeposit] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [myAuctionStatus, setMyAuctionStatus] = useState<{
+    verifiedHeldTotal: number;
+    deposits: any[];
+  } | null>(null);
 
   // Countdown
   const auctionEndsAt = selectedLot?.ends_at || null;
@@ -122,6 +132,29 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
     }
   };
 
+  // Fetch current user's verified / pending deposits on selected lot
+  const fetchMyAuctionStatus = async (lotId: string) => {
+    if (!token) {
+      setMyAuctionStatus(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/auctions/${encodeURIComponent(lotId)}/my-status`, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyAuctionStatus({
+          verifiedHeldTotal: Number(data.verifiedHeldTotal) || 0,
+          deposits: Array.isArray(data.deposits) ? data.deposits : [],
+        });
+      }
+    } catch {
+      // silent refresh failure
+    }
+  };
+
   useEffect(() => {
     void fetchActiveLots();
   }, []);
@@ -129,11 +162,13 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
   useEffect(() => {
     if (!selectedLot?.id) return;
     void fetchLotData(selectedLot.id);
+    void fetchMyAuctionStatus(selectedLot.id);
     const interval = setInterval(() => {
       void fetchLotData(selectedLot.id);
+      void fetchMyAuctionStatus(selectedLot.id);
     }, 5000);
     return () => clearInterval(interval);
-  }, [selectedLot?.id]);
+  }, [selectedLot?.id, token]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -185,6 +220,9 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
         setIsDepositModalOpen(true);
         setTermsAccepted(false);
         setPaymentUtr('');
+        setPaymentScreenshotUrl('');
+        setPaymentScreenshotName('');
+        setDepositModalError(null);
       }
     } catch {
       setBidErrorMessage('Network error connecting to deposit service. Please retry.');
@@ -193,18 +231,71 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
     }
   };
 
-  // Step 2: Confirm Deposit & Submit Verified Bid
-  const handleConfirmDepositAndBid = async () => {
-    if (!depositData || !selectedLot) return;
-    if (!termsAccepted) {
-      alert('Please review and accept the bidding deposit terms and refund conditions.');
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDepositModalError(null);
+
+    if (!file.type.startsWith('image/')) {
+      setDepositModalError('Please upload a valid PNG, JPG, or WebP payment screenshot.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setDepositModalError('Screenshot file exceeds the 10MB limit.');
       return;
     }
 
-    // If additional payment is required, ensure UTR or transaction ID is entered
-    if (!depositData.alreadyCovered && !paymentUtr.trim()) {
-      alert('Please enter the UPI UTR / Transaction Reference number after completing payment.');
+    setIsUploadingProof(true);
+    setPaymentScreenshotName(file.name);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: reader.result, filename: file.name }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.url) {
+          setDepositModalError(data?.error || 'Failed to upload payment screenshot.');
+          setPaymentScreenshotUrl('');
+          setPaymentScreenshotName('');
+        } else {
+          setPaymentScreenshotUrl(data.url);
+        }
+      } catch {
+        setDepositModalError('Network error while uploading receipt screenshot.');
+        setPaymentScreenshotUrl('');
+      } finally {
+        setIsUploadingProof(false);
+      }
+    };
+    reader.onerror = () => {
+      setDepositModalError('Could not read the selected image file.');
+      setIsUploadingProof(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Step 2: Submit Deposit Proof for Admin Review (or place bid if verified credit covers it)
+  const handleConfirmDepositAndBid = async () => {
+    if (!depositData || !selectedLot) return;
+    setDepositModalError(null);
+
+    if (!termsAccepted) {
+      setDepositModalError('Please review and accept the bidding deposit terms and refund conditions.');
       return;
+    }
+
+    if (!depositData.alreadyCovered) {
+      if (paymentUtr.trim().length < 6) {
+        setDepositModalError('Please enter a valid UPI UTR / Transaction Reference (at least 6 characters).');
+        return;
+      }
+      if (!paymentScreenshotUrl) {
+        setDepositModalError('Please upload your UPI payment receipt screenshot before submitting.');
+        return;
+      }
     }
 
     setIsConfirmingDeposit(true);
@@ -212,7 +303,6 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // 1. Confirm deposit payment
       if (!depositData.alreadyCovered) {
         const confirmRes = await fetch(`/api/auctions/${encodeURIComponent(selectedLot.id)}/deposit-confirm`, {
           method: 'POST',
@@ -221,18 +311,31 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
             depositTxId: depositData.depositTxId,
             gatewayRef: paymentUtr.trim(),
             paymentMethod: 'UPI_QR',
+            paymentEvidenceImage: paymentScreenshotUrl,
           }),
         });
 
+        const confirmData = await confirmRes.json().catch(() => null);
         if (!confirmRes.ok) {
-          const errData = await confirmRes.json();
-          alert(errData.error || 'Deposit payment could not be confirmed.');
+          setDepositModalError(confirmData?.error || 'Deposit proof submission failed.');
           setIsConfirmingDeposit(false);
+          return;
+        }
+
+        if (confirmData?.awaitingVerification) {
+          setIsDepositModalOpen(false);
+          setUserBidInput('');
+          setBidSuccessMessage(
+            confirmData.message ||
+              'Deposit proof submitted! An administrator must verify your payment receipt before your bid is accepted.'
+          );
+          void fetchLotData(selectedLot.id);
+          void fetchMyAuctionStatus(selectedLot.id);
           return;
         }
       }
 
-      // 2. Place verified bid
+      // Place verified bid using Admin-approved held deposit balance
       const bidRes = await fetch(`/api/auctions/${encodeURIComponent(selectedLot.id)}/bid`, {
         method: 'POST',
         headers,
@@ -242,19 +345,20 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
         }),
       });
 
-      const bidResult = await bidRes.json();
+      const bidResult = await bidRes.json().catch(() => null);
       if (!bidRes.ok) {
-        alert(bidResult.error || 'Failed to place verified bid.');
+        setDepositModalError(bidResult?.error || 'Failed to place verified bid.');
       } else {
         setIsDepositModalOpen(false);
         setUserBidInput('');
         setBidSuccessMessage(bidResult.message || `Verified bid of ₹${depositData.submittedBid.toLocaleString()} placed!`);
         void fetchLotData(selectedLot.id);
+        void fetchMyAuctionStatus(selectedLot.id);
         void fetchActiveLots();
         setTimeout(() => setBidSuccessMessage(null), 8000);
       }
     } catch {
-      alert('Error finalizing bid. Please check your network connection.');
+      setDepositModalError('Error communicating with auction server. Please check your connection.');
     } finally {
       setIsConfirmingDeposit(false);
     }
@@ -464,6 +568,47 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                   <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500 text-rose-200 text-xs font-semibold flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{bidErrorMessage}</span>
+                  </div>
+                )}
+
+                {/* User's Deposit Verification & Vault Credit Status */}
+                {user && myAuctionStatus && (myAuctionStatus.verifiedHeldTotal > 0 || myAuctionStatus.deposits.some((d) => d.status === 'submitted_for_verification' || d.status === 'rejected')) && (
+                  <div className="space-y-2">
+                    {myAuctionStatus.verifiedHeldTotal > 0 && (
+                      <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 shrink-0" />
+                          <span>Verified Escrow Deposit Credit:</span>
+                        </span>
+                        <strong className="font-mono">₹{myAuctionStatus.verifiedHeldTotal.toLocaleString()}</strong>
+                      </div>
+                    )}
+                    {myAuctionStatus.deposits
+                      .filter((d) => d.status === 'submitted_for_verification')
+                      .slice(0, 2)
+                      .map((d) => (
+                        <div key={d.id} className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <div className="font-bold">Pending Admin Payment Verification</div>
+                            <div className="text-[11px] text-amber-300/90 font-mono">
+                              Deposit ₹{Number(d.amount).toLocaleString()} · UTR: {d.gateway_ref || '—'} · Queued Bid: ₹{Number(d.pending_bid_amount || 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    {myAuctionStatus.deposits
+                      .filter((d) => d.status === 'rejected')
+                      .slice(0, 1)
+                      .map((d) => (
+                        <div key={d.id} className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-200 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-bold">Deposit Rejected ({d.gateway_ref || d.id})</div>
+                            <div className="text-[11px] text-rose-300">{d.rejection_reason || 'Payment proof could not be verified.'}</div>
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )}
 
@@ -696,7 +841,7 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
 
                 <div className="space-y-1 pt-1">
                   <label className="text-[11px] font-mono text-gray-300 block">
-                    Enter UPI UTR / Transaction Reference (12 Digits)
+                    Enter UPI UTR / Transaction Reference *
                   </label>
                   <input
                     type="text"
@@ -706,11 +851,60 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                     className="w-full px-3 py-2 rounded-lg bg-[#0e0a1f] border border-white/20 text-white font-mono text-xs focus:border-fuchsia-500 focus:outline-none"
                   />
                 </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] font-mono text-gray-300 block">
+                    Upload Payment Receipt Screenshot *
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-[#0e0a1f] border border-dashed border-fuchsia-500/50 hover:border-fuchsia-400 cursor-pointer text-xs text-gray-200">
+                    <span className="flex items-center gap-2 truncate">
+                      {isUploadingProof ? (
+                        <Clock className="w-4 h-4 animate-spin text-fuchsia-400 shrink-0" />
+                      ) : paymentScreenshotUrl ? (
+                        <FileImage className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Upload className="w-4 h-4 text-fuchsia-400 shrink-0" />
+                      )}
+                      <span className="truncate">
+                        {isUploadingProof
+                          ? 'Uploading receipt screenshot...'
+                          : paymentScreenshotUrl
+                          ? `Uploaded: ${paymentScreenshotName}`
+                          : 'Choose UPI payment screenshot (PNG / JPG)'}
+                      </span>
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProofFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {paymentScreenshotUrl && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <img
+                        src={paymentScreenshotUrl}
+                        alt="Uploaded payment receipt"
+                        className="w-14 h-14 rounded-lg object-cover border border-emerald-500/40"
+                      />
+                      <span className="text-[11px] text-emerald-300">
+                        Receipt attached. Admin will verify before accepting your bid.
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-xs text-emerald-300 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Your previously deposited funds fully cover this bid raise! No additional deposit required.</span>
+                <span>Your verified vault deposit balance fully covers this bid raise! No additional payment required.</span>
+              </div>
+            )}
+
+            {depositModalError && (
+              <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/60 text-xs text-rose-200 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{depositModalError}</span>
               </div>
             )}
 
@@ -724,7 +918,7 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
                   className="mt-0.5 rounded border-white/20 bg-white/10 text-fuchsia-600 focus:ring-fuchsia-500"
                 />
                 <span>
-                  I understand that my deposit is held in escrow as bid security. It is <strong>100% refundable</strong> if I am outbid or lose the auction. If I win, this deposit is credited toward the final balance, which I agree to settle within 24 hours.
+                  I understand that my deposit requires Admin verification before my bid enters the live order book. Deposits are held in escrow as bid security and are <strong>100% refundable</strong> if I lose the auction.
                 </span>
               </label>
             </div>
@@ -732,18 +926,22 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
             <div className="pt-2">
               <button
                 type="button"
-                disabled={isConfirmingDeposit || !termsAccepted}
+                disabled={isConfirmingDeposit || isUploadingProof || !termsAccepted}
                 onClick={handleConfirmDepositAndBid}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-rajdhani font-bold text-sm uppercase tracking-wider shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isConfirmingDeposit ? (
                   <>
                     <Clock className="w-4 h-4 animate-spin" />
-                    <span>CONFIRMING SECURITY DEPOSIT...</span>
+                    <span>{depositData.alreadyCovered ? 'PLACING VERIFIED BID...' : 'SUBMITTING FOR ADMIN REVIEW...'}</span>
                   </>
                 ) : (
                   <>
-                    <span>CONFIRM DEPOSIT &amp; LOCK BID</span>
+                    <span>
+                      {depositData.alreadyCovered
+                        ? 'LOCK VERIFIED BID NOW'
+                        : 'SUBMIT PROOF FOR ADMIN VERIFICATION'}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

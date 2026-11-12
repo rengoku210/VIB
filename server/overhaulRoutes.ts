@@ -259,7 +259,7 @@ export function registerOverhaulRoutes(
     }
   });
 
-  // Admin update rental listing
+  // Admin update rental listing (supports full edit + hide/unhide via status='hidden')
   app.put('/api/admin/rentals/:id', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
     try {
       const listing = await db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(req.params.id) as any;
@@ -272,6 +272,9 @@ export function registerOverhaulRoutes(
         title,
         description,
         image_url,
+        account_identifier,
+        featured_skins_json,
+        featured_skins,
         rank,
         region,
         price_24h,
@@ -283,12 +286,32 @@ export function registerOverhaulRoutes(
         status
       } = req.body || {};
 
+      const validStatuses = ['available', 'hidden', 'rented', 'maintenance'];
+      if (status !== undefined && status !== null && !validStatuses.includes(String(status))) {
+        res.status(400).json({ error: `Invalid rental status: ${status}` });
+        return;
+      }
+
+      let resolvedSkinsJson: string | null = null;
+      if (featured_skins_json !== undefined && featured_skins_json !== null) {
+        resolvedSkinsJson = typeof featured_skins_json === 'string'
+          ? featured_skins_json
+          : JSON.stringify(featured_skins_json);
+      } else if (featured_skins !== undefined && featured_skins !== null) {
+        const list = Array.isArray(featured_skins)
+          ? featured_skins
+          : String(featured_skins).split(',').map((s) => s.trim()).filter(Boolean);
+        resolvedSkinsJson = JSON.stringify(list);
+      }
+
       const now = new Date().toISOString();
       await db.prepare(`
         UPDATE rental_listings SET
           title = COALESCE(?, title),
           description = COALESCE(?, description),
           image_url = COALESCE(?, image_url),
+          account_identifier = COALESCE(?, account_identifier),
+          featured_skins_json = COALESCE(?, featured_skins_json),
           rank = COALESCE(?, rank),
           region = COALESCE(?, region),
           price_24h = COALESCE(?, price_24h),
@@ -301,18 +324,20 @@ export function registerOverhaulRoutes(
           updated_at = ?
         WHERE id = ?
       `).run(
-        title,
-        description,
-        image_url,
-        rank,
-        region,
+        title !== undefined ? String(title).trim() : null,
+        description !== undefined ? String(description) : null,
+        image_url !== undefined ? String(image_url).trim() : null,
+        account_identifier !== undefined ? String(account_identifier).trim() : null,
+        resolvedSkinsJson,
+        rank !== undefined ? String(rank).trim() : null,
+        region !== undefined ? String(region).trim() : null,
         price_24h !== undefined ? Number(price_24h) : null,
         price_3d !== undefined ? Number(price_3d) : null,
         price_7d !== undefined ? Number(price_7d) : null,
         price_30d !== undefined ? Number(price_30d) : null,
         security_deposit !== undefined ? Number(security_deposit) : null,
-        terms_conditions,
-        status,
+        terms_conditions !== undefined ? String(terms_conditions) : null,
+        status !== undefined ? String(status) : null,
         now,
         listing.id
       );
@@ -322,6 +347,49 @@ export function registerOverhaulRoutes(
     } catch (err: any) {
       console.error('Admin update rental error:', err);
       res.status(500).json({ error: 'Failed to update rental profile.' });
+    }
+  });
+
+  // Admin delete rental listing
+  app.delete('/api/admin/rentals/:id', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
+    try {
+      const listing = await db.prepare('SELECT * FROM rental_listings WHERE id = ?').get(req.params.id) as any;
+      if (!listing) {
+        res.status(404).json({ error: 'Rental listing not found.' });
+        return;
+      }
+
+      const activeBooking = await db.prepare(`
+        SELECT id, status FROM rental_bookings
+        WHERE listing_id = ? AND status IN ('pending_approval', 'active', 'extension_requested')
+        LIMIT 1
+      `).get(listing.id) as any;
+
+      if (activeBooking) {
+        res.status(400).json({
+          error: `Cannot remove listing while booking #${activeBooking.id} is ${activeBooking.status}. Hide it from public or complete/cancel the active booking first.`
+        });
+        return;
+      }
+
+      await db.prepare('DELETE FROM rental_listings WHERE id = ?').run(listing.id);
+      await db.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'DELETE_RENTAL_LISTING', 'rental_listings', ?, ?, ?, ?)
+      `).run(
+        'aud_' + crypto.randomBytes(6).toString('hex'),
+        req.user?.id || 'system',
+        req.user?.name || 'Admin',
+        listing.id,
+        JSON.stringify({ title: listing.title }),
+        req.ip || '127.0.0.1',
+        new Date().toISOString()
+      );
+
+      res.json({ message: 'Rental listing removed successfully.', listingId: listing.id });
+    } catch (err: any) {
+      console.error('Admin delete rental error:', err);
+      res.status(500).json({ error: 'Failed to remove rental profile.' });
     }
   });
 
@@ -593,7 +661,7 @@ export function registerOverhaulRoutes(
       const minDeposit = Number(lot.min_deposit_amount ?? 0);
       const requiredDeposit = Math.max(minDeposit, Math.round(numBid * (depositPct / 100)));
 
-      // Calculate previously paid active security deposits held for this exact user & auction
+      // Calculate previously paid VERIFIED active security deposits held for this exact user & auction
       const previouslyPaidRow = await db.prepare(`
         SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
         FROM auction_deposits
@@ -602,21 +670,23 @@ export function registerOverhaulRoutes(
 
       const previouslyPaid = Number(previouslyPaidRow.total_held) || 0;
       const additionalPayable = Math.max(0, requiredDeposit - previouslyPaid);
+      const alreadyCovered = additionalPayable === 0 && previouslyPaid >= requiredDeposit;
 
-      // Create a deposit intent record
+      // Create a deposit intent record (held ONLY if already covered by verified vault balance)
       const depositTxId = 'DEP_' + crypto.randomBytes(6).toString('hex').toUpperCase();
       const now = new Date().toISOString();
 
       await db.prepare(`
         INSERT INTO auction_deposits (
-          id, lot_id, user_id, amount, payment_method, status, created_at
-        ) VALUES (?, ?, ?, ?, 'UPI_QR', ?, ?)
+          id, lot_id, user_id, amount, payment_method, status, pending_bid_amount, created_at
+        ) VALUES (?, ?, ?, ?, 'UPI_QR', ?, ?, ?)
       `).run(
         depositTxId,
         lot.id,
         req.user.id,
         additionalPayable,
-        additionalPayable === 0 ? 'held' : 'pending',
+        alreadyCovered ? 'held' : 'pending',
+        numBid,
         now
       );
 
@@ -629,7 +699,7 @@ export function registerOverhaulRoutes(
         requiredDeposit,
         previouslyPaid,
         additionalPayable,
-        alreadyCovered: additionalPayable === 0,
+        alreadyCovered,
         upiId: process.env.VIB_UPI_ID || paymentCfg?.upi_id || '',
         merchantName: paymentCfg?.payee_name || 'VIB Digital Services Platform',
         refundPolicySummary: '100% refundable if you are outbid or do not win the lot. Winning bids have deposit credited against final purchase balance.'
@@ -640,19 +710,58 @@ export function registerOverhaulRoutes(
     }
   });
 
-  // 2.4 Confirm Deposit Payment
+  // 2.3b Customer's deposit & verification status for a lot
+  app.get('/api/auctions/:id/my-status', authenticate, async (req: any, res: Response): Promise<void> => {
+    try {
+      const lot = await db.prepare('SELECT id FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+      if (!lot) {
+        res.status(404).json({ error: 'Auction lot not found.' });
+        return;
+      }
+
+      const deposits = await db.prepare(`
+        SELECT id, lot_id, bid_id, amount, payment_method, gateway_ref, payment_evidence_image,
+               status, pending_bid_amount, rejection_reason, submitted_at, verified_at, created_at
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ?
+        ORDER BY created_at DESC
+      `).all(lot.id, req.user.id) as any[];
+
+      const heldRow = await db.prepare(`
+        SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ? AND status = 'held'
+      `).get(lot.id, req.user.id) as any;
+
+      res.json({
+        verifiedHeldTotal: Number(heldRow?.total_held) || 0,
+        deposits
+      });
+    } catch (err: any) {
+      console.error('My auction status error:', err);
+      res.status(500).json({ error: 'Failed to retrieve your deposit status.' });
+    }
+  });
+
+  // 2.4 Submit Deposit Payment Proof for Admin Verification (never self-approves paid deposits)
   app.post('/api/auctions/:id/deposit-confirm', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
-      const { depositTxId, gatewayRef = '', paymentMethod = 'UPI_QR' } = req.body || {};
+      const { depositTxId, gatewayRef = '', paymentMethod = 'UPI_QR', paymentEvidenceImage = '' } = req.body || {};
       if (!depositTxId) {
         res.status(400).json({ error: 'Deposit Transaction ID is required.' });
+        return;
+      }
+
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?').get(req.params.id, req.params.id) as any;
+      if (!lot) {
+        res.status(404).json({ error: 'Auction lot not found.' });
         return;
       }
 
       const deposit = await db.prepare(`
         SELECT * FROM auction_deposits
         WHERE id = ? AND lot_id = ? AND user_id = ?
-      `).get(depositTxId, req.params.id, req.user.id) as any;
+      `).get(depositTxId, lot.id, req.user.id) as any;
 
       if (!deposit) {
         res.status(404).json({ error: 'Deposit transaction record not found.' });
@@ -660,27 +769,85 @@ export function registerOverhaulRoutes(
       }
 
       const now = new Date().toISOString();
+      const payableAmount = Number(deposit.amount) || 0;
+
+      // Zero-additional-payment intents only stay 'held' when previously verified deposits already cover the bid
+      if (payableAmount === 0) {
+        const heldRow = await db.prepare(`
+          SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+          FROM auction_deposits
+          WHERE lot_id = ? AND user_id = ? AND status = 'held'
+        `).get(lot.id, req.user.id) as any;
+        const depositPct = Number(lot.deposit_pct ?? 50);
+        const minDeposit = Number(lot.min_deposit_amount ?? 0);
+        const targetBid = Number(deposit.pending_bid_amount) || 0;
+        const requiredDeposit = Math.max(minDeposit, Math.round(targetBid * (depositPct / 100)));
+
+        if ((Number(heldRow?.total_held) || 0) < requiredDeposit || targetBid <= 0) {
+          res.status(402).json({ error: 'Verified deposit balance is insufficient to cover this bid.' });
+          return;
+        }
+
+        res.json({
+          success: true,
+          awaitingVerification: false,
+          status: 'held',
+          message: 'Existing verified deposit covers this bid.',
+          depositTxId: deposit.id
+        });
+        return;
+      }
+
+      const trimmedRef = String(gatewayRef || '').trim();
+      if (trimmedRef.length < 6) {
+        res.status(400).json({ error: 'A valid UPI UTR / Transaction Reference (minimum 6 characters) is required.' });
+        return;
+      }
+
+      const trimmedEvidence = String(paymentEvidenceImage || '').trim();
+      if (!trimmedEvidence) {
+        res.status(400).json({ error: 'Payment receipt screenshot upload is mandatory for auction deposit verification.' });
+        return;
+      }
+
       await db.prepare(`
         UPDATE auction_deposits SET
-          status = 'held',
+          status = 'submitted_for_verification',
           gateway_ref = ?,
+          payment_evidence_image = ?,
           payment_method = ?,
-          settled_at = ?
+          submitted_at = ?,
+          rejection_reason = NULL
         WHERE id = ?
-      `).run(gatewayRef ? String(gatewayRef).trim() : null, paymentMethod, now, deposit.id);
+      `).run(trimmedRef, trimmedEvidence, paymentMethod, now, deposit.id);
+
+      await db.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'SUBMIT_AUCTION_DEPOSIT_PROOF', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        'aud_' + crypto.randomBytes(6).toString('hex'),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: lot.id, amount: payableAmount, pendingBid: deposit.pending_bid_amount, gatewayRef: trimmedRef }),
+        req.ip || '127.0.0.1',
+        now
+      );
 
       res.json({
         success: true,
-        message: 'Security deposit confirmed and held in escrow! You may now place your verified bid.',
+        awaitingVerification: true,
+        status: 'submitted_for_verification',
+        message: 'Payment proof & UTR submitted. Your bid will only be accepted after Admin verifies the deposit receipt.',
         depositTxId: deposit.id
       });
     } catch (err: any) {
       console.error('Deposit confirm error:', err);
-      res.status(500).json({ error: 'Failed to confirm security deposit.' });
+      res.status(500).json({ error: 'Failed to submit deposit payment proof.' });
     }
   });
 
-  // 2.5 Place Verified Bid (Part 3.1 & 3.4: requires verified deposit, atomic execution)
+  // 2.5 Place Verified Bid (Part 3.1 & 3.4: requires admin-verified 'held' deposit covering required %)
   app.post('/api/auctions/:id/bid', authenticate, async (req: any, res: Response): Promise<void> => {
     try {
       await expireAuctionLots();
@@ -719,15 +886,53 @@ export function registerOverhaulRoutes(
         return;
       }
 
-      // FINANCIAL INTEGRITY CHECK: Verify security deposit held for this exact bid
+      // FINANCIAL INTEGRITY CHECK: Require Admin-verified 'held' security deposit matching required percentage
       const deposit = await db.prepare(`
         SELECT * FROM auction_deposits
-        WHERE id = ? AND lot_id = ? AND user_id = ? AND status = 'held'
+        WHERE id = ? AND lot_id = ? AND user_id = ?
       `).get(depositTxId, lot.id, req.user.id) as any;
 
       if (!deposit) {
         res.status(402).json({
-          error: 'Bid Rejected: Bid-security deposit payment not verified. A 50% security deposit must be paid and verified before bids are accepted.'
+          error: 'Bid Rejected: No security deposit record found for this bid.'
+        });
+        return;
+      }
+
+      if (deposit.status === 'submitted_for_verification') {
+        res.status(402).json({
+          error: 'Deposit payment is awaiting Admin verification. Bids are only accepted after staff verifies your UTR & payment receipt.'
+        });
+        return;
+      }
+
+      if (deposit.status === 'rejected') {
+        res.status(402).json({
+          error: `Deposit rejected by Admin${deposit.rejection_reason ? `: ${deposit.rejection_reason}` : '. Please submit a valid payment proof.'}`
+        });
+        return;
+      }
+
+      if (deposit.status !== 'held') {
+        res.status(402).json({
+          error: 'Bid Rejected: Bid-security deposit has not been verified and held in escrow.'
+        });
+        return;
+      }
+
+      const depositPct = Number(lot.deposit_pct ?? 50);
+      const minDeposit = Number(lot.min_deposit_amount ?? 0);
+      const requiredDeposit = Math.max(minDeposit, Math.round(numAmount * (depositPct / 100)));
+      const heldRow = await db.prepare(`
+        SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ? AND status = 'held'
+      `).get(lot.id, req.user.id) as any;
+      const totalHeld = Number(heldRow?.total_held) || 0;
+
+      if (totalHeld < requiredDeposit || totalHeld <= 0) {
+        res.status(402).json({
+          error: `Insufficient verified deposit (₹${totalHeld.toLocaleString()} verified of ₹${requiredDeposit.toLocaleString()} required). Please pay and wait for Admin verification.`
         });
         return;
       }
@@ -747,8 +952,8 @@ export function registerOverhaulRoutes(
           req.user.id,
           req.user.name,
           numAmount,
-          deposit.amount,
-          deposit.amount,
+          requiredDeposit,
+          totalHeld,
           deposit.id,
           now,
           now
@@ -1340,6 +1545,206 @@ export function registerOverhaulRoutes(
     }
   });
 
+  // Admin list all auction deposit submissions for payment verification
+  app.get('/api/admin/auctions/deposits', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { status, lotId } = req.query;
+      let query = `
+        SELECT ad.*, al.title as lot_title, al.lot_number, al.current_bid, al.bid_increment,
+               al.deposit_pct, al.min_deposit_amount, al.status as lot_status,
+               u.name as customer_name, u.email as customer_email, u.phone as customer_phone
+        FROM auction_deposits ad
+        LEFT JOIN auction_lots al ON ad.lot_id = al.id
+        LEFT JOIN users u ON ad.user_id = u.id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (status && status !== 'all') {
+        query += ' AND ad.status = ?';
+        params.push(String(status));
+      }
+      if (lotId) {
+        query += ' AND ad.lot_id = ?';
+        params.push(String(lotId));
+      }
+      query += ` ORDER BY CASE WHEN ad.status = 'submitted_for_verification' THEN 0 ELSE 1 END, ad.created_at DESC LIMIT 200`;
+
+      const deposits = await db.prepare(query).all(...params);
+      res.json({ deposits });
+    } catch (err: any) {
+      console.error('Admin get auction deposits error:', err);
+      res.status(500).json({ error: 'Failed to load auction deposit submissions.' });
+    }
+  });
+
+  // Admin verify auction deposit payment & place queued bid if still valid
+  app.post('/api/admin/auctions/deposits/:depositId/verify', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
+    try {
+      await expireAuctionLots();
+      const deposit = await db.prepare('SELECT * FROM auction_deposits WHERE id = ?').get(req.params.depositId) as any;
+      if (!deposit) {
+        res.status(404).json({ error: 'Auction deposit submission not found.' });
+        return;
+      }
+
+      if (!['submitted_for_verification', 'pending'].includes(deposit.status)) {
+        res.status(400).json({ error: `Deposit is already ${deposit.status} and cannot be verified again.` });
+        return;
+      }
+
+      const lot = await db.prepare('SELECT * FROM auction_lots WHERE id = ?').get(deposit.lot_id) as any;
+      if (!lot) {
+        res.status(404).json({ error: 'Associated auction lot not found.' });
+        return;
+      }
+
+      const bidder = await db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(deposit.user_id) as any;
+      const now = new Date().toISOString();
+
+      let placedBidId: string | null = null;
+      let bidNote = '';
+
+      await db.transaction(async (tx) => {
+        await tx.prepare(`
+          UPDATE auction_deposits SET
+            status = 'held',
+            verified_by = ?,
+            verified_at = ?,
+            settled_at = ?,
+            rejection_reason = NULL
+          WHERE id = ?
+        `).run(req.user.id, now, now, deposit.id);
+
+        const pendingBid = Number(deposit.pending_bid_amount) || 0;
+        const closesAt = Date.parse(String(lot.ends_at || ''));
+        const isLotOpen = lot.status === 'active' && Number.isFinite(closesAt) && closesAt > Date.now();
+        const currentBid = Number(lot.current_bid ?? lot.starting_bid ?? 0);
+        const minRequiredBid = currentBid + (Number(lot.bid_increment) || 0);
+
+        if (pendingBid > 0 && !deposit.bid_id) {
+          const heldRow = await tx.prepare(`
+            SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+            FROM auction_deposits
+            WHERE lot_id = ? AND user_id = ? AND status = 'held'
+          `).get(lot.id, deposit.user_id) as any;
+          const totalHeld = Number(heldRow?.total_held) || 0;
+          const depositPct = Number(lot.deposit_pct ?? 50);
+          const minDeposit = Number(lot.min_deposit_amount ?? 0);
+          const requiredDeposit = Math.max(minDeposit, Math.round(pendingBid * (depositPct / 100)));
+
+          if (isLotOpen && pendingBid >= minRequiredBid && totalHeld >= requiredDeposit) {
+            placedBidId = 'bid_' + crypto.randomBytes(6).toString('hex');
+            const bidderName = bidder?.name || 'Verified Bidder';
+
+            await tx.prepare(`
+              INSERT INTO auction_bids (
+                id, lot_id, user_id, bidder_name, amount, status,
+                deposit_required, deposit_paid, deposit_status, deposit_tx_id, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, 'HELD', ?, ?, ?)
+            `).run(
+              placedBidId,
+              lot.id,
+              deposit.user_id,
+              bidderName,
+              pendingBid,
+              requiredDeposit,
+              totalHeld,
+              deposit.id,
+              now,
+              now
+            );
+
+            await tx.prepare(`
+              UPDATE auction_lots SET
+                current_bid = ?,
+                bid_count = bid_count + 1,
+                highest_bidder_id = ?,
+                highest_bidder_name = ?,
+                updated_at = ?
+              WHERE id = ?
+            `).run(pendingBid, deposit.user_id, bidderName, now, lot.id);
+
+            await tx.prepare('UPDATE auction_deposits SET bid_id = ? WHERE id = ?').run(placedBidId, deposit.id);
+            bidNote = ` Verified bid of ₹${pendingBid.toLocaleString('en-IN')} was accepted as highest bid.`;
+          } else if (!isLotOpen) {
+            bidNote = ' Deposit credited to vault (lot is no longer active).';
+          } else if (pendingBid < minRequiredBid) {
+            bidNote = ` Deposit verified as vault credit (queued bid ₹${pendingBid.toLocaleString('en-IN')} was outbid; minimum is now ₹${minRequiredBid.toLocaleString('en-IN')}).`;
+          }
+        }
+      });
+
+      await db.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'VERIFY_AUCTION_DEPOSIT', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        'aud_' + crypto.randomBytes(6).toString('hex'),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: lot.id, amount: deposit.amount, gatewayRef: deposit.gateway_ref, placedBidId }),
+        req.ip || '127.0.0.1',
+        now
+      );
+
+      res.json({
+        success: true,
+        bidPlaced: Boolean(placedBidId),
+        bidId: placedBidId,
+        message: `Deposit verified and held in escrow.${bidNote}`
+      });
+    } catch (err: any) {
+      console.error('Admin verify auction deposit error:', err);
+      res.status(500).json({ error: 'Failed to verify auction deposit.' });
+    }
+  });
+
+  // Admin reject auction deposit payment proof
+  app.post('/api/admin/auctions/deposits/:depositId/reject', authenticate, staffOnly, async (req: any, res: Response): Promise<void> => {
+    try {
+      const deposit = await db.prepare('SELECT * FROM auction_deposits WHERE id = ?').get(req.params.depositId) as any;
+      if (!deposit) {
+        res.status(404).json({ error: 'Auction deposit submission not found.' });
+        return;
+      }
+
+      if (deposit.status === 'held' || deposit.status === 'applied_to_winner') {
+        res.status(400).json({ error: `Cannot reject deposit with status ${deposit.status}.` });
+        return;
+      }
+
+      const reason = String(req.body?.reason || '').trim() || 'Payment proof or UTR could not be verified.';
+      const now = new Date().toISOString();
+
+      await db.prepare(`
+        UPDATE auction_deposits SET
+          status = 'rejected',
+          rejection_reason = ?,
+          verified_by = ?,
+          verified_at = ?
+        WHERE id = ?
+      `).run(reason, req.user.id, now, deposit.id);
+
+      await db.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'REJECT_AUCTION_DEPOSIT', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        'aud_' + crypto.randomBytes(6).toString('hex'),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: deposit.lot_id, amount: deposit.amount, reason }),
+        req.ip || '127.0.0.1',
+        now
+      );
+
+      res.json({ success: true, message: 'Auction deposit submission rejected.', reason });
+    } catch (err: any) {
+      console.error('Admin reject auction deposit error:', err);
+      res.status(500).json({ error: 'Failed to reject auction deposit.' });
+    }
+  });
+
   // Admin bidder audit breakdown
   app.get('/api/admin/auctions/:id/bidders', authenticate, staffOnly, async (req: Request, res: Response): Promise<void> => {
     try {
@@ -1352,14 +1757,14 @@ export function registerOverhaulRoutes(
       `).all(req.params.id);
 
       const deposits = await db.prepare(`
-        SELECT ad.*, u.name as customer_name, u.email as customer_email
+        SELECT ad.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone
         FROM auction_deposits ad
         LEFT JOIN users u ON ad.user_id = u.id
         WHERE ad.lot_id = ?
-        ORDER BY ad.created_at DESC
+        ORDER BY CASE WHEN ad.status = 'submitted_for_verification' THEN 0 ELSE 1 END, ad.created_at DESC
       `).all(req.params.id);
 
-      res.json({ bids, deposits });
+      res.json({ bids, bidders: bids, deposits });
     } catch (err: any) {
       console.error('Admin get bidders error:', err);
       res.status(500).json({ error: 'Failed to load bidder breakdown.' });

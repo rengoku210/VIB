@@ -11,6 +11,9 @@ import {
   AlertTriangle,
   Users,
   Eye,
+  EyeOff,
+  Edit2,
+  Trash2,
   Lock,
   X,
   Loader2,
@@ -30,11 +33,11 @@ export const AdminRentalsManagement: React.FC = () => {
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingListing, setEditingListing] = useState<any | null>(null);
   const [isActivateOpen, setIsActivateOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
 
-  // Create Listing Form
-  const [formData, setFormData] = useState({
+  const emptyForm = {
     title: '',
     rank: '',
     region: 'AP / Mumbai',
@@ -47,8 +50,12 @@ export const AdminRentalsManagement: React.FC = () => {
     price_30d: 0,
     security_deposit: 0,
     featured_skins: '',
+    terms_conditions: 'No unauthorized party games or ranked throw gameplay.',
     status: 'available',
-  });
+  };
+
+  // Create / Edit Listing Form
+  const [formData, setFormData] = useState(emptyForm);
 
   // Activation Form
   const [activationData, setActivationData] = useState({
@@ -84,7 +91,41 @@ export const AdminRentalsManagement: React.FC = () => {
     }
   };
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    setEditingListing(null);
+    setErrorMsg(null);
+    setFormData(emptyForm);
+    setIsCreateOpen(true);
+  };
+
+  const openEditModal = (item: any) => {
+    let skinsStr = '';
+    try {
+      const parsed = item.featured_skins_json ? JSON.parse(item.featured_skins_json) : [];
+      if (Array.isArray(parsed)) skinsStr = parsed.join(', ');
+    } catch {}
+    setEditingListing(item);
+    setErrorMsg(null);
+    setFormData({
+      title: item.title || '',
+      rank: item.rank || '',
+      region: item.region || 'AP / Mumbai',
+      image_url: item.image_url || '',
+      account_identifier: item.account_identifier || '',
+      description: item.description || '',
+      price_24h: Number(item.price_24h || 0),
+      price_3d: Number(item.price_3d || 0),
+      price_7d: Number(item.price_7d || 0),
+      price_30d: Number(item.price_30d || 0),
+      security_deposit: Number(item.security_deposit || 0),
+      featured_skins: skinsStr,
+      terms_conditions: item.terms_conditions || 'No unauthorized party games or ranked throw gameplay.',
+      status: item.status || 'available',
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleSaveListing = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSubmitting(true);
@@ -94,8 +135,13 @@ export const AdminRentalsManagement: React.FC = () => {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      const res = await fetch('/api/admin/rentals', {
-        method: 'POST',
+      const url = editingListing
+        ? `/api/admin/rentals/${encodeURIComponent(editingListing.id)}`
+        : '/api/admin/rentals';
+      const method = editingListing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
@@ -105,15 +151,60 @@ export const AdminRentalsManagement: React.FC = () => {
 
       if (res.ok) {
         setIsCreateOpen(false);
+        setEditingListing(null);
+        setFormData(emptyForm);
         fetchRentals();
       } else {
-        const err = await res.json();
-        setErrorMsg(err.error || 'Failed to create rental listing.');
+        const err = await res.json().catch(() => null);
+        setErrorMsg(err?.error || `Failed to ${editingListing ? 'update' : 'create'} rental listing.`);
       }
     } catch {
       setErrorMsg('Network failure.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleToggleVisibility = async (item: any) => {
+    if (!token) return;
+    if (item.status === 'rented') {
+      alert('Complete the active rental booking before hiding or republishing this profile.');
+      return;
+    }
+    const nextStatus = item.status === 'hidden' ? 'available' : 'hidden';
+    try {
+      const res = await fetch(`/api/admin/rentals/${encodeURIComponent(item.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        fetchRentals();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.error || 'Failed to update rental visibility.');
+      }
+    } catch {
+      alert('Network failure.');
+    }
+  };
+
+  const handleDeleteRental = async (item: any) => {
+    if (!token) return;
+    if (!confirm(`Remove rental profile "${item.title}" permanently?`)) return;
+    try {
+      const res = await fetch(`/api/admin/rentals/${encodeURIComponent(item.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchRentals();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.error || 'Failed to remove rental listing.');
+      }
+    } catch {
+      alert('Network failure.');
     }
   };
 
@@ -188,7 +279,7 @@ export const AdminRentalsManagement: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setIsCreateOpen(true)}
+            onClick={openCreateModal}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider font-rajdhani shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -299,6 +390,8 @@ export const AdminRentalsManagement: React.FC = () => {
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             item.status === 'available'
                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : item.status === 'hidden'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               : item.status === 'rented'
                               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                               : 'bg-zinc-500/20 text-zinc-400 border border-zinc-500/30'
@@ -309,9 +402,40 @@ export const AdminRentalsManagement: React.FC = () => {
                       </td>
 
                       <td className="p-3.5 text-right">
-                        <span className="text-[11px] text-gray-400 font-sans">
-                          {item.status === 'available' ? 'Ready for Bookings' : 'Booked'}
-                        </span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 text-[11px] font-bold font-rajdhani uppercase cursor-pointer"
+                            title="Edit Rental Listing"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVisibility(item)}
+                            disabled={item.status === 'rented'}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold font-rajdhani uppercase cursor-pointer disabled:opacity-40 ${
+                              item.status === 'hidden'
+                                ? 'bg-emerald-600/20 hover:bg-emerald-600/40 border-emerald-500/30 text-emerald-300'
+                                : 'bg-amber-600/20 hover:bg-amber-600/40 border-amber-500/30 text-amber-300'
+                            }`}
+                            title={item.status === 'hidden' ? 'Show on Public Rentals Page' : 'Hide from Public Rentals Page'}
+                          >
+                            {item.status === 'hidden' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            <span>{item.status === 'hidden' ? 'Show' : 'Hide'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRental(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-[11px] font-bold font-rajdhani uppercase cursor-pointer"
+                            title="Remove Rental Listing"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -442,7 +566,7 @@ export const AdminRentalsManagement: React.FC = () => {
             <div className="border-b border-white/10 pb-3">
               <h3 className="text-lg font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
                 <Key className="w-5 h-5 text-purple-400" />
-                <span>Add Database-Backed Rental Listing</span>
+                <span>{editingListing ? 'Edit Rental Listing' : 'Add Database-Backed Rental Listing'}</span>
               </h3>
               <p className="text-xs text-gray-400 mt-1">
                 Zero fake profiles. Genuine account details with tiered duration pricing and refundable damage deposit.
@@ -455,7 +579,7 @@ export const AdminRentalsManagement: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <form onSubmit={handleSaveListing} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[11px] text-gray-400 block mb-1">Listing Title *</label>
@@ -567,6 +691,32 @@ export const AdminRentalsManagement: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] text-gray-400 block mb-1">Visibility Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full bg-[#14162e] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
+                  >
+                    <option value="available">Available (Visible to Public)</option>
+                    <option value="hidden">Hidden (Not Shown to Public)</option>
+                    <option value="maintenance">Maintenance</option>
+                    {editingListing?.status === 'rented' && <option value="rented">Rented</option>}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-400 block mb-1">Thumbnail Image URL (Optional)</label>
+                  <input
+                    type="text"
+                    value={formData.image_url}
+                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                    placeholder="/assets/hires/profiles/card1_exact.jpg"
+                    className="w-full bg-[#14162e] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-[11px] text-gray-400 block mb-1">Description *</label>
                 <textarea
@@ -581,7 +731,10 @@ export const AdminRentalsManagement: React.FC = () => {
               <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setEditingListing(null);
+                  }}
                   className="px-4 py-2 rounded-xl border border-white/10 text-gray-300 text-xs font-bold uppercase font-rajdhani cursor-pointer"
                 >
                   Cancel
@@ -592,7 +745,7 @@ export const AdminRentalsManagement: React.FC = () => {
                   className="flex items-center gap-2 px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase font-rajdhani cursor-pointer disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Save Rental Listing</span>
+                  <span>{editingListing ? 'Update Rental Listing' : 'Save Rental Listing'}</span>
                 </button>
               </div>
             </form>

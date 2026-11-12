@@ -1020,6 +1020,12 @@ const COLUMN_MIGRATIONS: Array<[string, string, string]> = [
   ['emi_applications', 'customer_details_json', 'TEXT'],
   ['emi_applications', 'kyc_submission_id', 'TEXT'],
   ['emi_applications', 'admin_remarks', 'TEXT'],
+  ['auction_deposits', 'payment_evidence_image', 'TEXT'],
+  ['auction_deposits', 'pending_bid_amount', 'REAL'],
+  ['auction_deposits', 'rejection_reason', 'TEXT'],
+  ['auction_deposits', 'verified_by', 'TEXT'],
+  ['auction_deposits', 'verified_at', 'TEXT'],
+  ['auction_deposits', 'submitted_at', 'TEXT'],
 ];
 
 const BOOTSTRAP_TABLE_ORDER = [

@@ -61,7 +61,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const fetchPublishedListings = () => {
-    fetch('/api/listings?limit=50')
+    fetch('/api/listings?limit=100', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data && Array.isArray(data.listings)) {
@@ -131,7 +131,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
       iron: 'border-zinc-500/50 shadow-[0_0_10px_rgba(113,113,122,0.4)]',
     };
 
-    const isGuaranteed = item.guarantee_type === 'lifetime_guaranteed';
+    const isGuaranteed = item.guarantee_type === 'lifetime_guaranteed' || item.guarantee_type === 'guaranteed';
     const badge = isGuaranteed
       ? 'LIFETIME GUARANTEED'
       : (item.vip_plan && item.vip_plan !== 'none'
@@ -226,10 +226,11 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
     : 0;
 
   const currentRawList = publishedListings.filter((item) => {
+    const isItemGuaranteed = item.guarantee_type === 'lifetime_guaranteed' || item.guarantee_type === 'guaranteed';
     if (selectedMarketplace === 'guaranteed') {
-      return item.guarantee_type === 'lifetime_guaranteed';
+      return isItemGuaranteed;
     }
-    return item.guarantee_type !== 'lifetime_guaranteed';
+    return !isItemGuaranteed;
   });
 
   const mappedList = currentRawList.map(mapListingToCard);

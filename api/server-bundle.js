@@ -75732,7 +75732,13 @@ var COLUMN_MIGRATIONS = [
   ["emi_applications", "ip_address", "TEXT"],
   ["emi_applications", "customer_details_json", "TEXT"],
   ["emi_applications", "kyc_submission_id", "TEXT"],
-  ["emi_applications", "admin_remarks", "TEXT"]
+  ["emi_applications", "admin_remarks", "TEXT"],
+  ["auction_deposits", "payment_evidence_image", "TEXT"],
+  ["auction_deposits", "pending_bid_amount", "REAL"],
+  ["auction_deposits", "rejection_reason", "TEXT"],
+  ["auction_deposits", "verified_by", "TEXT"],
+  ["auction_deposits", "verified_at", "TEXT"],
+  ["auction_deposits", "submitted_at", "TEXT"]
 ];
 var BOOTSTRAP_TABLE_ORDER = [
   "users",
@@ -77590,6 +77596,9 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
         title,
         description,
         image_url,
+        account_identifier,
+        featured_skins_json,
+        featured_skins,
         rank,
         region,
         price_24h,
@@ -77600,12 +77609,26 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
         terms_conditions,
         status
       } = req.body || {};
+      const validStatuses = ["available", "hidden", "rented", "maintenance"];
+      if (status !== void 0 && status !== null && !validStatuses.includes(String(status))) {
+        res.status(400).json({ error: `Invalid rental status: ${status}` });
+        return;
+      }
+      let resolvedSkinsJson = null;
+      if (featured_skins_json !== void 0 && featured_skins_json !== null) {
+        resolvedSkinsJson = typeof featured_skins_json === "string" ? featured_skins_json : JSON.stringify(featured_skins_json);
+      } else if (featured_skins !== void 0 && featured_skins !== null) {
+        const list = Array.isArray(featured_skins) ? featured_skins : String(featured_skins).split(",").map((s2) => s2.trim()).filter(Boolean);
+        resolvedSkinsJson = JSON.stringify(list);
+      }
       const now = (/* @__PURE__ */ new Date()).toISOString();
       await db2.prepare(`
         UPDATE rental_listings SET
           title = COALESCE(?, title),
           description = COALESCE(?, description),
           image_url = COALESCE(?, image_url),
+          account_identifier = COALESCE(?, account_identifier),
+          featured_skins_json = COALESCE(?, featured_skins_json),
           rank = COALESCE(?, rank),
           region = COALESCE(?, region),
           price_24h = COALESCE(?, price_24h),
@@ -77618,18 +77641,20 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
           updated_at = ?
         WHERE id = ?
       `).run(
-        title,
-        description,
-        image_url,
-        rank,
-        region,
+        title !== void 0 ? String(title).trim() : null,
+        description !== void 0 ? String(description) : null,
+        image_url !== void 0 ? String(image_url).trim() : null,
+        account_identifier !== void 0 ? String(account_identifier).trim() : null,
+        resolvedSkinsJson,
+        rank !== void 0 ? String(rank).trim() : null,
+        region !== void 0 ? String(region).trim() : null,
         price_24h !== void 0 ? Number(price_24h) : null,
         price_3d !== void 0 ? Number(price_3d) : null,
         price_7d !== void 0 ? Number(price_7d) : null,
         price_30d !== void 0 ? Number(price_30d) : null,
         security_deposit !== void 0 ? Number(security_deposit) : null,
-        terms_conditions,
-        status,
+        terms_conditions !== void 0 ? String(terms_conditions) : null,
+        status !== void 0 ? String(status) : null,
         now,
         listing.id
       );
@@ -77638,6 +77663,43 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
     } catch (err) {
       console.error("Admin update rental error:", err);
       res.status(500).json({ error: "Failed to update rental profile." });
+    }
+  });
+  app2.delete("/api/admin/rentals/:id", authenticate2, staffOnly2, async (req, res) => {
+    try {
+      const listing = await db2.prepare("SELECT * FROM rental_listings WHERE id = ?").get(req.params.id);
+      if (!listing) {
+        res.status(404).json({ error: "Rental listing not found." });
+        return;
+      }
+      const activeBooking = await db2.prepare(`
+        SELECT id, status FROM rental_bookings
+        WHERE listing_id = ? AND status IN ('pending_approval', 'active', 'extension_requested')
+        LIMIT 1
+      `).get(listing.id);
+      if (activeBooking) {
+        res.status(400).json({
+          error: `Cannot remove listing while booking #${activeBooking.id} is ${activeBooking.status}. Hide it from public or complete/cancel the active booking first.`
+        });
+        return;
+      }
+      await db2.prepare("DELETE FROM rental_listings WHERE id = ?").run(listing.id);
+      await db2.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'DELETE_RENTAL_LISTING', 'rental_listings', ?, ?, ?, ?)
+      `).run(
+        "aud_" + crypto4.randomBytes(6).toString("hex"),
+        req.user?.id || "system",
+        req.user?.name || "Admin",
+        listing.id,
+        JSON.stringify({ title: listing.title }),
+        req.ip || "127.0.0.1",
+        (/* @__PURE__ */ new Date()).toISOString()
+      );
+      res.json({ message: "Rental listing removed successfully.", listingId: listing.id });
+    } catch (err) {
+      console.error("Admin delete rental error:", err);
+      res.status(500).json({ error: "Failed to remove rental profile." });
     }
   });
   app2.post("/api/admin/rentals/bookings/:id/activate", authenticate2, staffOnly2, async (req, res) => {
@@ -77867,18 +77929,20 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
       `).get(lot.id, req.user.id);
       const previouslyPaid = Number(previouslyPaidRow.total_held) || 0;
       const additionalPayable = Math.max(0, requiredDeposit - previouslyPaid);
+      const alreadyCovered = additionalPayable === 0 && previouslyPaid >= requiredDeposit;
       const depositTxId = "DEP_" + crypto4.randomBytes(6).toString("hex").toUpperCase();
       const now = (/* @__PURE__ */ new Date()).toISOString();
       await db2.prepare(`
         INSERT INTO auction_deposits (
-          id, lot_id, user_id, amount, payment_method, status, created_at
-        ) VALUES (?, ?, ?, ?, 'UPI_QR', ?, ?)
+          id, lot_id, user_id, amount, payment_method, status, pending_bid_amount, created_at
+        ) VALUES (?, ?, ?, ?, 'UPI_QR', ?, ?, ?)
       `).run(
         depositTxId,
         lot.id,
         req.user.id,
         additionalPayable,
-        additionalPayable === 0 ? "held" : "pending",
+        alreadyCovered ? "held" : "pending",
+        numBid,
         now
       );
       const paymentCfg = await db2.prepare("SELECT upi_id, payee_name FROM payment_settings WHERE id = ?").get("default");
@@ -77889,7 +77953,7 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
         requiredDeposit,
         previouslyPaid,
         additionalPayable,
-        alreadyCovered: additionalPayable === 0,
+        alreadyCovered,
         upiId: process.env.VIB_UPI_ID || paymentCfg?.upi_id || "",
         merchantName: paymentCfg?.payee_name || "VIB Digital Services Platform",
         refundPolicySummary: "100% refundable if you are outbid or do not win the lot. Winning bids have deposit credited against final purchase balance."
@@ -77899,38 +77963,121 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
       res.status(500).json({ error: "Failed to calculate security deposit intent." });
     }
   });
+  app2.get("/api/auctions/:id/my-status", authenticate2, async (req, res) => {
+    try {
+      const lot = await db2.prepare("SELECT id FROM auction_lots WHERE id = ? OR lot_number = ?").get(req.params.id, req.params.id);
+      if (!lot) {
+        res.status(404).json({ error: "Auction lot not found." });
+        return;
+      }
+      const deposits = await db2.prepare(`
+        SELECT id, lot_id, bid_id, amount, payment_method, gateway_ref, payment_evidence_image,
+               status, pending_bid_amount, rejection_reason, submitted_at, verified_at, created_at
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ?
+        ORDER BY created_at DESC
+      `).all(lot.id, req.user.id);
+      const heldRow = await db2.prepare(`
+        SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ? AND status = 'held'
+      `).get(lot.id, req.user.id);
+      res.json({
+        verifiedHeldTotal: Number(heldRow?.total_held) || 0,
+        deposits
+      });
+    } catch (err) {
+      console.error("My auction status error:", err);
+      res.status(500).json({ error: "Failed to retrieve your deposit status." });
+    }
+  });
   app2.post("/api/auctions/:id/deposit-confirm", authenticate2, async (req, res) => {
     try {
-      const { depositTxId, gatewayRef = "", paymentMethod = "UPI_QR" } = req.body || {};
+      const { depositTxId, gatewayRef = "", paymentMethod = "UPI_QR", paymentEvidenceImage = "" } = req.body || {};
       if (!depositTxId) {
         res.status(400).json({ error: "Deposit Transaction ID is required." });
+        return;
+      }
+      const lot = await db2.prepare("SELECT * FROM auction_lots WHERE id = ? OR lot_number = ?").get(req.params.id, req.params.id);
+      if (!lot) {
+        res.status(404).json({ error: "Auction lot not found." });
         return;
       }
       const deposit = await db2.prepare(`
         SELECT * FROM auction_deposits
         WHERE id = ? AND lot_id = ? AND user_id = ?
-      `).get(depositTxId, req.params.id, req.user.id);
+      `).get(depositTxId, lot.id, req.user.id);
       if (!deposit) {
         res.status(404).json({ error: "Deposit transaction record not found." });
         return;
       }
       const now = (/* @__PURE__ */ new Date()).toISOString();
+      const payableAmount = Number(deposit.amount) || 0;
+      if (payableAmount === 0) {
+        const heldRow = await db2.prepare(`
+          SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+          FROM auction_deposits
+          WHERE lot_id = ? AND user_id = ? AND status = 'held'
+        `).get(lot.id, req.user.id);
+        const depositPct = Number(lot.deposit_pct ?? 50);
+        const minDeposit = Number(lot.min_deposit_amount ?? 0);
+        const targetBid = Number(deposit.pending_bid_amount) || 0;
+        const requiredDeposit = Math.max(minDeposit, Math.round(targetBid * (depositPct / 100)));
+        if ((Number(heldRow?.total_held) || 0) < requiredDeposit || targetBid <= 0) {
+          res.status(402).json({ error: "Verified deposit balance is insufficient to cover this bid." });
+          return;
+        }
+        res.json({
+          success: true,
+          awaitingVerification: false,
+          status: "held",
+          message: "Existing verified deposit covers this bid.",
+          depositTxId: deposit.id
+        });
+        return;
+      }
+      const trimmedRef = String(gatewayRef || "").trim();
+      if (trimmedRef.length < 6) {
+        res.status(400).json({ error: "A valid UPI UTR / Transaction Reference (minimum 6 characters) is required." });
+        return;
+      }
+      const trimmedEvidence = String(paymentEvidenceImage || "").trim();
+      if (!trimmedEvidence) {
+        res.status(400).json({ error: "Payment receipt screenshot upload is mandatory for auction deposit verification." });
+        return;
+      }
       await db2.prepare(`
         UPDATE auction_deposits SET
-          status = 'held',
+          status = 'submitted_for_verification',
           gateway_ref = ?,
+          payment_evidence_image = ?,
           payment_method = ?,
-          settled_at = ?
+          submitted_at = ?,
+          rejection_reason = NULL
         WHERE id = ?
-      `).run(gatewayRef ? String(gatewayRef).trim() : null, paymentMethod, now, deposit.id);
+      `).run(trimmedRef, trimmedEvidence, paymentMethod, now, deposit.id);
+      await db2.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'SUBMIT_AUCTION_DEPOSIT_PROOF', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        "aud_" + crypto4.randomBytes(6).toString("hex"),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: lot.id, amount: payableAmount, pendingBid: deposit.pending_bid_amount, gatewayRef: trimmedRef }),
+        req.ip || "127.0.0.1",
+        now
+      );
       res.json({
         success: true,
-        message: "Security deposit confirmed and held in escrow! You may now place your verified bid.",
+        awaitingVerification: true,
+        status: "submitted_for_verification",
+        message: "Payment proof & UTR submitted. Your bid will only be accepted after Admin verifies the deposit receipt.",
         depositTxId: deposit.id
       });
     } catch (err) {
       console.error("Deposit confirm error:", err);
-      res.status(500).json({ error: "Failed to confirm security deposit." });
+      res.status(500).json({ error: "Failed to submit deposit payment proof." });
     }
   });
   app2.post("/api/auctions/:id/bid", authenticate2, async (req, res) => {
@@ -77967,11 +78114,44 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
       }
       const deposit = await db2.prepare(`
         SELECT * FROM auction_deposits
-        WHERE id = ? AND lot_id = ? AND user_id = ? AND status = 'held'
+        WHERE id = ? AND lot_id = ? AND user_id = ?
       `).get(depositTxId, lot.id, req.user.id);
       if (!deposit) {
         res.status(402).json({
-          error: "Bid Rejected: Bid-security deposit payment not verified. A 50% security deposit must be paid and verified before bids are accepted."
+          error: "Bid Rejected: No security deposit record found for this bid."
+        });
+        return;
+      }
+      if (deposit.status === "submitted_for_verification") {
+        res.status(402).json({
+          error: "Deposit payment is awaiting Admin verification. Bids are only accepted after staff verifies your UTR & payment receipt."
+        });
+        return;
+      }
+      if (deposit.status === "rejected") {
+        res.status(402).json({
+          error: `Deposit rejected by Admin${deposit.rejection_reason ? `: ${deposit.rejection_reason}` : ". Please submit a valid payment proof."}`
+        });
+        return;
+      }
+      if (deposit.status !== "held") {
+        res.status(402).json({
+          error: "Bid Rejected: Bid-security deposit has not been verified and held in escrow."
+        });
+        return;
+      }
+      const depositPct = Number(lot.deposit_pct ?? 50);
+      const minDeposit = Number(lot.min_deposit_amount ?? 0);
+      const requiredDeposit = Math.max(minDeposit, Math.round(numAmount * (depositPct / 100)));
+      const heldRow = await db2.prepare(`
+        SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+        FROM auction_deposits
+        WHERE lot_id = ? AND user_id = ? AND status = 'held'
+      `).get(lot.id, req.user.id);
+      const totalHeld = Number(heldRow?.total_held) || 0;
+      if (totalHeld < requiredDeposit || totalHeld <= 0) {
+        res.status(402).json({
+          error: `Insufficient verified deposit (\u20B9${totalHeld.toLocaleString()} verified of \u20B9${requiredDeposit.toLocaleString()} required). Please pay and wait for Admin verification.`
         });
         return;
       }
@@ -77989,8 +78169,8 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
           req.user.id,
           req.user.name,
           numAmount,
-          deposit.amount,
-          deposit.amount,
+          requiredDeposit,
+          totalHeld,
           deposit.id,
           now,
           now
@@ -78501,6 +78681,181 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
       res.status(500).json({ error: "Failed to close auction." });
     }
   });
+  app2.get("/api/admin/auctions/deposits", authenticate2, staffOnly2, async (req, res) => {
+    try {
+      const { status, lotId } = req.query;
+      let query = `
+        SELECT ad.*, al.title as lot_title, al.lot_number, al.current_bid, al.bid_increment,
+               al.deposit_pct, al.min_deposit_amount, al.status as lot_status,
+               u.name as customer_name, u.email as customer_email, u.phone as customer_phone
+        FROM auction_deposits ad
+        LEFT JOIN auction_lots al ON ad.lot_id = al.id
+        LEFT JOIN users u ON ad.user_id = u.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (status && status !== "all") {
+        query += " AND ad.status = ?";
+        params.push(String(status));
+      }
+      if (lotId) {
+        query += " AND ad.lot_id = ?";
+        params.push(String(lotId));
+      }
+      query += ` ORDER BY CASE WHEN ad.status = 'submitted_for_verification' THEN 0 ELSE 1 END, ad.created_at DESC LIMIT 200`;
+      const deposits = await db2.prepare(query).all(...params);
+      res.json({ deposits });
+    } catch (err) {
+      console.error("Admin get auction deposits error:", err);
+      res.status(500).json({ error: "Failed to load auction deposit submissions." });
+    }
+  });
+  app2.post("/api/admin/auctions/deposits/:depositId/verify", authenticate2, staffOnly2, async (req, res) => {
+    try {
+      await expireAuctionLots();
+      const deposit = await db2.prepare("SELECT * FROM auction_deposits WHERE id = ?").get(req.params.depositId);
+      if (!deposit) {
+        res.status(404).json({ error: "Auction deposit submission not found." });
+        return;
+      }
+      if (!["submitted_for_verification", "pending"].includes(deposit.status)) {
+        res.status(400).json({ error: `Deposit is already ${deposit.status} and cannot be verified again.` });
+        return;
+      }
+      const lot = await db2.prepare("SELECT * FROM auction_lots WHERE id = ?").get(deposit.lot_id);
+      if (!lot) {
+        res.status(404).json({ error: "Associated auction lot not found." });
+        return;
+      }
+      const bidder = await db2.prepare("SELECT id, name, email FROM users WHERE id = ?").get(deposit.user_id);
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      let placedBidId = null;
+      let bidNote = "";
+      await db2.transaction(async (tx) => {
+        await tx.prepare(`
+          UPDATE auction_deposits SET
+            status = 'held',
+            verified_by = ?,
+            verified_at = ?,
+            settled_at = ?,
+            rejection_reason = NULL
+          WHERE id = ?
+        `).run(req.user.id, now, now, deposit.id);
+        const pendingBid = Number(deposit.pending_bid_amount) || 0;
+        const closesAt = Date.parse(String(lot.ends_at || ""));
+        const isLotOpen = lot.status === "active" && Number.isFinite(closesAt) && closesAt > Date.now();
+        const currentBid = Number(lot.current_bid ?? lot.starting_bid ?? 0);
+        const minRequiredBid = currentBid + (Number(lot.bid_increment) || 0);
+        if (pendingBid > 0 && !deposit.bid_id) {
+          const heldRow = await tx.prepare(`
+            SELECT COALESCE(SUM(amount - refund_amount), 0) as total_held
+            FROM auction_deposits
+            WHERE lot_id = ? AND user_id = ? AND status = 'held'
+          `).get(lot.id, deposit.user_id);
+          const totalHeld = Number(heldRow?.total_held) || 0;
+          const depositPct = Number(lot.deposit_pct ?? 50);
+          const minDeposit = Number(lot.min_deposit_amount ?? 0);
+          const requiredDeposit = Math.max(minDeposit, Math.round(pendingBid * (depositPct / 100)));
+          if (isLotOpen && pendingBid >= minRequiredBid && totalHeld >= requiredDeposit) {
+            placedBidId = "bid_" + crypto4.randomBytes(6).toString("hex");
+            const bidderName = bidder?.name || "Verified Bidder";
+            await tx.prepare(`
+              INSERT INTO auction_bids (
+                id, lot_id, user_id, bidder_name, amount, status,
+                deposit_required, deposit_paid, deposit_status, deposit_tx_id, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, 'HELD', ?, ?, ?)
+            `).run(
+              placedBidId,
+              lot.id,
+              deposit.user_id,
+              bidderName,
+              pendingBid,
+              requiredDeposit,
+              totalHeld,
+              deposit.id,
+              now,
+              now
+            );
+            await tx.prepare(`
+              UPDATE auction_lots SET
+                current_bid = ?,
+                bid_count = bid_count + 1,
+                highest_bidder_id = ?,
+                highest_bidder_name = ?,
+                updated_at = ?
+              WHERE id = ?
+            `).run(pendingBid, deposit.user_id, bidderName, now, lot.id);
+            await tx.prepare("UPDATE auction_deposits SET bid_id = ? WHERE id = ?").run(placedBidId, deposit.id);
+            bidNote = ` Verified bid of \u20B9${pendingBid.toLocaleString("en-IN")} was accepted as highest bid.`;
+          } else if (!isLotOpen) {
+            bidNote = " Deposit credited to vault (lot is no longer active).";
+          } else if (pendingBid < minRequiredBid) {
+            bidNote = ` Deposit verified as vault credit (queued bid \u20B9${pendingBid.toLocaleString("en-IN")} was outbid; minimum is now \u20B9${minRequiredBid.toLocaleString("en-IN")}).`;
+          }
+        }
+      });
+      await db2.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'VERIFY_AUCTION_DEPOSIT', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        "aud_" + crypto4.randomBytes(6).toString("hex"),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: lot.id, amount: deposit.amount, gatewayRef: deposit.gateway_ref, placedBidId }),
+        req.ip || "127.0.0.1",
+        now
+      );
+      res.json({
+        success: true,
+        bidPlaced: Boolean(placedBidId),
+        bidId: placedBidId,
+        message: `Deposit verified and held in escrow.${bidNote}`
+      });
+    } catch (err) {
+      console.error("Admin verify auction deposit error:", err);
+      res.status(500).json({ error: "Failed to verify auction deposit." });
+    }
+  });
+  app2.post("/api/admin/auctions/deposits/:depositId/reject", authenticate2, staffOnly2, async (req, res) => {
+    try {
+      const deposit = await db2.prepare("SELECT * FROM auction_deposits WHERE id = ?").get(req.params.depositId);
+      if (!deposit) {
+        res.status(404).json({ error: "Auction deposit submission not found." });
+        return;
+      }
+      if (deposit.status === "held" || deposit.status === "applied_to_winner") {
+        res.status(400).json({ error: `Cannot reject deposit with status ${deposit.status}.` });
+        return;
+      }
+      const reason = String(req.body?.reason || "").trim() || "Payment proof or UTR could not be verified.";
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      await db2.prepare(`
+        UPDATE auction_deposits SET
+          status = 'rejected',
+          rejection_reason = ?,
+          verified_by = ?,
+          verified_at = ?
+        WHERE id = ?
+      `).run(reason, req.user.id, now, deposit.id);
+      await db2.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_name, action, target_type, target_id, details_json, ip_address, created_at)
+        VALUES (?, ?, ?, 'REJECT_AUCTION_DEPOSIT', 'auction_deposits', ?, ?, ?, ?)
+      `).run(
+        "aud_" + crypto4.randomBytes(6).toString("hex"),
+        req.user.id,
+        req.user.name,
+        deposit.id,
+        JSON.stringify({ lotId: deposit.lot_id, amount: deposit.amount, reason }),
+        req.ip || "127.0.0.1",
+        now
+      );
+      res.json({ success: true, message: "Auction deposit submission rejected.", reason });
+    } catch (err) {
+      console.error("Admin reject auction deposit error:", err);
+      res.status(500).json({ error: "Failed to reject auction deposit." });
+    }
+  });
   app2.get("/api/admin/auctions/:id/bidders", authenticate2, staffOnly2, async (req, res) => {
     try {
       const bids = await db2.prepare(`
@@ -78511,13 +78866,13 @@ function registerOverhaulRoutes(app2, db2, authenticate2, staffOnly2, adminOnly2
         ORDER BY ab.amount DESC, ab.created_at DESC
       `).all(req.params.id);
       const deposits = await db2.prepare(`
-        SELECT ad.*, u.name as customer_name, u.email as customer_email
+        SELECT ad.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone
         FROM auction_deposits ad
         LEFT JOIN users u ON ad.user_id = u.id
         WHERE ad.lot_id = ?
-        ORDER BY ad.created_at DESC
+        ORDER BY CASE WHEN ad.status = 'submitted_for_verification' THEN 0 ELSE 1 END, ad.created_at DESC
       `).all(req.params.id);
-      res.json({ bids, deposits });
+      res.json({ bids, bidders: bids, deposits });
     } catch (err) {
       console.error("Admin get bidders error:", err);
       res.status(500).json({ error: "Failed to load bidder breakdown." });
@@ -99113,8 +99468,12 @@ app.get("/api/listings", async (req, res) => {
       params.push(region);
     }
     if (guarantee_type) {
-      query += " AND guarantee_type = ?";
-      params.push(guarantee_type);
+      if (guarantee_type === "lifetime_guaranteed" || guarantee_type === "guaranteed") {
+        query += " AND guarantee_type IN ('lifetime_guaranteed', 'guaranteed')";
+      } else {
+        query += " AND guarantee_type = ?";
+        params.push(guarantee_type);
+      }
     }
     if (featured === "1" || featured === "true") {
       query += " AND featured = 1";
@@ -99130,8 +99489,12 @@ app.get("/api/listings", async (req, res) => {
     let countQuery = "SELECT COUNT(*) as count FROM listings WHERE status = 'published'";
     const countParams = [];
     if (guarantee_type) {
-      countQuery += " AND guarantee_type = ?";
-      countParams.push(guarantee_type);
+      if (guarantee_type === "lifetime_guaranteed" || guarantee_type === "guaranteed") {
+        countQuery += " AND guarantee_type IN ('lifetime_guaranteed', 'guaranteed')";
+      } else {
+        countQuery += " AND guarantee_type = ?";
+        countParams.push(guarantee_type);
+      }
     }
     if (featured === "1" || featured === "true") {
       countQuery += " AND featured = 1";
@@ -99384,6 +99747,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, async (req, res) => {
     const listingId = "lst_" + crypto17.randomBytes(6).toString("hex");
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const resolvedSellerName = seller_name && String(seller_name).trim() || req.user?.name || "VIB Official Vault";
+    const normalizedGuarantee = guarantee_type === "guaranteed" ? "lifetime_guaranteed" : String(guarantee_type || "escrow_protected").trim();
     const parsedPrice = Number(price_inr);
     const parsedLevel = Math.max(1, parseInt(String(level), 10) || 1);
     const parsedSkins = Array.isArray(skins) ? skins : [];
@@ -99401,7 +99765,7 @@ app.post("/api/admin/listings", authenticate, staffOnly, async (req, res) => {
       req.user.id,
       resolvedSellerName,
       seller_role,
-      guarantee_type,
+      normalizedGuarantee,
       String(title).trim(),
       String(description).trim(),
       parsedPrice,
@@ -99444,7 +99808,7 @@ app.put("/api/admin/listings/:id/status", authenticate, staffOnly, async (req, r
     const listingId = req.params.id;
     const { status, featured } = req.body;
     const reason = req.body.reason || req.body.reject_reason || req.body.rejection_reason || null;
-    const validStatuses = ["approved", "published", "rejected", "archived", "draft", "pending_review", "submitted"];
+    const validStatuses = ["approved", "published", "hidden", "rejected", "archived", "draft", "pending_review", "submitted"];
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: `Invalid listing status: ${status}` });
       return;
@@ -99507,7 +99871,8 @@ app.put("/api/admin/listings/:id", authenticate, staffOnly, async (req, res) => 
     const updatedImages = images !== void 0 ? JSON.stringify(images) : existing.images_json;
     const updatedSkins = skins !== void 0 ? JSON.stringify(skins) : existing.skins_json;
     const updatedSellerRole = seller_role !== void 0 ? String(seller_role).trim() : existing.seller_role;
-    const updatedGuarantee = guarantee_type !== void 0 ? String(guarantee_type).trim() : existing.guarantee_type;
+    const updatedGuaranteeRaw = guarantee_type !== void 0 ? String(guarantee_type).trim() : existing.guarantee_type;
+    const updatedGuarantee = updatedGuaranteeRaw === "guaranteed" ? "lifetime_guaranteed" : updatedGuaranteeRaw;
     const updatedStatus = status !== void 0 ? String(status).trim() : existing.status;
     const updatedReason = rejection_reason !== void 0 ? rejection_reason : existing.rejection_reason;
     const now = (/* @__PURE__ */ new Date()).toISOString();
