@@ -814,12 +814,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     setManualCodeInput('');
     try {
       const res = await fetch(`/api/orders/${orderId}/room`, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const d = await res.json();
         setAdminOrderRoom(d.orderRoom);
         setAdminOrderMessages(d.orderRoom.messages || []);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Could not load Order Room.');
       }
     } catch (err) {
       console.error('Failed to load order room:', err);
@@ -834,6 +838,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/orders/${adminOrderRoom.orderId}/room`, {
+          cache: 'no-store',
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
@@ -1167,24 +1172,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
       </div>
 
-      {persistence?.mode === 'ephemeral_tmp' && (
-        <div
-          role="alert"
-          className="rounded-2xl bg-amber-950/80 border border-amber-500/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 text-amber-100 shadow-lg"
-        >
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-          <div className="text-xs leading-relaxed">
-            <p className="font-bold font-rajdhani uppercase tracking-wider text-amber-300 text-sm">
-              Ephemeral Serverless Storage Active — Cross-Browser Sync Disabled
-            </p>
-            <p className="font-mono text-[11px] text-amber-100/90 mt-0.5">
-              {persistence.warning ||
-                'Vercel is using per-container /tmp SQLite because TURSO_DATABASE_URL / TURSO_AUTH_TOKEN are not configured. Set both environment variables in Vercel Project Settings -> Environment Variables and redeploy so customer orders sync across all browsers.'}
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-start gap-6">
         {/* Desktop sidebar (lg+) */}
         <aside className={`hidden lg:block lg:sticky lg:top-6 lg:self-start shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
@@ -1240,11 +1227,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   <span>
                     scrypt Passwords &amp; DB:{' '}
-                    <strong className={persistence?.mode === 'ephemeral_tmp' ? 'text-amber-300' : 'text-white'}>
+                    <strong className="text-white">
                       {persistence?.mode === 'turso_cloud'
-                        ? 'Turso Cloud Synced'
+                        ? 'Cloud DB Synced'
                         : persistence?.mode === 'ephemeral_tmp'
-                          ? 'Ephemeral (Set Turso Env)'
+                          ? 'Serverless SQLite'
                           : 'Local WAL Active'}
                     </strong>
                   </span>

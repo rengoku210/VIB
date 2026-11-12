@@ -96816,7 +96816,14 @@ app.get("/api/orders/:id/room", authenticate, async (req, res) => {
           email: order.buyer_email,
           riotId: order.buyer_riot_id
         },
-        details: order.details_json ? JSON.parse(order.details_json) : {},
+        details: (() => {
+          if (!order.details_json) return {};
+          try {
+            return JSON.parse(order.details_json);
+          } catch {
+            return {};
+          }
+        })(),
         messages
       }
     });

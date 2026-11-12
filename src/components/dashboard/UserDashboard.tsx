@@ -179,6 +179,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [messageWarning, setMessageWarning] = useState<string | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [orderRoomLoading, setOrderRoomLoading] = useState(false);
+  const [loadingOrderRoomId, setLoadingOrderRoomId] = useState<string | null>(null);
+  const [orderRoomError, setOrderRoomError] = useState<string | null>(null);
 
   // Tax Invoice Modal state
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -328,20 +330,28 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const handleOpenOrderRoom = async (orderId: string) => {
     if (!token) return;
     setOrderRoomLoading(true);
+    setLoadingOrderRoomId(orderId);
+    setOrderRoomError(null);
     try {
       const res = await fetch(`/api/orders/${orderId}/room`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
       if (res.ok) {
         const d = await res.json();
         setSelectedOrderRoom(d.orderRoom);
         setOrderRoomMessages(d.orderRoom.messages || []);
         setMessageWarning(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setOrderRoomError(errData.error || 'Could not open this Order Room right now. Please click Refresh and try again.');
       }
     } catch (err) {
       console.error('Failed to load order room:', err);
+      setOrderRoomError('Network error while opening Order Room. Please try again.');
     } finally {
       setOrderRoomLoading(false);
+      setLoadingOrderRoomId(null);
     }
   };
 
@@ -352,19 +362,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       try {
         const res = await fetch(`/api/orders/${selectedOrderRoom.orderId}/room`, {
           headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
         });
         if (res.ok) {
           const d = await res.json();
           if (d.orderRoom?.messages) {
             setOrderRoomMessages(d.orderRoom.messages);
           }
-          if (d.orderRoom?.issued_code || d.orderRoom?.fulfillment_notes || d.orderRoom?.delivery_data?.code) {
+          if (d.orderRoom) {
             setSelectedOrderRoom((prev: any) => ({
               ...prev,
               issued_code: d.orderRoom.issued_code,
               fulfillment_notes: d.orderRoom.fulfillment_notes,
               delivery_data: d.orderRoom.delivery_data,
               status: d.orderRoom.status,
+              payment_status: d.orderRoom.payment_status,
             }));
           }
         }
@@ -477,6 +489,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         setShowNewTicketModal(false);
         setTicketSubject('');
         setTicketMessage('');
+        setActiveTab('tickets');
         fetchDashboardData();
       }
     } catch (err) {
@@ -959,6 +972,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </button>
               </div>
 
+              {orderRoomError && (
+                <div role="alert" className="mb-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 text-rose-200 text-xs">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    {orderRoomError}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setOrderRoomError(null)}
+                    className="text-rose-300 hover:text-white px-2 py-0.5 rounded bg-white/5 cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
               {orders.length === 0 ? (
                 <div className="py-8 text-center text-xs text-gray-500">
                   No orders placed yet. Browse our verified Valorant profiles or VP top-ups to get started.
@@ -993,10 +1022,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                         )}
                         <button
                           type="button"
+                          disabled={loadingOrderRoomId === ord.id}
                           onClick={() => handleOpenOrderRoom(ord.id)}
-                          className="px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 border border-purple-500/30 text-purple-200 text-xs font-bold font-rajdhani uppercase cursor-pointer"
+                          className="px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 disabled:opacity-60 border border-purple-500/30 text-purple-200 text-xs font-bold font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1"
                         >
-                          Order Room
+                          {loadingOrderRoomId === ord.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Opening...
+                            </>
+                          ) : (
+                            'Order Room'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1025,6 +1062,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <span>Refresh</span>
               </button>
             </div>
+
+            {orderRoomError && (
+              <div role="alert" className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 text-rose-200 text-xs">
+                <span className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  {orderRoomError}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOrderRoomError(null)}
+                  className="text-rose-300 hover:text-white px-2 py-0.5 rounded bg-white/5 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             {orders.length === 0 ? (
               <div className="p-12 text-center rounded-2xl bg-[#0c0d1c] border border-white/5 text-gray-400">
@@ -1154,21 +1207,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
                         <button
                           type="button"
+                          disabled={loadingOrderRoomId === ord.id}
                           onClick={() => handleOpenOrderRoom(ord.id)}
-                          className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-xs font-bold text-white transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Open Order Room</span>
+                          {loadingOrderRoomId === ord.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          )}
+                          <span>{loadingOrderRoomId === ord.id ? 'Opening Room...' : 'Open Order Room'}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            setActiveTab('tickets');
                             setTicketSubject(`Assistance required for Order #${ord.id}`);
                             setShowNewTicketModal(true);
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-200 transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-200 transition-colors cursor-pointer"
                         >
                           Need Help?
                         </button>
@@ -2202,7 +2259,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 font-mono mt-0.5">
-                  {selectedOrderRoom.title} • ₹{selectedOrderRoom.amount.toLocaleString('en-IN')}
+                  {selectedOrderRoom.title || 'Order'} • ₹{Number(selectedOrderRoom.amount || 0).toLocaleString('en-IN')}
                 </p>
               </div>
               <button
