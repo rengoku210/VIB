@@ -85,6 +85,7 @@ type AdminTab =
   | 'email_logs'
   | 'users'
   | 'orders'
+  | 'vp_orders'
   | 'invoices'
   | 'finance'
   | 'tasks'
@@ -109,6 +110,7 @@ const ADMIN_TAB_KEYS: readonly AdminTab[] = [
   'email_logs',
   'users',
   'orders',
+  'vp_orders',
   'invoices',
   'finance',
   'tasks',
@@ -158,6 +160,7 @@ const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     items: [
       { tab: 'users', label: 'Users & CRM', icon: Users },
       { tab: 'orders', label: 'Orders', icon: Package },
+      { tab: 'vp_orders', label: 'VP Orders Desk', icon: Zap },
       { tab: 'invoices', label: 'Invoices & Billing', icon: FileText },
       { tab: 'disputes', label: 'Disputes', icon: Headphones },
     ],
@@ -251,6 +254,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   // Orders filter & payment verification modal state
   const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'verification_needed' | 'verified' | 'completed' | 'cancelled'>('all');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [vpOrderStatusFilter, setVpOrderStatusFilter] = useState<
+    'all' | 'pending_verification' | 'verified' | 'awaiting_processing' | 'processing' | 'completed' | 'rejected'
+  >('all');
+  const [vpOrderSearchQuery, setVpOrderSearchQuery] = useState('');
+  const [copiedRiotIdMap, setCopiedRiotIdMap] = useState<Record<string, boolean>>({});
+
+  const handleCopyRiotId = (orderId: string, text: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedRiotIdMap((prev) => ({ ...prev, [orderId]: true }));
+      setTimeout(() => {
+        setCopiedRiotIdMap((prev) => ({ ...prev, [orderId]: false }));
+      }, 2000);
+    } catch {}
+  };
   const [selectedOrderVerify, setSelectedOrderVerify] = useState<any | null>(null);
   const [verifyAction, setVerifyAction] = useState<'approve' | 'reject'>('approve');
   const [verifyNotes, setVerifyNotes] = useState('');
@@ -464,13 +482,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
     const refreshWhenVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      if (activeTab === 'orders') {
+      if (activeTab === 'orders' || activeTab === 'vp_orders') {
         void refreshOrders();
       } else {
         void fetchAdminData();
       }
     };
-    const intervalId = activeTab === 'orders' ? window.setInterval(refreshWhenVisible, 15_000) : undefined;
+    const intervalId = (activeTab === 'orders' || activeTab === 'vp_orders') ? window.setInterval(refreshWhenVisible, 15_000) : undefined;
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
@@ -949,6 +967,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         return Number(metrics.totalUsers || usersList.length || 0);
       case 'orders':
         return Number(metrics.totalOrders || ordersList.length || 0);
+      case 'vp_orders':
+        return ordersList.filter(
+          (o) =>
+            (o.type === 'vp' || o.type === 'regional_vp' || String(o.title || '').toLowerCase().includes('vp')) &&
+            (o.payment_status === 'SUBMITTED_FOR_VERIFICATION' || (o.payment_status === 'PAYMENT_VERIFIED' && o.status !== 'completed'))
+        ).length;
       case 'invoices':
         return Number(metrics.totalInvoices || invoicesList.length || 0);
       case 'tasks':
@@ -1612,12 +1636,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                               </td>
 
                               {/* Product & Type */}
-                              <td className="px-2 py-2.5 max-w-[130px]">
-                                <div className="font-sans font-semibold text-white truncate" title={ord.title}>
-                                  {ord.title}
-                                </div>
-                                <div className="text-[10px] text-gray-400 uppercase font-mono mt-0.5">
-                                  <span className="text-purple-300 font-bold">{ord.type}</span>
+                              <td className="px-2 py-2.5 max-w-[150px]">
+                                <div className="flex items-center gap-2">
+                                  {String(ord.title || '').toLowerCase().includes('vp') || String(ord.type || '').toLowerCase().includes('vp') ? (
+                                    <div className="w-7 h-7 rounded-lg bg-purple-950/60 border border-purple-500/30 p-0.5 flex items-center justify-center shrink-0 shadow-sm">
+                                      <img
+                                        src="/assets/hires/vp_coins_stack.png"
+                                        alt="VP"
+                                        className="w-full h-full object-contain filter drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]"
+                                      />
+                                    </div>
+                                  ) : null}
+                                  <div className="min-w-0">
+                                    <div className="font-sans font-semibold text-white truncate" title={ord.title}>
+                                      {ord.title}
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 uppercase font-mono mt-0.5">
+                                      <span className="text-purple-300 font-bold">{ord.type}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
 
@@ -1758,6 +1795,492 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                     Cancel
                                   </button>
                                 )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ============================================================== */}
+        {/* TAB: DEDICATED VP ORDER DESK & RIOT DISPATCH                   */}
+        {/* ============================================================== */}
+        {activeTab === 'vp_orders' && (() => {
+          const vpOrders = ordersList.filter((ord) => {
+            return (
+              ord.type === 'vp' ||
+              ord.type === 'regional_vp' ||
+              String(ord.title || '').toLowerCase().includes('vp')
+            );
+          });
+
+          const pendingVerificationCount = vpOrders.filter(
+            (o) => o.payment_status === 'SUBMITTED_FOR_VERIFICATION'
+          ).length;
+          const verifiedCount = vpOrders.filter(
+            (o) => o.payment_status === 'PAYMENT_VERIFIED'
+          ).length;
+          const awaitingProcessingCount = vpOrders.filter(
+            (o) =>
+              o.payment_status === 'PAYMENT_VERIFIED' &&
+              (!o.fulfillment_status || o.fulfillment_status === 'PENDING')
+          ).length;
+          const processingCount = vpOrders.filter(
+            (o) => o.fulfillment_status === 'PROCESSING'
+          ).length;
+          const completedCount = vpOrders.filter(
+            (o) => o.status === 'completed' || o.fulfillment_status === 'COMPLETED'
+          ).length;
+          const rejectedCount = vpOrders.filter(
+            (o) => o.payment_status === 'PAYMENT_REJECTED' || o.status === 'cancelled'
+          ).length;
+
+          const filteredVpOrders = vpOrders.filter((ord) => {
+            if (vpOrderStatusFilter === 'pending_verification' && ord.payment_status !== 'SUBMITTED_FOR_VERIFICATION') return false;
+            if (vpOrderStatusFilter === 'verified' && ord.payment_status !== 'PAYMENT_VERIFIED') return false;
+            if (vpOrderStatusFilter === 'awaiting_processing') {
+              if (ord.payment_status !== 'PAYMENT_VERIFIED' || (ord.fulfillment_status && ord.fulfillment_status !== 'PENDING')) return false;
+            }
+            if (vpOrderStatusFilter === 'processing' && ord.fulfillment_status !== 'PROCESSING') return false;
+            if (vpOrderStatusFilter === 'completed' && ord.status !== 'completed' && ord.fulfillment_status !== 'COMPLETED') return false;
+            if (vpOrderStatusFilter === 'rejected' && ord.payment_status !== 'PAYMENT_REJECTED' && ord.status !== 'cancelled') return false;
+
+            if (vpOrderSearchQuery.trim()) {
+              const q = vpOrderSearchQuery.toLowerCase().trim();
+              let details: any = {};
+              try { details = ord.details_json ? JSON.parse(ord.details_json) : {}; } catch {}
+              const riotId = String(details.riotId || '').toLowerCase();
+              const matchId = String(ord.id || '').toLowerCase().includes(q);
+              const matchName = String(ord.user_name || '').toLowerCase().includes(q);
+              const matchEmail = String(ord.user_email || '').toLowerCase().includes(q);
+              const matchTitle = String(ord.title || '').toLowerCase().includes(q);
+              const matchUtr = String(ord.payment_evidence_ref || '').toLowerCase().includes(q);
+              const matchRiot = riotId.includes(q);
+              return matchId || matchName || matchEmail || matchTitle || matchUtr || matchRiot;
+            }
+            return true;
+          });
+
+          return (
+            <div className="space-y-5 animate-in fade-in">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black font-rajdhani text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-900/40 border border-purple-500/40 flex items-center justify-center p-1">
+                      <img src="/assets/hires/vp_coins_stack.png" alt="VP" className="w-full h-full object-contain" />
+                    </div>
+                    <span>VP Order Fulfillment &amp; Riot Dispatch Desk</span>
+                    <span className="text-xs font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">
+                      {vpOrders.length} Total
+                    </span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Dedicated desk for Valorant Points orders. Verify payments, copy Riot IDs, transition through processing, and dispatch fulfillment.
+                  </p>
+                  {ordersLoadError && (
+                    <p role="alert" className="text-xs text-rose-300 mt-1">{ordersLoadError}</p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchAdminData}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              {/* Top Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-[#0c0d1c] border border-white/5 space-y-1">
+                  <div className="text-[10px] font-mono text-gray-400 uppercase">Total VP Orders</div>
+                  <div className="text-xl font-black font-rajdhani text-white">{vpOrders.length}</div>
+                </div>
+                <div className={`p-3.5 rounded-xl border space-y-1 ${pendingVerificationCount > 0 ? 'bg-amber-950/30 border-amber-500/40' : 'bg-[#0c0d1c] border-white/5'}`}>
+                  <div className="text-[10px] font-mono text-amber-300 uppercase flex items-center gap-1">
+                    {pendingVerificationCount > 0 && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
+                    <span>Pending Verification</span>
+                  </div>
+                  <div className="text-xl font-black font-rajdhani text-amber-300">{pendingVerificationCount}</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0c0d1c] border border-white/5 space-y-1">
+                  <div className="text-[10px] font-mono text-sky-400 uppercase">Awaiting Processing</div>
+                  <div className="text-xl font-black font-rajdhani text-sky-400">{awaitingProcessingCount + processingCount}</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0c0d1c] border border-white/5 space-y-1">
+                  <div className="text-[10px] font-mono text-emerald-400 uppercase">Successfully Fulfilled</div>
+                  <div className="text-xl font-black font-rajdhani text-emerald-400">{completedCount}</div>
+                </div>
+              </div>
+
+              {/* Status Chips & Search */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'all'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    All ({vpOrders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('pending_verification')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      vpOrderStatusFilter === 'pending_verification'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/40 ring-2 ring-amber-400'
+                        : pendingVerificationCount > 0
+                        ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40 hover:bg-amber-900 animate-pulse'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span>Pending Verification</span>
+                    {pendingVerificationCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-black text-[10px] font-bold">
+                        {pendingVerificationCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('verified')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'verified'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Payment Verified ({verifiedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('awaiting_processing')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'awaiting_processing'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Awaiting Processing ({awaitingProcessingCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('processing')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'processing'
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Processing ({processingCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('completed')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'completed'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Completed ({completedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVpOrderStatusFilter('rejected')}
+                    className={`px-3 py-1.5 rounded-xl font-rajdhani font-bold uppercase transition-all cursor-pointer ${
+                      vpOrderStatusFilter === 'rejected'
+                        ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    Rejected ({rejectedCount})
+                  </button>
+                </div>
+
+                <div className="relative min-w-[260px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={vpOrderSearchQuery}
+                    onChange={(e) => setVpOrderSearchQuery(e.target.value)}
+                    placeholder="Search Order ID, Riot ID, Customer..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-white font-mono text-xs focus:ring-1 focus:ring-purple-400 placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="rounded-2xl bg-[#0c0d1c] border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] font-mono">
+                    <thead className="bg-white/5 text-gray-400 uppercase tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="px-3 py-2.5">Order</th>
+                        <th className="px-3 py-2.5">Customer</th>
+                        <th className="px-3 py-2.5">Riot ID &amp; Region</th>
+                        <th className="px-3 py-2.5">Package &amp; Price</th>
+                        <th className="px-3 py-2.5">Status &amp; Workflow</th>
+                        <th className="px-3 py-2.5">Payment Proof</th>
+                        <th className="px-3 py-2.5 text-right">Workflow Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-gray-300">
+                      {filteredVpOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-500 font-sans">
+                            No VP orders found matching the filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredVpOrders.map((ord) => {
+                          let details: any = {};
+                          try { details = ord.details_json ? JSON.parse(ord.details_json) : {}; } catch {}
+                          const phone = details.contactPhone || details.phone || ord.user_phone;
+                          const email = details.email || ord.user_email;
+                          const riotId = details.riotId || (ord.riot_account_id ? `Account #${ord.riot_account_id}` : null);
+                          const isCopied = copiedRiotIdMap[ord.id];
+                          const isAwaitingVerification = ord.payment_status === 'SUBMITTED_FOR_VERIFICATION';
+                          const isPaymentVerified = ord.payment_status === 'PAYMENT_VERIFIED';
+                          const isProcessing = ord.fulfillment_status === 'PROCESSING';
+                          const isCompleted = ord.status === 'completed' || ord.fulfillment_status === 'COMPLETED';
+
+                          return (
+                            <tr
+                              key={ord.id}
+                              className={`transition-colors ${
+                                isAwaitingVerification
+                                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.08]'
+                                  : 'hover:bg-white/[0.02]'
+                              }`}
+                            >
+                              {/* Order ID & Date */}
+                              <td className="px-3 py-2.5 max-w-[120px]">
+                                <div className="font-bold text-purple-300 truncate" title={ord.id}>#{ord.id}</div>
+                                <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">
+                                  {new Date(ord.created_at).toLocaleDateString()}{' '}
+                                  {new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </td>
+
+                              {/* Customer */}
+                              <td className="px-3 py-2.5 max-w-[140px]">
+                                <div className="font-bold text-white font-sans truncate">{ord.user_name || 'Customer'}</div>
+                                <div className="text-[10px] text-gray-400 truncate" title={email}>{email}</div>
+                                {phone && (
+                                  <div className="text-[10px] text-purple-300 font-mono mt-0.5 flex items-center gap-1 truncate">
+                                    <Phone className="w-3 h-3 text-purple-400 shrink-0" />
+                                    <span className="truncate">{phone}</span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Riot ID & 1-Click Copy */}
+                              <td className="px-3 py-2.5 max-w-[170px]">
+                                {riotId ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-2 py-0.5 rounded bg-black/60 border border-purple-500/40 text-white font-mono font-bold text-xs truncate max-w-[130px]" title={riotId}>
+                                        {riotId}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyRiotId(ord.id, riotId)}
+                                        className={`p-1 rounded cursor-pointer transition-colors ${
+                                          isCopied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-purple-600 text-gray-300 hover:text-white'
+                                        }`}
+                                        title="Copy Riot ID & Tag"
+                                      >
+                                        {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 uppercase font-mono">
+                                      {String(ord.title || '').toLowerCase().includes('php') || String(ord.type || '').toLowerCase().includes('php')
+                                        ? 'Philippines Region'
+                                        : 'Indian Region'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-gray-500 italic">Not Specified</span>
+                                )}
+                              </td>
+
+                              {/* Package & Price */}
+                              <td className="px-3 py-2.5 max-w-[150px]">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-purple-950/60 border border-purple-500/30 p-0.5 flex items-center justify-center shrink-0 shadow-sm">
+                                    <img
+                                      src="/assets/hires/vp_coins_stack.png"
+                                      alt="VP"
+                                      className="w-full h-full object-contain filter drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-sans font-semibold text-white truncate" title={ord.title}>
+                                      {ord.title}
+                                    </div>
+                                    <div className="font-bold text-emerald-400 mt-0.5">
+                                      ₹{Number(ord.amount).toLocaleString('en-IN')}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Status & Workflow Stage */}
+                              <td className="px-3 py-2.5">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold inline-block whitespace-nowrap ${
+                                    isPaymentVerified
+                                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                      : isAwaitingVerification
+                                      ? 'bg-amber-950 text-amber-300 border border-amber-500/40 animate-pulse'
+                                      : ord.payment_status === 'PAYMENT_REJECTED'
+                                      ? 'bg-rose-950 text-rose-300 border border-rose-500/30'
+                                      : 'bg-zinc-800 text-gray-300 border border-white/10'
+                                  }`}
+                                >
+                                  {ord.payment_status || 'AWAITING_PAYMENT'}
+                                </span>
+                                <div className="text-[10px] mt-1 font-mono">
+                                  {isCompleted ? (
+                                    <span className="text-emerald-400 font-bold">VP DISPATCHED</span>
+                                  ) : isProcessing ? (
+                                    <span className="text-sky-400 font-bold animate-pulse">VP IN PROCESS</span>
+                                  ) : isPaymentVerified ? (
+                                    <span className="text-indigo-300 font-semibold">AWAITING DISPATCH</span>
+                                  ) : (
+                                    <span className="text-gray-500">PENDING VERIFICATION</span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Payment Proof */}
+                              <td className="px-3 py-2.5 max-w-[120px]">
+                                {ord.payment_evidence_ref ? (
+                                  <div className="space-y-1">
+                                    <div className="text-[10px] font-mono text-purple-200 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-500/30 inline-block font-bold truncate max-w-full" title={ord.payment_evidence_ref}>
+                                      {ord.payment_evidence_ref}
+                                    </div>
+                                    {ord.payment_evidence_image && (
+                                      <div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setZoomScreenshot(ord.payment_evidence_image)}
+                                          className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer underline"
+                                        >
+                                          <ImageIcon className="w-3 h-3 shrink-0" />
+                                          <span>Receipt</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-gray-500 italic">No proof</span>
+                                )}
+                              </td>
+
+                              {/* Separate Action Buttons */}
+                              <td className="px-3 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAdminOrderRoom(ord.id)}
+                                    className="px-2 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                                    title="Open Order Room & Customer Chat"
+                                  >
+                                    <MessageSquare className="w-3 h-3 text-indigo-400" />
+                                    <span>Room</span>
+                                  </button>
+
+                                  {/* Step 1: Verify Payment */}
+                                  {isAwaitingVerification && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedOrderVerify(ord);
+                                          setVerifyAction('approve');
+                                          setVerifyNotes('Verified in bank records / UPI ledger');
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm flex items-center gap-1"
+                                        title="Verify & Confirm Payment"
+                                      >
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span>Verify Payment</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedOrderVerify(ord);
+                                          setVerifyAction('reject');
+                                          setRejectionReason('UTR could not be located in bank ledger');
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer"
+                                        title="Reject Payment Proof"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* Step 2: Start Processing */}
+                                  {isPaymentVerified && !isProcessing && !isCompleted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOrderStatus(ord.id, 'processing')}
+                                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm flex items-center gap-1"
+                                      title="Mark order as currently processing"
+                                    >
+                                      <Zap className="w-3 h-3" />
+                                      <span>Start Processing</span>
+                                    </button>
+                                  )}
+
+                                  {/* Step 3: Mark Successfully Processed */}
+                                  {isPaymentVerified && !isCompleted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOrderStatus(ord.id, 'completed')}
+                                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold text-[10px] font-rajdhani uppercase cursor-pointer shadow-sm flex items-center gap-1"
+                                      title="Mark VP as successfully delivered"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      <span>Mark VP Processed</span>
+                                    </button>
+                                  )}
+
+                                  {/* Linked Invoice */}
+                                  {(() => {
+                                    const linkedInv = invoicesList.find((i) => i.order_id === ord.id);
+                                    if (linkedInv) {
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedInvoiceView(linkedInv)}
+                                          className="px-2 py-1 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-300 font-bold text-[10px] font-rajdhani uppercase cursor-pointer inline-flex items-center gap-1 shadow-sm"
+                                          title={`View Official Invoice (${linkedInv.id})`}
+                                        >
+                                          <FileText className="w-3 h-3 text-purple-400" />
+                                          <span>Invoice</span>
+                                        </button>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                               </td>
                             </tr>

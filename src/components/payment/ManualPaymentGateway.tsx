@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { resolveUploadUrl } from '../../utils/uploadUrl';
+import { UpiQrCode } from './UpiQrCode';
 import {
   ShoppingCart,
   CreditCard,
@@ -50,7 +51,8 @@ export interface ManualPaymentGatewayProps {
   itemPrice: number;
   currency?: Currency;
   specs?: PaymentGatewaySpec[];
-  iconType?: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles';
+  iconType?: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins';
+  itemImageUrl?: string;
   breadcrumbService?: string;
   onBack: () => void;
   backButtonLabel?: string;
@@ -109,6 +111,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   currency = 'INR',
   specs,
   iconType = 'megaphone',
+  itemImageUrl,
   breadcrumbService = 'Advertise',
   onBack,
   backButtonLabel = 'Back to Advertisement Plans',
@@ -391,6 +394,35 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
 
   // Render 3D Hero Icon
   const renderItemIcon = () => {
+    if (itemImageUrl) {
+      return (
+        <img
+          src={itemImageUrl}
+          alt={itemTitle}
+          className="w-full h-full object-contain filter drop-shadow-[0_0_14px_rgba(168,85,247,0.65)] p-0.5 select-none"
+        />
+      );
+    }
+
+    const lowerTitle = (itemTitle || '').toLowerCase();
+    const lowerCategory = (itemCategory || '').toLowerCase();
+    const isVpItem =
+      iconType === 'coins' ||
+      iconType === 'vp' ||
+      lowerTitle.includes('vp') ||
+      lowerCategory.includes('vp') ||
+      lowerTitle.includes('valorant points');
+
+    if (isVpItem) {
+      return (
+        <img
+          src="/assets/hires/vp_coins_stack.png"
+          alt="Valorant Points Coins"
+          className="w-full h-full object-contain filter drop-shadow-[0_0_16px_rgba(168,85,247,0.7)] p-0.5 select-none transition-transform hover:scale-105 duration-300"
+        />
+      );
+    }
+
     switch (iconType) {
       case 'repeat':
         return <Repeat className="w-10 h-10 text-emerald-400" />;
@@ -1010,7 +1042,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
 
               {/* Package Badge & Title */}
               <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-500/20 flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center flex-shrink-0 shadow-inner">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-900/40 via-purple-950/60 to-black/80 border border-purple-500/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(168,85,247,0.3)] p-1">
                   {renderItemIcon()}
                 </div>
                 <div className="space-y-1">
@@ -1065,41 +1097,15 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
 
             {/* QR Code and Payment Details Sub-grid */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              {/* Left Column: QR Code */}
-              <div className="md:col-span-6 flex flex-col items-center text-center space-y-3">
-                <div className="p-3 bg-white rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.3)] relative group">
-                  <img
-                    src={qrSource}
-                    alt="VIB Official UPI QR Code"
-                    className="w-48 h-48 object-contain rounded-xl"
-                  />
-                  {/* Center VIB Logo Badge Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-10 h-10 rounded-lg bg-[#0b0818] border-2 border-purple-500 flex items-center justify-center shadow-lg">
-                      <span className="font-rajdhani font-black text-xs text-white tracking-widest">VIB</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-xs font-semibold text-gray-300">
-                  Scan &amp; Pay with any UPI App
-                </div>
-
-                {/* UPI Brand Badges */}
-                <div className="flex items-center justify-center gap-2 pt-0.5">
-                  <span className="px-2 py-0.5 rounded bg-blue-950/80 border border-blue-500/40 text-[10px] font-mono text-blue-300 font-bold">
-                    GPay
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-purple-950/80 border border-purple-500/40 text-[10px] font-mono text-purple-300 font-bold">
-                    PhonePe
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-sky-950/80 border border-sky-500/40 text-[10px] font-mono text-sky-300 font-bold">
-                    Paytm
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-500/40 text-[10px] font-mono text-amber-300 font-bold">
-                    BHIM
-                  </span>
-                </div>
+              {/* Left Column: Dynamic UPI QR Code (Auto-fills UPI ID, Payee & Exact Amount) */}
+              <div className="md:col-span-6 flex flex-col items-center text-center">
+                <UpiQrCode
+                  upiId={upiId}
+                  payeeName={payeeName}
+                  amount={itemPrice}
+                  orderId={orderId}
+                  currency={currency}
+                />
               </div>
 
               {/* Right Column: Copyable UPI Details */}

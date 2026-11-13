@@ -41,7 +41,8 @@ export interface ServiceProductDetail {
   fulfillmentMethod: string;
   regionScope: string;
   protectionLabel: string;
-  iconType: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles';
+  iconType: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins';
+  imageUrl?: string;
   services: string[];
   benefits: string[];
   conditions: string[];
@@ -138,7 +139,8 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
         fulfillmentMethod: 'Prepaid PIN Code',
         regionScope: 'India (INR)',
         protectionLabel: '100% Replacement Warranty',
-        iconType: 'sparkles',
+        iconType: 'coins',
+        imageUrl: '/assets/hires/vp_coins_stack.png',
         services: [
           'Genuine official Riot Prepaid PIN code issued exclusively to your account',
           'Full transaction invoice & dashboard delivery tracking',
@@ -184,7 +186,8 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
         fulfillmentMethod: 'Manual Operations Desk',
         regionScope: sel.regionLabel || 'Philippines (PHP)',
         protectionLabel: 'Full Account Escrow Safety',
-        iconType: 'sparkles',
+        iconType: 'coins',
+        imageUrl: '/assets/hires/vp_coins_stack.png',
         services: [
           'Direct top-up provisioning by verified VIB regional operators',
           'Real-time status coordination over official WhatsApp (+91 80996 41606)',

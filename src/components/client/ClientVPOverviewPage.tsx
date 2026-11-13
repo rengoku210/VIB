@@ -400,41 +400,40 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
         </div>
 
-        {/* Flexible Payment Plans (EMI) Strip */}
-        <div className="p-4 rounded-xl bg-[#0c0a18] border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-900/30 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0">
-              <CreditCard className="w-5 h-5" />
+        {/* Flexible Payment Plans (EMI) Strip - Prominent Phase 2 B Banner */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-purple-950/70 via-[#100a24] to-[#0c081a] border border-purple-500/40 flex flex-col lg:flex-row items-center justify-between gap-5 shadow-[0_0_30px_rgba(168,85,247,0.15)] relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-full bg-purple-600/10 blur-3xl pointer-events-none" />
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 rounded-2xl bg-purple-900/40 border border-purple-500/40 flex items-center justify-center text-purple-300 flex-shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+              <CreditCard className="w-6 h-6" />
             </div>
-            <div>
-              <div className="font-extrabold text-sm text-white font-rajdhani">FLEXIBLE PAYMENT PLANS</div>
-              <div className="text-xs text-gray-400">Get your VP now, pay later. Easy EMI options to make topping up more convenient.</div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/35 text-[10px] font-mono font-bold uppercase tracking-wider text-purple-300">
+                  FLEXIBLE PAYMENT PLANS AVAILABLE
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-amber-300 font-mono">
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>Easy EMI</span>
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-2xl font-black font-rajdhani uppercase tracking-wide text-white">
+                FLEXIBLE PAYMENT PLANS
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-300 max-w-2xl leading-relaxed">
+                Get your preferred VP package with an eligible flexible payment option. Choose your package, review the initial payment and installment schedule, and apply through our secure checkout.
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-300">
-            <span className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Easy EMI Options</span>
-            </span>
-            <span className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Low Initial Payment</span>
-            </span>
-            <span className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-              <span>Secure &amp; Verified</span>
-            </span>
-            <span className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-sky-400" />
-              <span>Quick Approval</span>
-            </span>
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end relative z-10 shrink-0">
             <button
               type="button"
               onClick={() => onNavigate('flexible-payment-plans', activeRegion === 'php' ? 'category:vp-php' : 'category:vp-in')}
-              className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors cursor-pointer text-xs ml-2 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+              className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-black font-rajdhani uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30 transition-all text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             >
-              Learn More →
+              <span>EXPLORE FLEXIBLE PAYMENT OPTIONS</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -677,15 +676,36 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
                   </div>
                 </div>
 
-                {/* Buy Button */}
-                <button
-                  type="button"
-                  onClick={() => handleBuy(pack.vp, pack.priceINR, 'Indian')}
-                  className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>Buy Now</span>
-                </button>
+                {/* Purchase Action Buttons: Dual methods for eligible packages */}
+                {pack.priceINR >= 7000 ? (
+                  <div className="w-full mt-2.5 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleBuy(pack.vp, pack.priceINR, 'Indian')}
+                      className="w-full min-h-[34px] py-1 px-2 rounded-lg font-bold text-[11px] bg-[#2b1750] hover:bg-[#3b1f6d] text-purple-200 border border-purple-500/30 transition-all flex items-center justify-center gap-1 shadow-sm font-rajdhani uppercase tracking-wider cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                    >
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>Pay In Full</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('flexible-payment-plans', 'category:vp-in')}
+                      className="w-full min-h-[34px] py-1 px-2 rounded-lg font-black text-[11px] bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white transition-all border border-purple-400/40 flex items-center justify-center gap-1 shadow-md shadow-purple-600/30 font-rajdhani uppercase tracking-wider cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                    >
+                      <CreditCard className="w-3 h-3" />
+                      <span>Flexible Plan</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleBuy(pack.vp, pack.priceINR, 'Indian')}
+                    className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>Buy Now</span>
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -822,15 +842,36 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
                   </div>
                 </div>
 
-                {/* Buy Button */}
-                <button
-                  type="button"
-                  onClick={() => handleBuy(pack.vp, pack.priceINR, 'Philippines')}
-                  className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>Buy Now</span>
-                </button>
+                {/* Purchase Action Buttons: Dual methods for eligible packages */}
+                {pack.priceINR >= 5000 ? (
+                  <div className="w-full mt-2.5 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleBuy(pack.vp, pack.priceINR, 'Philippines')}
+                      className="w-full min-h-[34px] py-1 px-2 rounded-lg font-bold text-[11px] bg-[#2b1750] hover:bg-[#3b1f6d] text-purple-200 border border-purple-500/30 transition-all flex items-center justify-center gap-1 shadow-sm font-rajdhani uppercase tracking-wider cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                    >
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>Pay In Full</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('flexible-payment-plans', 'category:vp-php')}
+                      className="w-full min-h-[34px] py-1 px-2 rounded-lg font-black text-[11px] bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white transition-all border border-purple-400/40 flex items-center justify-center gap-1 shadow-md shadow-purple-600/30 font-rajdhani uppercase tracking-wider cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                    >
+                      <CreditCard className="w-3 h-3" />
+                      <span>Flexible Plan</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleBuy(pack.vp, pack.priceINR, 'Philippines')}
+                    className="w-full mt-3 py-2 min-h-[44px] rounded-lg bg-[#581c87]/70 hover:bg-purple-600 text-purple-100 hover:text-white font-bold text-xs font-rajdhani transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>Buy Now</span>
+                  </button>
+                )}
               </div>
             ))}
           </div>

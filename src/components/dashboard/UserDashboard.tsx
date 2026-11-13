@@ -996,10 +996,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div className="divide-y divide-white/5">
                   {orders.slice(0, 3).map((ord) => (
                     <div key={ord.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="font-bold text-sm text-white break-words">{ord.title}</div>
-                        <div className="text-xs text-gray-400 font-mono truncate">
-                          #{ord.id} • {new Date(ord.created_at).toLocaleDateString()} • {ord.payment_method}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-500/30 p-1 flex items-center justify-center shrink-0 shadow-sm">
+                          {String(ord.title || '').toLowerCase().includes('vp') || String(ord.type || '').toLowerCase().includes('vp') ? (
+                            <img
+                              src="/assets/hires/vp_coins_stack.png"
+                              alt="VP Coins"
+                              className="w-full h-full object-contain filter drop-shadow-[0_0_6px_rgba(168,85,247,0.5)]"
+                            />
+                          ) : (
+                            <Package className="w-5 h-5 text-purple-400" />
+                          )}
+                        </div>
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="font-bold text-sm text-white break-words">{ord.title}</div>
+                          <div className="text-xs text-gray-400 font-mono truncate">
+                            #{ord.id} • {new Date(ord.created_at).toLocaleDateString()} • {ord.payment_method}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
@@ -1092,23 +1105,43 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     key={ord.id}
                     className="p-5 rounded-2xl bg-[#0c0d1c] border border-white/5 hover:border-purple-500/30 transition-all space-y-3"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-base font-rajdhani">{ord.title}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                            ord.status === 'completed'
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-amber-950 text-amber-300 border border-amber-500/30'
-                          }`}>
-                            {ord.status}
-                          </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-purple-950/40 border border-purple-500/30 p-1 flex items-center justify-center shrink-0 shadow-md">
+                          {String(ord.title || '').toLowerCase().includes('vp') || String(ord.type || '').toLowerCase().includes('vp') ? (
+                            <img
+                              src="/assets/hires/vp_coins_stack.png"
+                              alt="Valorant Points Coins"
+                              className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+                            />
+                          ) : ord.type === 'PROFILE' ? (
+                            <img
+                              src="/assets/hires/ranks/rank_radiant.png"
+                              alt="Account Profile"
+                              className="w-full h-full object-contain"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <Package className="w-6 h-6 text-purple-400" />
+                          )}
                         </div>
-                        <div className="text-xs text-gray-400 font-mono mt-0.5">
-                          Order ID: <strong className="text-gray-300">{ord.id}</strong> • Date: {new Date(ord.created_at).toLocaleString()}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white text-base font-rajdhani">{ord.title}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                              ord.status === 'completed'
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-950 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {ord.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-400 font-mono mt-0.5">
+                            Order ID: <strong className="text-gray-300">{ord.id}</strong> • Date: {new Date(ord.created_at).toLocaleString()}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left sm:text-right shrink-0">
                         <div className="text-lg font-black text-fuchsia-300 font-rajdhani">
                           ₹{ord.amount.toLocaleString('en-IN')}
                         </div>

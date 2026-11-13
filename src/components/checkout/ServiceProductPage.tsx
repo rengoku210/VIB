@@ -45,6 +45,29 @@ export const ServiceProductPage: React.FC<ServiceProductPageProps> = ({
   };
 
   const getHeroIcon = () => {
+    if (product.imageUrl) {
+      return (
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-12 h-12 object-contain filter drop-shadow-[0_0_14px_rgba(168,85,247,0.6)]"
+        />
+      );
+    }
+    const isVp =
+      product.iconType === 'coins' ||
+      product.iconType === 'vp' ||
+      (product.name || '').toLowerCase().includes('vp') ||
+      (product.categoryLabel || '').toLowerCase().includes('vp');
+    if (isVp) {
+      return (
+        <img
+          src="/assets/hires/vp_coins_stack.png"
+          alt="Valorant Points"
+          className="w-12 h-12 object-contain filter drop-shadow-[0_0_14px_rgba(168,85,247,0.6)]"
+        />
+      );
+    }
     switch (product.iconType) {
       case 'repeat':
         return <Repeat className="w-8 h-8 text-cyan-400" />;

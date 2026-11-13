@@ -27,6 +27,7 @@ import { ClientPage } from './Header';
 import { useAuth } from '../../context/AuthContext';
 import { getAuctionTimeLeft } from '../../utils/auction';
 import { formatCurrencyPrice } from '../../utils/format';
+import { UpiQrCode } from '../payment/UpiQrCode';
 
 interface ClientAuctionsPageProps {
   currency: Currency;
@@ -812,32 +813,14 @@ export const ClientAuctionsPage: React.FC<ClientAuctionsPageProps> = ({
             {/* UPI QR Payment Block if additional deposit payable */}
             {depositData.additionalPayable > 0 ? (
               <div className="space-y-3 p-4 rounded-xl bg-purple-950/30 border border-purple-500/30 text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-xl bg-white p-1 flex items-center justify-center shrink-0">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-                        `upi://pay?pa=${depositData.upiId}&pn=${encodeURIComponent(
-                          depositData.merchantName
-                        )}&am=${depositData.additionalPayable}&tn=${encodeURIComponent(
-                          `VIB Bid Deposit: ${depositData.depositTxId}`
-                        )}`
-                      )}`}
-                      alt="UPI QR Code"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-bold text-white font-rajdhani uppercase">
-                      Scan to Pay with Any UPI App
-                    </div>
-                    <div className="font-mono text-[11px] text-fuchsia-300">
-                      UPI ID: {depositData.upiId}
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                      Google Pay, PhonePe, Paytm, BHIM, CRED
-                    </div>
-                  </div>
-                </div>
+                <UpiQrCode
+                  upiId={depositData.upiId}
+                  payeeName={depositData.merchantName}
+                  amount={depositData.additionalPayable}
+                  orderId={depositData.depositTxId}
+                  note={`Bid Deposit ${depositData.depositTxId}`}
+                  size={160}
+                />
 
                 <div className="space-y-1 pt-1">
                   <label className="text-[11px] font-mono text-gray-300 block">

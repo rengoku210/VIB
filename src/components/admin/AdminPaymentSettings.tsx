@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { resolveUploadUrl } from '../../utils/uploadUrl';
+import { UpiQrCode } from '../payment/UpiQrCode';
 import {
   QrCode,
   CreditCard,
@@ -440,17 +441,25 @@ export const AdminPaymentSettings: React.FC = () => {
               {/* QR Upload & Preview Card */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="p-2.5 bg-white rounded-2xl shrink-0 shadow-lg">
-                    <img
-                      src={
-                        resolveUploadUrl(settings.qr_image_url) ||
-                        `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                          `upi://pay?pa=${settings.upi_id}&pn=${encodeURIComponent(settings.payee_name || 'VIB')}`
-                        )}`
-                      }
-                      alt="Customer QR Preview"
-                      className="w-28 h-28 object-contain"
-                    />
+                  <div className="shrink-0">
+                    {settings.qr_image_url ? (
+                      <div className="p-2.5 bg-white rounded-2xl shadow-lg">
+                        <img
+                          src={resolveUploadUrl(settings.qr_image_url)}
+                          alt="Custom Static Merchant QR"
+                          className="w-28 h-28 object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <UpiQrCode
+                        upiId={settings.upi_id || 'thevibofficial@okhdfcbank'}
+                        payeeName={settings.payee_name || 'VIB Digital Services Platform'}
+                        amount={499}
+                        size={110}
+                        showBrandBadges={false}
+                        showDeepLink={false}
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">

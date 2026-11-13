@@ -292,6 +292,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
         itemDescription={product.description}
         itemPrice={sel.priceINR}
         currency={currency}
+        itemImageUrl={product.imageUrl || ((product.categoryLabel?.toLowerCase().includes('vp') || product.name?.toLowerCase().includes('vp')) ? '/assets/hires/vp_coins_stack.png' : undefined)}
         specs={[
           { label: 'Riot ID', value: `${riotId}#${tagline}` },
           { label: 'Delivery', value: product.deliverySpeed },

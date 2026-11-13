@@ -1775,7 +1775,7 @@ export async function seedCatalogAndBilling() {
       'default',
       'thevibofficial@okhdfcbank',
       'VIB Digital Services Platform',
-      '/assets/reference_parts/part_01.png',
+      '',
       'Please scan the official VIB UPI QR code or transfer to UPI ID: thevibofficial@okhdfcbank using any UPI app (GPay, PhonePe, Paytm, BHIM). Enter the exact bill amount and submit your 12-digit Bank Reference / UTR Number with screenshot proof for rapid verification.',
       'INR',
       '+918099641606',
@@ -1783,6 +1783,11 @@ export async function seedCatalogAndBilling() {
       'Payment verification typically completes within 5 to 15 minutes. Once verified by our financial staff, your VP code or profile credentials will be issued immediately.',
       now
     );
+  } else {
+    // Sanitize any legacy slice reference mistakenly stored in qr_image_url
+    try {
+      await db.prepare("UPDATE payment_settings SET qr_image_url = '' WHERE qr_image_url LIKE '%part_01%'").run();
+    } catch {}
   }
 
   // 8. Seed VIP / Promotional Listing Plans if empty
