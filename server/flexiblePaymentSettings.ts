@@ -511,7 +511,7 @@ export async function getVpFlexibleSettings(): Promise<VpFlexibleSettings> {
     const row = await db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('vp') as any;
     if (row?.settings_json) {
       const parsed = JSON.parse(row.settings_json);
-      const existingInMap = new Map((parsed.in?.packages || []).map((p: any) => [p.id, p]));
+      const existingInMap = new Map<string, any>((parsed.in?.packages || []).map((p: any) => [p.id, p]));
       const mergedIn = DEFAULT_VP_SETTINGS.in.packages.map((dp) => {
         const ep = existingInMap.get(dp.id);
         if (!ep) return dp;
@@ -526,7 +526,7 @@ export async function getVpFlexibleSettings(): Promise<VpFlexibleSettings> {
       parsed.in = parsed.in || { enabled: true, packages: [] };
       parsed.in.packages = mergedIn;
 
-      const existingPhpMap = new Map((parsed.php?.packages || []).map((p: any) => [p.id, p]));
+      const existingPhpMap = new Map<string, any>((parsed.php?.packages || []).map((p: any) => [p.id, p]));
       const mergedPhp = DEFAULT_VP_SETTINGS.php.packages.map((dp) => {
         const ep = existingPhpMap.get(dp.id);
         if (!ep) return dp;

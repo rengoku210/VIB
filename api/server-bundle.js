@@ -99140,7 +99140,7 @@ app.put("/api/orders/:id/delivery-contact", authenticate, async (req, res) => {
 app.get("/api/orders/track/:orderId", async (req, res) => {
   try {
     const orderId = req.params.orderId;
-    const order = await db.prepare(`
+    let order = await db.prepare(`
       SELECT o.id, o.type, o.title, o.amount, o.currency, o.status, o.payment_status,
              o.fulfillment_status, o.payment_evidence_ref, o.payment_evidence_image,
              o.issued_code, o.code_issued_at,
@@ -99148,6 +99148,32 @@ app.get("/api/orders/track/:orderId", async (req, res) => {
       FROM orders o
       WHERE o.id = ?
     `).get(orderId);
+    if (!order) {
+      const adOrder = await db.prepare(`
+        SELECT id, 'ADVERTISEMENT' as type, plan_name as title, plan_price as amount, 'INR' as currency,
+               status,
+               CASE
+                 WHEN status = 'submitted_for_verification' THEN 'SUBMITTED_FOR_VERIFICATION'
+                 WHEN status IN ('approved', 'details_submitted', 'live', 'completed') THEN 'PAYMENT_VERIFIED'
+                 WHEN status = 'rejected' THEN 'PAYMENT_REJECTED'
+                 ELSE 'AWAITING_PAYMENT'
+               END as payment_status,
+               CASE
+                 WHEN status = 'completed' THEN 'COMPLETED'
+                 WHEN status = 'live' THEN 'ACTIVE'
+                 ELSE 'PENDING'
+               END as fulfillment_status,
+               payment_reference as payment_evidence_ref,
+               payment_screenshot as payment_evidence_image,
+               NULL as issued_code, NULL as code_issued_at,
+               created_at, updated_at
+        FROM advertisement_orders
+        WHERE id = ?
+      `).get(orderId);
+      if (adOrder) {
+        order = adOrder;
+      }
+    }
     if (!order) {
       res.status(404).json({ error: "Order not found. Please verify the order reference number." });
       return;

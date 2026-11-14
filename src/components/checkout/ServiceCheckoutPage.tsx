@@ -54,8 +54,44 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
-  const [createdOrder, setCreatedOrder] = useState<any | null>(null);
-  const [checkoutStage, setCheckoutStage] = useState<'details' | 'payment' | 'valuation_done'>('details');
+  const [createdOrder, setCreatedOrder] = useState<any | null>(() => {
+    try {
+      const urlOrder = new URLSearchParams(window.location.search).get('orderId');
+      const saved = localStorage.getItem('vib_active_checkout_order');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (!urlOrder || parsed.id === urlOrder)) return parsed;
+      }
+    } catch {}
+    return null;
+  });
+  const [checkoutStage, setCheckoutStage] = useState<'details' | 'payment' | 'valuation_done'>(() => {
+    try {
+      const saved = localStorage.getItem('vib_active_checkout_order');
+      if (saved) return 'payment';
+    } catch {}
+    return 'details';
+  });
+
+  // Keep createdOrder state synchronized with backend
+  useEffect(() => {
+    if (!createdOrder?.id) return;
+    let active = true;
+    fetch(`/api/orders/track/${encodeURIComponent(createdOrder.id)}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data?.order) {
+          setCreatedOrder(data.order);
+          try {
+            localStorage.setItem('vib_active_checkout_order', JSON.stringify(data.order));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [createdOrder?.id]);
 
   const [paymentSettings, setPaymentSettings] = useState({
     upi_id: '',
@@ -226,6 +262,9 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
 
       const data = await res.json();
       setCreatedOrder(data.order);
+      try {
+        localStorage.setItem('vib_active_checkout_order', JSON.stringify(data.order));
+      } catch {}
 
       try {
         window.dispatchEvent(new Event('vib-stock-refresh'));
@@ -284,6 +323,13 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
   // STAGE 2 & 3: MANUAL PAYMENT GATEWAY (EXACT ADVERTISEMENT CHECKOUT FORMAT)
   // =========================================================================
   if (checkoutStage === 'payment' && createdOrder) {
+    const isSubmittedOrder = Boolean(
+      createdOrder.payment_status === 'SUBMITTED_FOR_VERIFICATION' ||
+      createdOrder.status === 'pending_verification' ||
+      createdOrder.payment_evidence_ref ||
+      createdOrder.payment_reference
+    );
+
     return (
       <ManualPaymentGateway
         orderId={createdOrder.id}
@@ -300,9 +346,14 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
           { label: 'Receipt Email', value: email },
         ]}
         iconType={product.iconType}
-        breadcrumbService={product.breadcrumbParent}
-        onBack={() => onNavigate((sel.backPage as ClientPage) || 'home')}
-        backButtonLabel={`Back to ${product.breadcrumbParent}`}
+        breadcrumbService={product.breadcrumbParent || 'Store'}
+        onBack={() => {
+          try {
+            localStorage.removeItem('vib_active_checkout_order');
+          } catch {}
+          onNavigate((sel.backPage as ClientPage) || 'home');
+        }}
+        backButtonLabel={`Back to ${product.breadcrumbParent || 'Store'}`}
         onTrackOrder={() => onTrackOrder(createdOrder.id)}
         onViewOrders={() => (user ? onNavigate('dashboard', 'tab:orders') : onTrackOrder(createdOrder.id))}
         upiId={paymentSettings.upi_id}
@@ -311,6 +362,19 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
         instructions={paymentSettings.instructions ? [paymentSettings.instructions] : undefined}
         supportWhatsapp={paymentSettings.support_whatsapp || '+918099641606'}
         issuedCode={createdOrder?.issued_code || null}
+        initialSubmitted={isSubmittedOrder}
+        initialSubmittedAt={createdOrder?.updated_at || createdOrder?.created_at || null}
+        initialUtr={createdOrder?.payment_evidence_ref || createdOrder?.payment_reference || null}
+        orderStatus={createdOrder?.status || createdOrder?.payment_status}
+        orderStatusEndpoint={`/api/orders/track/${encodeURIComponent(createdOrder.id)}`}
+        verificationStartAt={createdOrder?.updated_at || createdOrder?.created_at || null}
+        highTrafficDelayMs={60000}
+        onOrderStatusChange={(updatedOrder) => {
+          setCreatedOrder(updatedOrder);
+          try {
+            localStorage.setItem('vib_active_checkout_order', JSON.stringify(updatedOrder));
+          } catch {}
+        }}
         onSubmitProof={async (utr, screenshotData) => {
           const res = await fetch(`/api/orders/${encodeURIComponent(createdOrder.id)}/payment-evidence`, {
             method: 'POST',
@@ -328,8 +392,16 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
           if (!res.ok) {
             throw new Error(data?.error || 'Failed to submit payment verification reference.');
           }
-          setCreatedOrder(data.order || createdOrder);
+          const updated = data.order || {
+            ...createdOrder,
+            payment_status: 'SUBMITTED_FOR_VERIFICATION',
+            payment_evidence_ref: utr,
+            status: 'pending_verification',
+            updated_at: new Date().toISOString(),
+          };
+          setCreatedOrder(updated);
           try {
+            localStorage.setItem('vib_active_checkout_order', JSON.stringify(updated));
             window.dispatchEvent(new Event('vib-stock-refresh'));
           } catch {}
           return true;

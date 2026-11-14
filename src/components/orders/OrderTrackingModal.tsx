@@ -20,7 +20,8 @@ import {
   Mail,
   Zap,
   Image as ImageIcon,
-  MessageSquare
+  MessageSquare,
+  Gauge,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { downloadBrandedQrCard } from '../../utils/qrDownload';
@@ -80,6 +81,8 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     payee_name: 'VIB Digital Services',
   });
 
+  const [verifyElapsedMs, setVerifyElapsedMs] = useState(0);
+
   useEffect(() => {
     fetch('/api/payment/settings', { cache: 'no-store' })
       .then((res) => res.json())
@@ -88,6 +91,61 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
       })
       .catch(() => {});
   }, []);
+
+  // Track verification elapsed time for high-traffic status
+  useEffect(() => {
+    if (!order?.id) return;
+    const isUnderReview =
+      order.payment_status === 'SUBMITTED_FOR_VERIFICATION' ||
+      order.status === 'pending_verification' ||
+      (order.payment_evidence_ref && order.payment_status !== 'PAYMENT_VERIFIED');
+    if (!isUnderReview) return;
+
+    const verifyStorageKey = `vib_verify_start_${order.id}`;
+    let startTime = 0;
+    try {
+      const stored = localStorage.getItem(verifyStorageKey);
+      if (stored && !isNaN(Number(stored))) startTime = Number(stored);
+    } catch {}
+    if (!startTime) {
+      startTime = order.updated_at ? new Date(order.updated_at).getTime() : new Date(order.created_at).getTime();
+      try {
+        localStorage.setItem(verifyStorageKey, String(startTime));
+      } catch {}
+    }
+    setVerifyElapsedMs(Math.max(0, Date.now() - startTime));
+    const timer = window.setInterval(() => {
+      setVerifyElapsedMs(Math.max(0, Date.now() - startTime));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [order?.id, order?.updated_at, order?.created_at, order?.payment_status, order?.status, order?.payment_evidence_ref]);
+
+  // Live polling for verification updates while modal is open
+  useEffect(() => {
+    if (!isOpen || !order?.id) return;
+    const isUnderReview =
+      order.payment_status === 'SUBMITTED_FOR_VERIFICATION' ||
+      order.status === 'pending_verification' ||
+      (order.payment_evidence_ref && order.payment_status !== 'PAYMENT_VERIFIED');
+    if (!isUnderReview) return;
+
+    let active = true;
+    const pollInterval = window.setInterval(async () => {
+      try {
+        const res = await fetch(`/api/orders/track/${encodeURIComponent(order.id)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data?.order) {
+            setOrder(data.order);
+          }
+        }
+      } catch {}
+    }, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(pollInterval);
+    };
+  }, [isOpen, order?.id, order?.payment_status, order?.status, order?.payment_evidence_ref]);
 
   useEffect(() => {
     if (typeof initialOrderId === 'string' && initialOrderId && isOpen) {
@@ -275,6 +333,13 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   if (!isOpen) return null;
 
   const isPaymentVerified = order?.payment_status === 'PAYMENT_VERIFIED';
+  const isAwaitingVerification = Boolean(
+    order &&
+      !isPaymentVerified &&
+      (order.payment_status === 'SUBMITTED_FOR_VERIFICATION' ||
+        order.status === 'pending_verification' ||
+        (order.payment_evidence_ref && order.payment_status !== 'PAYMENT_REJECTED'))
+  );
   const isAutomaticDelivery = Boolean(order?.issued_code);
   const isFulfillmentTerminal = ['COMPLETED', 'CANCELLED'].includes(
     String(order?.fulfillment_status || '').toUpperCase()
@@ -431,6 +496,63 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* PAYMENT UNDER VERIFICATION CENTERPIECE */}
+            {isAwaitingVerification && (
+              <div className="p-6 sm:p-7 rounded-2xl bg-gradient-to-b from-[#130b29] via-[#0d071d] to-[#150a2b] border border-purple-500/40 shadow-[0_0_35px_rgba(168,85,247,0.22)] space-y-5 text-center sm:text-left">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-3.5">
+                    <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600/30 to-fuchsia-600/30 border border-purple-400/50 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.35)]">
+                      <Clock className="w-6 h-6 text-purple-300 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg sm:text-xl font-black font-rajdhani uppercase tracking-wider text-white">
+                        PAYMENT UNDER <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-400">VERIFICATION</span>
+                      </h4>
+                      <p className="text-xs text-gray-300 leading-relaxed font-rajdhani">
+                        Your payment details and transaction screenshot have been successfully submitted. Our team will review your payment and notify you once verification is complete.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-[11px] font-mono text-amber-300 uppercase tracking-wider font-semibold">
+                    ⏳ Awaiting Admin Verification
+                  </span>
+                </div>
+
+                {/* High Traffic Notice (after 1 min / 60000ms) or Active Verification Progress */}
+                {verifyElapsedMs >= 60000 ? (
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950/60 via-[#160a26] to-fuchsia-950/50 border border-fuchsia-500/40 shadow-inner space-y-2">
+                    <div className="flex items-center gap-2 text-fuchsia-300 font-bold font-rajdhani text-sm uppercase tracking-wide">
+                      <Gauge className="w-4 h-4 text-fuchsia-400 shrink-0" />
+                      <span>EXPERIENCING HIGH TRAFFIC</span>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed">
+                      We are currently experiencing high traffic, which may result in additional processing time.
+                    </p>
+                    <p className="text-xs text-fuchsia-200 font-medium leading-relaxed">
+                      Kindly sit back and relax. Our team will complete the payment verification process, and VIB will notify you once your payment has been approved.
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono pt-0.5">
+                      Thank you for your patience and for choosing VIB Digital Services.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-purple-500/25 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 text-purple-400 animate-spin shrink-0" />
+                      <div>
+                        <div className="font-bold text-white font-rajdhani uppercase text-xs">Verification In Progress</div>
+                        <div className="text-[11px] text-gray-400">Our desk is reviewing your payment evidence and transaction reference.</div>
+                      </div>
+                    </div>
+                    <div className="shrink-0 px-3 py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 font-mono text-[11px] text-purple-300 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                      <span>Checking Proof</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 1. AUTOMATIC DELIVERY CONFIRMED (Official VP Code Display) */}
             {order.issued_code && (

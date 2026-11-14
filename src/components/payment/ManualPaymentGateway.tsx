@@ -136,7 +136,7 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
   continueButtonLabel = 'Continue',
   onContinue,
   onOrderStatusChange,
-  highTrafficDelayMs = 120000,
+  highTrafficDelayMs = 60000,
 }) => {
   const verifyStorageKey = `vib_verify_start_${orderId}`;
   const [utr, setUtr] = useState(initialUtr || '');
@@ -207,7 +207,8 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
     effectiveStatus === 'approved' ||
       effectiveStatus === 'details_submitted' ||
       effectiveStatus === 'live' ||
-      effectiveStatus === 'completed'
+      effectiveStatus === 'completed' ||
+      effectiveStatus === 'payment_verified'
   );
 
   useEffect(() => {
@@ -246,8 +247,9 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
         const data = await res.json();
         const ord = data?.order;
         if (!active || !ord) return;
-        if (ord.status) {
-          setLiveStatus(ord.status);
+        const newStatus = ord.payment_status || ord.status;
+        if (newStatus) {
+          setLiveStatus(newStatus);
         }
         const tok = ord.submission_token || ord.approval_token;
         if (ord.status === 'approved' && tok) {
@@ -912,8 +914,9 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
                     </p>
                   </div>
                 </div>
-                <div className="shrink-0 px-4 py-2 rounded-xl bg-black/40 border border-purple-500/30 font-mono text-xs text-purple-200">
-                  Elapsed: {formatElapsedTime(elapsedMs)}
+                <div className="shrink-0 px-3.5 py-1.5 rounded-xl bg-purple-950/60 border border-purple-500/30 font-mono text-xs text-purple-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                  <span>Checking Proof</span>
                 </div>
               </div>
             </section>

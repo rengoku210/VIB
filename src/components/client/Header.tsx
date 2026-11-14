@@ -22,6 +22,7 @@ import {
   Globe,
   Repeat,
   CreditCard,
+  Megaphone,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { soundFx } from '../../utils/audio';
@@ -273,6 +274,18 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               Profiles
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('advertise')}
+              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 whitespace-nowrap ${
+                currentPage === 'advertise'
+                  ? 'bg-[#8a2be2]/30 text-white font-semibold border border-[#9333ea]/50 shadow-[0_0_10px_rgba(147,51,234,0.3)]'
+                  : 'hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Sell your account
             </button>
 
             <button
@@ -753,6 +766,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <User className="w-4 h-4 text-cyan-400 flex-shrink-0" />
               <span>Profiles</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNav('advertise')}
+              className={`min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                currentPage === 'advertise'
+                  ? 'bg-purple-600/30 text-white font-bold border border-purple-500/40'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Megaphone className="w-4 h-4 text-fuchsia-400 flex-shrink-0" />
+              <span>Sell your account</span>
             </button>
 
             <button

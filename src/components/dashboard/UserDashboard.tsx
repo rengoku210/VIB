@@ -1217,6 +1217,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       </div>
                     )}
 
+                    {/* Payment Under Verification Notice */}
+                    {(ord.payment_status === 'SUBMITTED_FOR_VERIFICATION' || ord.status === 'pending_verification' || (ord.payment_evidence_ref && ord.payment_status !== 'PAYMENT_VERIFIED')) && (
+                      <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <Clock className="w-4 h-4 text-purple-400 shrink-0 animate-pulse" />
+                          <div>
+                            <span className="font-bold text-purple-200 font-rajdhani uppercase text-xs flex items-center gap-2">
+                              <span>Payment Under Verification</span>
+                              <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                            </span>
+                            <span className="text-[11px] text-gray-400 block font-rajdhani mt-0.5">
+                              {ord.payment_evidence_ref ? `UTR: ${ord.payment_evidence_ref} • ` : ''}Our team is reviewing your transaction proof. Please allow a few moments.
+                            </span>
+                          </div>
+                        </div>
+                        {onOpenTracking && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenTracking(ord.id)}
+                            className="px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/60 border border-purple-500/40 text-purple-200 text-xs font-bold font-rajdhani uppercase transition-all cursor-pointer self-start sm:self-auto shrink-0"
+                          >
+                            Track Verification
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400 pt-2 border-t border-white/5">
                       <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1.5">
