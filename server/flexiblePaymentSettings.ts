@@ -6,12 +6,13 @@ import { db } from './db.js';
 export interface VpPaymentPlanOption {
   id: string;
   name: string;
-  frequency: 'weekly' | 'monthly';
+  frequency: 'weekly' | 'monthly' | '15days';
   duration: number; // in weeks or months
   installmentAmount: number;
   downPayment: number;
   balance: number;
   totalPayable: number;
+  description?: string;
 }
 
 export interface VpPackageFlexibleConfig {
@@ -21,6 +22,8 @@ export interface VpPackageFlexibleConfig {
   priceINR: number;
   downPaymentPct: number;
   downPaymentINR: number;
+  badge?: string;
+  payAfter15DaysPrice?: number;
   plans: VpPaymentPlanOption[];
 }
 
@@ -67,51 +70,235 @@ export const DEFAULT_VP_SETTINGS: VpFlexibleSettings = {
     enabled: true,
     packages: [
       {
+        id: 'vp-in-1000',
+        vpAmount: 1000,
+        name: '1,000 Valorant Points',
+        priceINR: 1190,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 1190,
+        plans: [
+          {
+            id: 'in-1k-w4',
+            name: '₹398 × 4 Weeks',
+            frequency: 'weekly',
+            duration: 4,
+            installmentAmount: 398,
+            downPayment: 0,
+            balance: 1592,
+            totalPayable: 1592,
+            description: 'Pay ₹398 every week for 4 weeks.'
+          },
+          {
+            id: 'in-1k-m4',
+            name: '₹597 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 597,
+            downPayment: 0,
+            balance: 2388,
+            totalPayable: 2388,
+            description: 'Pay ₹597 every month for 4 months.'
+          }
+        ]
+      },
+      {
+        id: 'vp-in-2050',
+        vpAmount: 2050,
+        name: '2,050 Valorant Points',
+        priceINR: 2290,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 2290,
+        plans: [
+          {
+            id: 'in-2k-w6',
+            name: '₹395 × 6 Weeks',
+            frequency: 'weekly',
+            duration: 6,
+            installmentAmount: 395,
+            downPayment: 0,
+            balance: 2370,
+            totalPayable: 2370,
+            description: 'Pay ₹395 every week for 6 weeks.'
+          },
+          {
+            id: 'in-2k-m3',
+            name: '₹790 × 3 Months',
+            frequency: 'monthly',
+            duration: 3,
+            installmentAmount: 790,
+            downPayment: 0,
+            balance: 2370,
+            totalPayable: 2370,
+            description: 'Pay ₹790 every month for 3 months.'
+          }
+        ]
+      },
+      {
+        id: 'vp-in-5350',
+        vpAmount: 5350,
+        name: '5,350 Valorant Points',
+        priceINR: 5490,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 5490,
+        plans: [
+          {
+            id: 'in-5k-w12',
+            name: '₹506 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 506,
+            downPayment: 0,
+            balance: 6072,
+            totalPayable: 6072,
+            description: 'Pay ₹506 every week for 12 weeks.'
+          },
+          {
+            id: 'in-5k-m4',
+            name: '₹1,490 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 1490,
+            downPayment: 0,
+            balance: 5960,
+            totalPayable: 5960,
+            description: 'Pay ₹1,490 every month for 4 months.'
+          }
+        ]
+      },
+      {
         id: 'vp-in-11000',
         vpAmount: 11000,
         name: '11,000 Valorant Points',
-        priceINR: 7499,
-        downPaymentPct: 30,
-        downPaymentINR: 2250,
+        priceINR: 8990,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        badge: 'MOST POPULAR',
+        payAfter15DaysPrice: 8990,
         plans: [
-          { id: 'in-11k-w4', name: '4 Weeks Weekly Plan', frequency: 'weekly', duration: 4, installmentAmount: 1315, downPayment: 2250, balance: 5249, totalPayable: 7510 },
-          { id: 'in-11k-m2', name: '2 Months Monthly Plan', frequency: 'monthly', duration: 2, installmentAmount: 2625, downPayment: 2250, balance: 5249, totalPayable: 7500 }
+          {
+            id: 'in-11k-w12',
+            name: '₹747 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 747,
+            downPayment: 0,
+            balance: 8964,
+            totalPayable: 8964,
+            description: 'Pay ₹747 every week for 12 weeks.'
+          },
+          {
+            id: 'in-11k-m4',
+            name: '₹2,190 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 2190,
+            downPayment: 0,
+            balance: 8760,
+            totalPayable: 8760,
+            description: 'Pay ₹2,190 every month for 4 months.'
+          }
         ]
       },
       {
         id: 'vp-in-16500',
         vpAmount: 16500,
         name: '16,500 Valorant Points',
-        priceINR: 10999,
-        downPaymentPct: 30,
-        downPaymentINR: 3300,
+        priceINR: 12490,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 12490,
         plans: [
-          { id: 'in-16k-w4', name: '4 Weeks Weekly Plan', frequency: 'weekly', duration: 4, installmentAmount: 1925, downPayment: 3300, balance: 7699, totalPayable: 11000 },
-          { id: 'in-16k-m3', name: '3 Months Monthly Plan', frequency: 'monthly', duration: 3, installmentAmount: 2567, downPayment: 3300, balance: 7699, totalPayable: 11001 }
+          {
+            id: 'in-16k-w12',
+            name: '₹990 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 990,
+            downPayment: 0,
+            balance: 11880,
+            totalPayable: 11880,
+            description: 'Pay ₹990 every week for 12 weeks.'
+          },
+          {
+            id: 'in-16k-m4',
+            name: '₹2,890 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 2890,
+            downPayment: 0,
+            balance: 11560,
+            totalPayable: 11560,
+            description: 'Pay ₹2,890 every month for 4 months.'
+          }
         ]
       },
       {
         id: 'vp-in-22000',
         vpAmount: 22000,
         name: '22,000 Valorant Points',
-        priceINR: 14499,
-        downPaymentPct: 30,
-        downPaymentINR: 4350,
+        priceINR: 15990,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 15990,
         plans: [
-          { id: 'in-22k-w6', name: '6 Weeks Weekly Plan', frequency: 'weekly', duration: 6, installmentAmount: 1692, downPayment: 4350, balance: 10149, totalPayable: 14502 },
-          { id: 'in-22k-m3', name: '3 Months Monthly Plan', frequency: 'monthly', duration: 3, installmentAmount: 3383, downPayment: 4350, balance: 10149, totalPayable: 14499 }
+          {
+            id: 'in-22k-w12',
+            name: '₹1,290 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 1290,
+            downPayment: 0,
+            balance: 15480,
+            totalPayable: 15480,
+            description: 'Pay ₹1,290 every week for 12 weeks.'
+          },
+          {
+            id: 'in-22k-m4',
+            name: '₹3,750 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 3750,
+            downPayment: 0,
+            balance: 15000,
+            totalPayable: 15000,
+            description: 'Pay ₹3,750 every month for 4 months.'
+          }
         ]
       },
       {
         id: 'vp-in-35000',
         vpAmount: 35000,
         name: '35,000 Valorant Points',
-        priceINR: 22999,
-        downPaymentPct: 35,
-        downPaymentINR: 8050,
+        priceINR: 24990,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 24990,
         plans: [
-          { id: 'in-35k-w8', name: '8 Weeks Weekly Plan', frequency: 'weekly', duration: 8, installmentAmount: 1869, downPayment: 8050, balance: 14949, totalPayable: 23002 },
-          { id: 'in-35k-m4', name: '4 Months Monthly Plan', frequency: 'monthly', duration: 4, installmentAmount: 3738, downPayment: 8050, balance: 14949, totalPayable: 23002 }
+          {
+            id: 'in-35k-w14',
+            name: '₹1,869 × 14 Weeks',
+            frequency: 'weekly',
+            duration: 14,
+            installmentAmount: 1869,
+            downPayment: 0,
+            balance: 26166,
+            totalPayable: 26166,
+            description: 'Pay ₹1,869 every week for 14 weeks.'
+          },
+          {
+            id: 'in-35k-m4',
+            name: '₹5,490 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 5490,
+            downPayment: 0,
+            balance: 21960,
+            totalPayable: 21960,
+            description: 'Pay ₹5,490 every month for 4 months.'
+          }
         ]
       }
     ]
@@ -120,39 +307,135 @@ export const DEFAULT_VP_SETTINGS: VpFlexibleSettings = {
     enabled: true,
     packages: [
       {
+        id: 'vp-php-5400',
+        vpAmount: 5400,
+        name: '5,400 PHP Region VP',
+        priceINR: 2800,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 2800,
+        plans: [
+          {
+            id: 'php-5k-w8',
+            name: '₱350 × 8 Weeks',
+            frequency: 'weekly',
+            duration: 8,
+            installmentAmount: 350,
+            downPayment: 0,
+            balance: 2800,
+            totalPayable: 2800,
+            description: 'Pay ₱350 every week for 8 weeks.'
+          },
+          {
+            id: 'php-5k-m4',
+            name: '₱700 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 700,
+            downPayment: 0,
+            balance: 2800,
+            totalPayable: 2800,
+            description: 'Pay ₱700 every month for 4 months.'
+          }
+        ]
+      },
+      {
         id: 'vp-php-13750',
         vpAmount: 13750,
         name: '13,750 PHP Region VP',
-        priceINR: 5499,
-        downPaymentPct: 30,
-        downPaymentINR: 1650,
+        priceINR: 6200,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 6200,
         plans: [
-          { id: 'php-13k-w4', name: '4 Weeks Weekly Plan', frequency: 'weekly', duration: 4, installmentAmount: 965, downPayment: 1650, balance: 3849, totalPayable: 5510 },
-          { id: 'php-13k-m2', name: '2 Months Monthly Plan', frequency: 'monthly', duration: 2, installmentAmount: 1925, downPayment: 1650, balance: 3849, totalPayable: 5500 }
+          {
+            id: 'php-13k-w12',
+            name: '₱550 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 550,
+            downPayment: 0,
+            balance: 6600,
+            totalPayable: 6600,
+            description: 'Pay ₱550 every week for 12 weeks.'
+          },
+          {
+            id: 'php-13k-m4',
+            name: '₱1,650 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 1650,
+            downPayment: 0,
+            balance: 6600,
+            totalPayable: 6600,
+            description: 'Pay ₱1,650 every month for 4 months.'
+          }
         ]
       },
       {
         id: 'vp-php-20500',
         vpAmount: 20500,
         name: '20,500 PHP Region VP',
-        priceINR: 7999,
-        downPaymentPct: 30,
-        downPaymentINR: 2400,
+        priceINR: 8900,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 8900,
         plans: [
-          { id: 'php-20k-w4', name: '4 Weeks Weekly Plan', frequency: 'weekly', duration: 4, installmentAmount: 1400, downPayment: 2400, balance: 5599, totalPayable: 8000 },
-          { id: 'php-20k-m3', name: '3 Months Monthly Plan', frequency: 'monthly', duration: 3, installmentAmount: 1867, downPayment: 2400, balance: 5599, totalPayable: 8001 }
+          {
+            id: 'php-20k-w12',
+            name: '₱780 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 780,
+            downPayment: 0,
+            balance: 9360,
+            totalPayable: 9360,
+            description: 'Pay ₱780 every week for 12 weeks.'
+          },
+          {
+            id: 'php-20k-m4',
+            name: '₱2,340 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 2340,
+            downPayment: 0,
+            balance: 9360,
+            totalPayable: 9360,
+            description: 'Pay ₱2,340 every month for 4 months.'
+          }
         ]
       },
       {
         id: 'vp-php-28000',
         vpAmount: 28000,
         name: '28,000 PHP Region VP',
-        priceINR: 10499,
-        downPaymentPct: 30,
-        downPaymentINR: 3150,
+        priceINR: 11900,
+        downPaymentPct: 0,
+        downPaymentINR: 0,
+        payAfter15DaysPrice: 11900,
         plans: [
-          { id: 'php-28k-w6', name: '6 Weeks Weekly Plan', frequency: 'weekly', duration: 6, installmentAmount: 1225, downPayment: 3150, balance: 7349, totalPayable: 10500 },
-          { id: 'php-28k-m3', name: '3 Months Monthly Plan', frequency: 'monthly', duration: 3, installmentAmount: 2450, downPayment: 3150, balance: 7349, totalPayable: 10500 }
+          {
+            id: 'php-28k-w12',
+            name: '₱990 × 12 Weeks',
+            frequency: 'weekly',
+            duration: 12,
+            installmentAmount: 990,
+            downPayment: 0,
+            balance: 11880,
+            totalPayable: 11880,
+            description: 'Pay ₱990 every week for 12 weeks.'
+          },
+          {
+            id: 'php-28k-m4',
+            name: '₱2,970 × 4 Months',
+            frequency: 'monthly',
+            duration: 4,
+            installmentAmount: 2970,
+            downPayment: 0,
+            balance: 11880,
+            totalPayable: 11880,
+            description: 'Pay ₱2,970 every month for 4 months.'
+          }
         ]
       }
     ]
@@ -227,7 +510,38 @@ export async function getVpFlexibleSettings(): Promise<VpFlexibleSettings> {
   try {
     const row = await db.prepare('SELECT settings_json FROM emi_settings WHERE category = ?').get('vp') as any;
     if (row?.settings_json) {
-      return JSON.parse(row.settings_json);
+      const parsed = JSON.parse(row.settings_json);
+      const existingInMap = new Map((parsed.in?.packages || []).map((p: any) => [p.id, p]));
+      const mergedIn = DEFAULT_VP_SETTINGS.in.packages.map((dp) => {
+        const ep = existingInMap.get(dp.id);
+        if (!ep) return dp;
+        return {
+          ...dp,
+          ...ep,
+          badge: dp.badge || ep.badge,
+          payAfter15DaysPrice: dp.payAfter15DaysPrice || ep.payAfter15DaysPrice,
+          plans: dp.plans,
+        };
+      });
+      parsed.in = parsed.in || { enabled: true, packages: [] };
+      parsed.in.packages = mergedIn;
+
+      const existingPhpMap = new Map((parsed.php?.packages || []).map((p: any) => [p.id, p]));
+      const mergedPhp = DEFAULT_VP_SETTINGS.php.packages.map((dp) => {
+        const ep = existingPhpMap.get(dp.id);
+        if (!ep) return dp;
+        return {
+          ...dp,
+          ...ep,
+          badge: dp.badge || ep.badge,
+          payAfter15DaysPrice: dp.payAfter15DaysPrice || ep.payAfter15DaysPrice,
+          plans: dp.plans,
+        };
+      });
+      parsed.php = parsed.php || { enabled: true, packages: [] };
+      parsed.php.packages = mergedPhp;
+
+      return parsed;
     }
     // Seed
     const now = new Date().toISOString();
