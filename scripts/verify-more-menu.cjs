@@ -92,7 +92,25 @@ async function main() {
     await mobilePage.screenshot({ path: mobileScreenshotPath, fullPage: true });
     console.log(`Mobile screenshot saved to ${mobileScreenshotPath}`);
 
-    console.log('\n=== VERIFICATION COMPLETE: ALL 11 ITEMS VERIFIED WITH BESPOKE ASSETS ===');
+    // 3. Advertise Plans Page Verification (Desktop 1280x800)
+    console.log('\n[3/3] Verifying Advertise Plans page buttons at 1280x800...');
+    const adPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await adPage.goto(`${URL}?page=advertise`, { waitUntil: 'networkidle' });
+    await adPage.waitForTimeout(1000);
+
+    // Verify redundant button is removed
+    const redundantBtnCount = await adPage.locator('button:has-text("View Advertisement Packages")').count();
+    console.log(`  - "View Advertisement Packages" button count (should be 0): ${redundantBtnCount}`);
+
+    // Verify "Select Plan" buttons exist
+    const selectPlanBtnCount = await adPage.locator('button:has-text("Select Plan")').count();
+    console.log(`  - "Select Plan" buttons count (should be >= 4): ${selectPlanBtnCount}`);
+
+    const adScreenshotPath = path.join(ARTIFACT_DIR, 'verify_advertise_plans_hero.png');
+    await adPage.screenshot({ path: adScreenshotPath, fullPage: false });
+    console.log(`Advertise page screenshot saved to ${adScreenshotPath}`);
+
+    console.log('\n=== VERIFICATION COMPLETE: ALL ITEMS VERIFIED ===');
   } catch (err) {
     console.error('Test execution failed:', err);
     process.exitCode = 1;

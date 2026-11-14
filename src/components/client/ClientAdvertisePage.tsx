@@ -714,22 +714,6 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
           {/* Quick Action Navigation Bar */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
-              onClick={() => {
-                setActiveView('plans');
-                const el = document.getElementById('ad-plans-grid');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className={`px-5 py-2.5 rounded-xl font-bold font-rajdhani uppercase tracking-wider text-xs transition-all cursor-pointer min-h-[44px] flex items-center gap-2 ${
-                activeView === 'plans'
-                  ? 'bg-purple-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)]'
-                  : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
-              }`}
-            >
-              <Zap className="w-4 h-4 text-purple-300" />
-              <span>View Advertisement Packages</span>
-            </button>
-
-            <button
               onClick={scrollToComparison}
               className="px-5 py-2.5 rounded-xl font-bold font-rajdhani uppercase tracking-wider text-xs bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 transition-all cursor-pointer min-h-[44px] flex items-center gap-2"
             >
@@ -909,7 +893,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                           : 'bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white shadow-md shadow-purple-600/20'
                       }`}
                     >
-                      <span>View Plan</span>
+                      <span>Select Plan</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -997,7 +981,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                         onClick={() => handleOpenProduct(plan55.id)}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                       >
-                        <span>View Plan</span>
+                        <span>Select Plan</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -1058,7 +1042,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                         onClick={() => handleOpenProduct(plan105.id)}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-rajdhani uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                       >
-                        <span>View Plan</span>
+                        <span>Select Plan</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -1121,7 +1105,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                 onClick={() => handleOpenProduct(bonusPlan?.id || 'ad-bonus-free-18pct')}
                 className="w-full md:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white text-xs font-bold font-rajdhani uppercase tracking-wider transition-all shadow-lg shadow-fuchsia-600/25 flex items-center justify-center gap-2 flex-shrink-0 cursor-pointer min-h-[44px]"
               >
-                <span>View Plan</span>
+                <span>Select Plan</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1277,7 +1261,7 @@ export const ClientAdvertisePage: React.FC<ClientAdvertisePageProps> = ({
                             onClick={() => handleOpenProduct(p.id)}
                             className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] uppercase font-rajdhani cursor-pointer"
                           >
-                            View Plan
+                            Select Plan
                           </button>
                         </td>
                       </tr>
