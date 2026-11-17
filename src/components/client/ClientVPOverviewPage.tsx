@@ -19,6 +19,7 @@ import {
   Shield,
   CheckCircle2,
   TrendingDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -611,6 +612,19 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
         </div>
 
+        {/* Riot ID Accuracy & Non-Refundable Policy Notice */}
+        <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 flex items-start gap-2.5 shadow-sm text-xs text-gray-300">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="text-amber-300 font-bold font-rajdhani uppercase tracking-wider block text-xs">
+              Notice: Exact Riot ID &amp; Tagline Required (Zero Replacement)
+            </span>
+            <span className="text-[11px] text-gray-300">
+              Orders fulfilled with an incorrect Riot ID, wrong tagline, or inaccurate info are <strong className="text-amber-200">strictly not applicable for refund, replacement, or cancellation</strong>. Kindly ensure your in-game Riot ID &amp; #Tag are 100% accurate before purchase.
+            </span>
+          </div>
+        </div>
+
         {/* 7 Cards Showcase with Carousel Arrows */}
         <div className="relative">
           {/* Left Arrow Button */}
@@ -780,6 +794,19 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
               <Info className="w-3.5 h-3.5 text-purple-400" />
               <span>Why Choose PHP?</span>
             </button>
+          </div>
+        </div>
+
+        {/* Riot ID Accuracy & Non-Refundable Policy Notice */}
+        <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 flex items-start gap-2.5 shadow-sm text-xs text-gray-300">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="text-amber-300 font-bold font-rajdhani uppercase tracking-wider block text-xs">
+              Notice: Exact Riot ID &amp; Tagline Required (Zero Replacement)
+            </span>
+            <span className="text-[11px] text-gray-300">
+              Orders fulfilled with an incorrect Riot ID, wrong tagline, or inaccurate info are <strong className="text-amber-200">strictly not applicable for refund, replacement, or cancellation</strong>. Kindly ensure your in-game Riot ID &amp; #Tag are 100% accurate before purchase.
+            </span>
           </div>
         </div>
 

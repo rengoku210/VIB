@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   User,
   MessageCircle,
@@ -647,6 +648,17 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
                   <span>{riotVerification.error || 'Invalid Riot ID or Tagline'}</span>
                 </div>
               )}
+
+              {/* Riot ID Accuracy & Non-Refundable Policy Notice */}
+              <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 text-[11px] text-gray-300 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="text-amber-300 font-bold font-rajdhani uppercase tracking-wider block">
+                    Important: Accurate Riot ID Required (No Replacement)
+                  </span>
+                  Wrong Riot ID tag or incorrect account information will not be applicable for refund, cancellation, or replacement. Kindly verify your exact in-game Riot ID &amp; Tag before submitting.
+                </div>
+              </div>
             </div>
 
             {/* Delivery Receipt Email */}
@@ -798,6 +810,15 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
             <div className="pt-4 border-t border-white/10 flex items-center justify-between">
               <span className="text-sm font-bold text-gray-200 font-rajdhani uppercase">Total Payable</span>
               <span className="text-2xl font-black text-white font-rajdhani tracking-wide">{priceFormatted}</span>
+            </div>
+
+            {/* Non-Refundable / Zero-Replacement Disclaimer Note */}
+            <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/25 text-[11px] text-gray-300 flex items-start gap-2">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="leading-snug">
+                <span className="text-amber-300 font-bold block text-[10px] uppercase font-mono">Fulfillment Disclaimer</span>
+                Wrong Riot ID or inaccurate details are not eligible for refund or replacement.
+              </div>
             </div>
 
             <button

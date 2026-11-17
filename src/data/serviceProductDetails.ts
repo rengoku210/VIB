@@ -138,7 +138,7 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
         deliverySpeed: '5 - 15 Minutes',
         fulfillmentMethod: 'Prepaid PIN Code',
         regionScope: 'India (INR)',
-        protectionLabel: '100% Replacement Warranty',
+        protectionLabel: 'Official Riot Authorized',
         iconType: 'coins',
         imageUrl: '/assets/hires/vp_coins_stack.png',
         services: [
@@ -153,9 +153,10 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
           'Protected against invalid or duplicate code issues',
         ],
         conditions: [
+          'IMPORTANT DISCLAIMER: Orders with an incorrect Riot ID, wrong tagline, or inaccurate details are strictly non-refundable and not eligible for replacement or cancellation.',
           'Indian region PIN codes can only be redeemed on Indian-currency Valorant accounts.',
-          'Digital prepaid codes are single-use and non-refundable once revealed.',
-          'Double check your Riot ID and registered email prior to checkout.',
+          'Digital prepaid codes are single-use and non-refundable once revealed or dispatched.',
+          'Ensure your exact in-game Riot ID and #Tag are verified prior to completing payment.',
         ],
         faqs: [
           {
@@ -200,6 +201,7 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
           'Priority resolution desk if you have active store bundles expiring soon',
         ],
         conditions: [
+          'IMPORTANT DISCLAIMER: Orders with an incorrect Riot ID, wrong tagline, or inaccurate account information are strictly non-refundable, non-replaceable, and cannot be cancelled.',
           'Your Riot account store region must match the selected regional pack (e.g. Philippines PHP).',
           'Keep your WhatsApp phone number accessible during fulfillment.',
         ],

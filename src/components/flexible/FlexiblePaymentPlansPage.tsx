@@ -20,6 +20,7 @@ import {
   Users,
   MessageSquare,
   Info,
+  AlertCircle,
 } from 'lucide-react';
 import { Currency } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -1351,6 +1352,15 @@ export const FlexiblePaymentPlansPage: React.FC<FlexiblePaymentPlansPageProps> =
                         currency
                       )}
                     </div>
+                  </div>
+                </div>
+
+                {/* VP Riot ID & Non-Refundable Notice */}
+                <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 text-[11px] text-gray-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-snug">
+                    <span className="text-amber-300 font-bold block text-[10px] uppercase font-mono">Fulfillment Disclaimer</span>
+                    Wrong Riot ID tag or inaccurate info is not applicable for refund or cancellation. Kindly verify your exact in-game Riot ID &amp; #Tag.
                   </div>
                 </div>
 

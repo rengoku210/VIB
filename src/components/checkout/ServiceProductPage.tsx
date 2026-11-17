@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   Layers,
   Zap,
@@ -39,6 +40,14 @@ export const ServiceProductPage: React.FC<ServiceProductPageProps> = ({
   onNavigateHome,
 }) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  const isVp =
+    product.selection.category === 'vp' ||
+    product.selection.category === 'regional_vp' ||
+    product.iconType === 'coins' ||
+    product.iconType === 'vp' ||
+    (product.name || '').toLowerCase().includes('vp') ||
+    (product.categoryLabel || '').toLowerCase().includes('vp');
 
   const toggleFaq = (index: number) => {
     setOpenFaqIndex(openFaqIndex === index ? null : index);
@@ -202,6 +211,19 @@ export const ServiceProductPage: React.FC<ServiceProductPageProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Mandatory Riot ID Accuracy Notice & Zero-Replacement Policy */}
+              {isVp && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-950/25 border border-amber-500/40 text-xs shadow-xl space-y-2">
+                  <div className="flex items-center gap-2 text-amber-300 font-bold font-rajdhani uppercase tracking-wider text-xs sm:text-sm">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Mandatory Riot ID Accuracy Notice &amp; Zero Replacement Policy</span>
+                  </div>
+                  <p className="text-gray-300 leading-relaxed text-xs">
+                    Please ensure your in-game <strong className="text-amber-200 font-semibold">Riot ID and #Tagline</strong> (e.g. <span className="font-mono text-amber-300">Username#TAG</span>) are entered with 100% accuracy. Due to the irreversible delivery of digital game PINs and credits, orders fulfilled with an incorrect Riot ID, wrong tag, or inaccurate account information are <strong className="text-amber-200 uppercase font-bold">strictly not applicable for refund, replacement, or cancellation</strong> once processed. Kindly double-check your exact in-game Riot tag before completing purchase.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Right Column: Pricing & BUY NOW Card */}
@@ -235,6 +257,17 @@ export const ServiceProductPage: React.FC<ServiceProductPageProps> = ({
                   </div>
                 ))}
               </div>
+
+              {/* VP Quick Non-Refundable Reminder before Buy Now */}
+              {isVp && (
+                <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-gray-300 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-snug">
+                    <span className="text-amber-300 font-bold block mb-0.5">Zero Replacement &amp; Non-Refundable:</span>
+                    Wrong Riot ID tag or inaccurate info is not eligible for refund or cancellation. Kindly be careful and use your exact in-game Riot ID &amp; #Tag.
+                  </div>
+                </div>
+              )}
 
               {/* Prominent BUY NOW Button */}
               <div className="pt-2">

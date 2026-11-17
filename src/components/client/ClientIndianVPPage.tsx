@@ -14,6 +14,7 @@ import {
   Globe,
   Star,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
 import { formatCurrencyPrice } from '../../utils/format';
@@ -495,6 +496,24 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                   <div className="text-[10px] text-gray-400 font-mono">Official</div>
                   <div className="font-extrabold text-white text-xs">Riot PIN Vault</div>
                 </div>
+              </div>
+            </div>
+
+            {/* Riot ID Accuracy & Non-Refundable Policy Notice Banner */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-amber-950/25 border border-amber-500/30 flex items-start gap-3 shadow-md">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold font-rajdhani uppercase tracking-wider text-amber-300">
+                    Important Fulfillment Notice
+                  </span>
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-500/40 uppercase">
+                    Zero Replacement
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  Please verify your exact in-game Riot ID &amp; Tagline. Due to the irreversible delivery of digital game PINs and credits, orders fulfilled with an incorrect Riot ID, wrong tag, or inaccurate information are <strong className="text-amber-200">strictly not applicable for refund, replacement, or cancellation</strong>.
+                </p>
               </div>
             </div>
 
