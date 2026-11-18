@@ -73,23 +73,29 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
   };
 
   const indianPacks = [
-    { vp: '475 VP', priceINR: 499 },
-    { vp: '1,000 VP', priceINR: 999 },
-    { vp: '2,050 VP', priceINR: 1899 },
-    { vp: '3,650 VP', priceINR: 3199, badge: 'POPULAR' },
-    { vp: '5,350 VP', priceINR: 4499 },
-    { vp: '7,400 VP', priceINR: 6199 },
-    { vp: '11,000 VP', priceINR: 8999, badge: 'BEST VALUE' },
+    { vp: '475 VP', priceINR: 460 },
+    { vp: '1,000 VP', priceINR: 890 },
+    { vp: '2,050 VP', priceINR: 1850 },
+    { vp: '3,650 VP', priceINR: 3200, badge: 'POPULAR' },
+    { vp: '5,350 VP', priceINR: 4600 },
+    { vp: '11,000 VP', priceINR: 8950, badge: 'BEST VALUE' },
   ];
 
   const phpPacks = [
-    { vp: '475 VP', priceINR: 299 },
-    { vp: '1,000 VP', priceINR: 549 },
-    { vp: '1,475 VP', priceINR: 799 },
-    { vp: '2,050 VP', priceINR: 1099, badge: 'POPULAR' },
-    { vp: '2,525 VP', priceINR: 1349 },
-    { vp: '3,050 VP', priceINR: 1599 },
-    { vp: '3,650 VP', priceINR: 1999 },
+    { vp: '475 VP', priceINR: 395 },
+    { vp: '1,000 VP', priceINR: 860 },
+    { vp: '1,475 VP', priceINR: 1325 },
+    { vp: '2,050 VP', priceINR: 1740, badge: 'POPULAR' },
+    { vp: '2,525 VP', priceINR: 2105 },
+    { vp: '3,050 VP', priceINR: 2620 },
+    { vp: '3,650 VP', priceINR: 2995 },
+    { vp: '5,350 VP', priceINR: 4030 },
+    { vp: '7,400 VP', priceINR: 5440 },
+    { vp: '8,400 VP', priceINR: 6270 },
+    { vp: '10,700 VP', priceINR: 7695 },
+    { vp: '11,000 VP', priceINR: 7950, badge: 'BEST VALUE' },
+    { vp: '14,650 VP', priceINR: 10630 },
+    { vp: '22,000 VP', priceINR: 15915 },
   ];
 
   const handleBuy = (vp: string, price: number, region: string, productId?: string) => {
@@ -647,10 +653,10 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          {/* 7 Cards Grid / Carousel */}
+          {/* 6 Cards Grid / Carousel */}
           <div
             ref={indianCarouselRef}
-            className="flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 scroll-smooth snap-x"
+            className="flex lg:grid lg:grid-cols-6 gap-3 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 scroll-smooth snap-x"
           >
             {indianPacks.map((pack, idx) => (
               <div

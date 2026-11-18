@@ -1557,19 +1557,18 @@ export async function seedCatalogAndBilling() {
     `;
 
     const products = [
-      { id: 'vp-475', title: '475 Valorant Points Pack', category: 'vp', price: 499, orig: 599, badge: 'POPULAR', desc: 'Viper tier quick top-up pack with instant Riot PIN redemption.', details: { vp: 475, agent: 'VIPER', delivery: 'Instant PIN / Direct Top-Up' } },
-      { id: 'vp-1000', title: '1,000 Valorant Points Pack', category: 'vp', price: 999, orig: 1199, badge: 'HOT', desc: 'Neon tier battlepass unlock pack with bioelectric delivery speed.', details: { vp: 1000, agent: 'NEON', delivery: 'Instant PIN' } },
-      { id: 'vp-2050', title: '2,050 Valorant Points Pack', category: 'vp', price: 1999, orig: 2399, badge: 'POPULAR', desc: 'Phoenix tier premium skins top-up with bonus VP points.', details: { vp: 2050, agent: 'PHOENIX', delivery: 'Instant PIN' } },
-      { id: 'vp-3650', title: '3,650 Valorant Points Pack', category: 'vp', price: 3499, orig: 4199, badge: 'BEST VALUE', desc: 'Jett tier exclusive collection pack for premium weapon skins.', details: { vp: 3650, agent: 'JETT', delivery: 'Instant PIN' } },
-      { id: 'vp-5350', title: '5,350 Valorant Points Pack', category: 'vp', price: 4999, orig: 5999, badge: 'EPIC', desc: 'Chamber tier luxury bundle pack for elite collectors.', details: { vp: 5350, agent: 'CHAMBER', delivery: 'Instant Direct Riot Top-Up' } },
-      { id: 'vp-7400', title: '7,400 Valorant Points Pack', category: 'vp', price: 6199, orig: 7199, badge: 'HOT', desc: 'Sova tier reconnaissance master pack with instant Riot PIN redemption.', details: { vp: 7400, agent: 'SOVA', delivery: 'Instant PIN' } },
-      { id: 'vp-11000', title: '11,000 Valorant Points Pack', category: 'vp', price: 9499, orig: 11999, badge: 'ULTIMATE', desc: 'Reyna tier master vault collection with maximum savings.', details: { vp: 11000, agent: 'REYNA', delivery: 'VIP Instant Direct' } },
-      { id: 'viper', title: '475 VP (Viper Edition)', category: 'vp', price: 499, orig: 599, badge: 'POPULAR', desc: '475 Valorant Points instant top-up pack.', details: { vp: 475, agent: 'VIPER' } },
-      { id: 'neon', title: '1,000 VP (Neon Edition)', category: 'vp', price: 999, orig: 1199, badge: 'HOT', desc: '1,000 Valorant Points instant top-up pack.', details: { vp: 1000, agent: 'NEON' } },
-      { id: 'reyna', title: '2,050 VP (Reyna Edition)', category: 'vp', price: 1999, orig: 2399, badge: 'POPULAR', desc: '2,050 Valorant Points instant top-up pack.', details: { vp: 2050, agent: 'REYNA' } },
-      { id: 'fade', title: '3,650 VP (Fade Edition)', category: 'vp', price: 3499, orig: 4199, badge: 'BEST VALUE', desc: '3,650 Valorant Points instant top-up pack.', details: { vp: 3650, agent: 'FADE' } },
-      { id: 'jett', title: '5,350 VP (Jett Edition)', category: 'vp', price: 4999, orig: 5999, badge: 'EPIC', desc: '5,350 Valorant Points instant top-up pack.', details: { vp: 5350, agent: 'JETT' } },
-      { id: 'iso', title: '11,000 VP (Iso Edition)', category: 'vp', price: 9499, orig: 11999, badge: 'ULTIMATE', desc: '11,000 Valorant Points instant top-up pack.', details: { vp: 11000, agent: 'ISO' } },
+      { id: 'vp-475', title: '475 Valorant Points Pack', category: 'vp', price: 460, orig: 599, badge: 'POPULAR', desc: 'Viper tier quick top-up pack with instant Riot PIN redemption.', details: { vp: 475, agent: 'VIPER', delivery: 'Instant PIN / Direct Top-Up' } },
+      { id: 'vp-1000', title: '1,000 Valorant Points Pack', category: 'vp', price: 890, orig: 1199, badge: 'HOT', desc: 'Neon tier battlepass unlock pack with bioelectric delivery speed.', details: { vp: 1000, agent: 'NEON', delivery: 'Instant PIN' } },
+      { id: 'vp-2050', title: '2,050 Valorant Points Pack', category: 'vp', price: 1850, orig: 2399, badge: 'POPULAR', desc: 'Phoenix tier premium skins top-up with bonus VP points.', details: { vp: 2050, agent: 'PHOENIX', delivery: 'Instant PIN' } },
+      { id: 'vp-3650', title: '3,650 Valorant Points Pack', category: 'vp', price: 3200, orig: 4199, badge: 'BEST VALUE', desc: 'Jett tier exclusive collection pack for premium weapon skins.', details: { vp: 3650, agent: 'JETT', delivery: 'Instant PIN' } },
+      { id: 'vp-5350', title: '5,350 Valorant Points Pack', category: 'vp', price: 4600, orig: 5999, badge: 'EPIC', desc: 'Chamber tier luxury bundle pack for elite collectors.', details: { vp: 5350, agent: 'CHAMBER', delivery: 'Instant Direct Riot Top-Up' } },
+      { id: 'vp-11000', title: '11,000 Valorant Points Pack', category: 'vp', price: 8950, orig: 11999, badge: 'ULTIMATE', desc: 'Reyna tier master vault collection with maximum savings.', details: { vp: 11000, agent: 'REYNA', delivery: 'VIP Instant Direct' } },
+      { id: 'viper', title: '475 VP (Viper Edition)', category: 'vp', price: 460, orig: 599, badge: 'POPULAR', desc: '475 Valorant Points instant top-up pack.', details: { vp: 475, agent: 'VIPER' } },
+      { id: 'neon', title: '1,000 VP (Neon Edition)', category: 'vp', price: 890, orig: 1199, badge: 'HOT', desc: '1,000 Valorant Points instant top-up pack.', details: { vp: 1000, agent: 'NEON' } },
+      { id: 'reyna', title: '2,050 VP (Reyna Edition)', category: 'vp', price: 1850, orig: 2399, badge: 'POPULAR', desc: '2,050 Valorant Points instant top-up pack.', details: { vp: 2050, agent: 'REYNA' } },
+      { id: 'fade', title: '3,650 VP (Fade Edition)', category: 'vp', price: 3200, orig: 4199, badge: 'BEST VALUE', desc: '3,650 Valorant Points instant top-up pack.', details: { vp: 3650, agent: 'FADE' } },
+      { id: 'jett', title: '5,350 VP (Jett Edition)', category: 'vp', price: 4600, orig: 5999, badge: 'EPIC', desc: '5,350 Valorant Points instant top-up pack.', details: { vp: 5350, agent: 'JETT' } },
+      { id: 'iso', title: '11,000 VP (Iso Edition)', category: 'vp', price: 8950, orig: 11999, badge: 'ULTIMATE', desc: '11,000 Valorant Points instant top-up pack.', details: { vp: 11000, agent: 'ISO' } },
       { id: 'coaching-radiant-duo', title: 'Radiant Masterclass & Live Match Review', category: 'coaching', price: 1499, orig: 1999, badge: 'VERIFIED', desc: '1-on-1 private coaching session with tier-1 Radiant analyst, vod review, aim training schedule, and position playbook.', details: { durationHours: 2, coach: 'Assigned Radiant Analyst', discordSession: true } },
       { id: 'rankup-plat-to-dia', title: 'Platinum to Diamond Rankup Journey', category: 'rankup', price: 2999, orig: 3999, badge: 'FAST', desc: 'Professional duo queue assistance from Platinum to Diamond with guaranteed win rate and middleman safety.', details: { guaranteed: true, duoMode: true, streamAvailable: true } }
     ];
@@ -1586,29 +1585,31 @@ export async function seedCatalogAndBilling() {
   // VP IDs, otherwise the storefront's displayed PHP/INR quote can be spoofed
   // or rejected against the wrong regional price.
   const regionalVpPacks = [
-    { id: 'vp-in-475', vp: 475, price: 499 },
-    { id: 'vp-in-1000', vp: 1000, price: 999 },
-    { id: 'vp-in-2050', vp: 2050, price: 1899 },
-    { id: 'vp-in-3650', vp: 3650, price: 3199 },
-    { id: 'vp-in-5350', vp: 5350, price: 4499 },
-    { id: 'vp-in-7400', vp: 7400, price: 6199 },
-    { id: 'vp-in-11000', vp: 11000, price: 8999 },
-    { id: 'vp-in-14650', vp: 14650, price: 11999 },
-    { id: 'vp-in-22000', vp: 22000, price: 17999 },
-    { id: 'vp-in-44000', vp: 44000, price: 34999 },
-    { id: 'vp-in-66000', vp: 66000, price: 49999 },
-    { id: 'vp-in-110000', vp: 110000, price: 79999 },
-    { id: 'vp-in-220000', vp: 220000, price: 149999 },
-    { id: 'vp-ph-475', vp: 475, price: 299 },
-    { id: 'vp-ph-1000', vp: 1000, price: 549 },
-    { id: 'vp-ph-1475', vp: 1475, price: 799 },
-    { id: 'vp-ph-2050', vp: 2050, price: 1099 },
-    { id: 'vp-ph-2525', vp: 2525, price: 1349 },
-    { id: 'vp-ph-3050', vp: 3050, price: 1599 },
-    { id: 'vp-ph-3650', vp: 3650, price: 1999 },
+    // Official Indian VP Packs (from VIB project documents)
+    { id: 'vp-in-475', vp: 475, price: 460 },
+    { id: 'vp-in-1000', vp: 1000, price: 890 },
+    { id: 'vp-in-2050', vp: 2050, price: 1850 },
+    { id: 'vp-in-3650', vp: 3650, price: 3200 },
+    { id: 'vp-in-5350', vp: 5350, price: 4600 },
+    { id: 'vp-in-11000', vp: 11000, price: 8950 },
+    // Official Philippines VP Packs (#2 Price Chart Default from VIB project documents)
+    { id: 'vp-ph-475', vp: 475, price: 395 },
+    { id: 'vp-ph-1000', vp: 1000, price: 860 },
+    { id: 'vp-ph-1475', vp: 1475, price: 1325 },
+    { id: 'vp-ph-2050', vp: 2050, price: 1740 },
+    { id: 'vp-ph-2525', vp: 2525, price: 2105 },
+    { id: 'vp-ph-3050', vp: 3050, price: 2620 },
+    { id: 'vp-ph-3650', vp: 3650, price: 2995 },
+    { id: 'vp-ph-5350', vp: 5350, price: 4030 },
+    { id: 'vp-ph-7400', vp: 7400, price: 5440 },
+    { id: 'vp-ph-8400', vp: 8400, price: 6270 },
+    { id: 'vp-ph-10700', vp: 10700, price: 7695 },
+    { id: 'vp-ph-11000', vp: 11000, price: 7950 },
+    { id: 'vp-ph-14650', vp: 14650, price: 10630 },
+    { id: 'vp-ph-22000', vp: 22000, price: 15915 },
   ];
   const insertRegionalVpPackSql = `
-    INSERT OR IGNORE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
+    INSERT OR REPLACE INTO products (id, title, category, price_inr, original_price_inr, badge, description, details_json, stock, active, created_at)
     VALUES (?, ?, 'vp', ?, NULL, NULL, ?, ?, -1, 1, ?)
   `;
 
@@ -1676,6 +1677,10 @@ export async function seedCatalogAndBilling() {
     })),
     {
       sql: "DELETE FROM products WHERE category = 'rental' AND id LIKE 'service-rent-%'",
+      args: [],
+    },
+    {
+      sql: "DELETE FROM products WHERE id IN ('vp-in-7400', 'vp-in-14650', 'vp-in-22000', 'vp-in-44000', 'vp-in-66000', 'vp-in-110000', 'vp-in-220000')",
       args: [],
     },
     {

@@ -549,10 +549,10 @@ try {
   const regionalIndiaOrder = await request('/api/user/orders', {
     method: 'POST',
     headers: { Authorization: `Bearer ${customerToken}` },
-    body: JSON.stringify({ product_id: 'vp-in-3650', title: '3,650 VP (Indian Region Top-Up)', amount: 3199, currency: 'INR', type: 'vp', paymentMethod: 'TEST_ONLY_NO_PAYMENT' }),
+    body: JSON.stringify({ product_id: 'vp-in-3650', title: '3,650 VP (Indian Region Top-Up)', amount: 3200, currency: 'INR', type: 'vp', paymentMethod: 'TEST_ONLY_NO_PAYMENT' }),
   });
   assert.equal(regionalIndiaOrder.status, 201, 'regional Indian VP pack should accept its persisted storefront price');
-  assert.equal(regionalIndiaOrder.body.order.amount, 3199);
+  assert.equal(regionalIndiaOrder.body.order.amount, 3200);
   const tamperedRegionalIndiaOrder = await request('/api/user/orders', {
     method: 'POST',
     headers: { Authorization: `Bearer ${customerToken}` },
@@ -562,10 +562,10 @@ try {
   const regionalPhilippinesOrder = await request('/api/user/orders', {
     method: 'POST',
     headers: { Authorization: `Bearer ${customerToken}` },
-    body: JSON.stringify({ product_id: 'vp-ph-475', title: '475 VP (Philippines Region Top-Up)', amount: 299, currency: 'INR', type: 'vp', paymentMethod: 'TEST_ONLY_NO_PAYMENT' }),
+    body: JSON.stringify({ product_id: 'vp-ph-475', title: '475 VP (Philippines Region Top-Up)', amount: 395, currency: 'INR', type: 'vp', paymentMethod: 'TEST_ONLY_NO_PAYMENT' }),
   });
   assert.equal(regionalPhilippinesOrder.status, 201, 'regional Philippines VP pack should accept its persisted storefront price');
-  assert.equal(regionalPhilippinesOrder.body.order.amount, 299);
+  assert.equal(regionalPhilippinesOrder.body.order.amount, 395);
   const unpaidRegionalCompletion = await request(`/api/admin/regional-orders/${regionalPhilippinesOrder.body.order.id}/status`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${adminToken}` },

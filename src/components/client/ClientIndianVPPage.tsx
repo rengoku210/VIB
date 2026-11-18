@@ -71,25 +71,18 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
   }, []);
   const [popularOnly, setPopularOnly] = useState(false);
   const [bestValueOnly, setBestValueOnly] = useState(false);
-  const [priceMax, setPriceMax] = useState(200000);
+  const [priceMax, setPriceMax] = useState(10000);
   const [sortBy, setSortBy] = useState('recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-  // Catalog VP packs (pricing sourced from server products table)
+  // Official Indian VP packs (pricing strictly sourced from VIB project documents)
   const vpPacks = [
-    { id: 'in-475', vp: '475 VP', priceINR: 499, badge: null },
-    { id: 'in-1000', vp: '1,000 VP', priceINR: 999, badge: null },
-    { id: 'in-2050', vp: '2,050 VP', priceINR: 1899, badge: null },
-    { id: 'in-3650', vp: '3,650 VP', priceINR: 3199, badge: 'POPULAR', badgeType: 'amber' },
-    { id: 'in-5350', vp: '5,350 VP', priceINR: 4499, badge: null },
-    { id: 'in-7400', vp: '7,400 VP', priceINR: 6199, badge: null },
-    { id: 'in-11000', vp: '11,000 VP', priceINR: 8999, badge: 'BEST VALUE', badgeType: 'amber' },
-    { id: 'in-14650', vp: '14,650 VP', priceINR: 11999, badge: null },
-    { id: 'in-22000', vp: '22,000 VP', priceINR: 17999, badge: null },
-    { id: 'in-44000', vp: '44,000 VP', priceINR: 34999, badge: null },
-    { id: 'in-66000', vp: '66,000 VP', priceINR: 49999, badge: null },
-    { id: 'in-110000', vp: '110,000 VP', priceINR: 79999, badge: null },
-    { id: 'in-220000', vp: '220,000 VP', priceINR: 149999, badge: 'EXCLUSIVE', badgeType: 'cyan' },
+    { id: 'in-475', vp: '475 VP', priceINR: 460, badge: null },
+    { id: 'in-1000', vp: '1,000 VP', priceINR: 890, badge: null },
+    { id: 'in-2050', vp: '2,050 VP', priceINR: 1850, badge: null },
+    { id: 'in-3650', vp: '3,650 VP', priceINR: 3200, badge: 'POPULAR', badgeType: 'amber' },
+    { id: 'in-5350', vp: '5,350 VP', priceINR: 4600, badge: null },
+    { id: 'in-11000', vp: '11,000 VP', priceINR: 8950, badge: 'BEST VALUE', badgeType: 'amber' },
   ];
 
   const handleBuy = (pack: typeof vpPacks[0]) => {
@@ -336,15 +329,15 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                 <div className="text-xs text-gray-300 font-medium">Price Range</div>
                 <input
                   type="range"
-                  min="499"
-                  max="150000"
-                  step="1000"
+                  min="460"
+                  max="10000"
+                  step="500"
                   value={priceMax}
                   onChange={(e) => setPriceMax(Number(e.target.value))}
                   className="w-full accent-purple-500 cursor-pointer h-1.5 bg-white/10 rounded-lg"
                 />
                 <div className="text-[11px] font-mono text-purple-300">
-                  ₹0 – ₹{priceMax >= 150000 ? '1,50,000+' : priceMax.toLocaleString('en-IN')}
+                  ₹0 – ₹{priceMax >= 10000 ? '10,000+' : priceMax.toLocaleString('en-IN')}
                 </div>
               </div>
 
@@ -399,31 +392,27 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
               </div>
             </div>
 
-            {/* NEED A CUSTOM AMOUNT? Card */}
+            {/* 24/7 WHATSAPP HELP CENTRE Card */}
             <div className="p-4 rounded-xl bg-gradient-to-b from-[#180e2e] to-[#0c0a18] border border-purple-500/35 space-y-3 shadow-lg relative overflow-hidden">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-purple-900/30 border border-purple-500/20 p-1">
-                  <img
-                    src="/assets/hires/vp_coins_stack.png"
-                    alt="VP Coins"
-                    className="w-full h-full object-contain"
-                  />
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-purple-900/40 border border-purple-500/30 p-1 flex items-center justify-center">
+                  <Headphones className="w-5 h-5 text-purple-300" />
                 </div>
                 <h4 className="font-black text-xs uppercase text-white font-rajdhani tracking-wide">
-                  NEED A CUSTOM AMOUNT?
+                  24/7 WHATSAPP HELP CENTRE
                 </h4>
               </div>
               <p className="text-[11px] text-gray-300 leading-relaxed">
-                Can't find the VP amount you need? Contact us on WhatsApp for custom requests.
+                For any queries, contact our 24/7 WhatsApp help centre for instant support and order assistance.
               </p>
               <a
-                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20have%20a%20query%20regarding%20VP%20packs"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
               >
                 <MessageSquare className="w-3.5 h-3.5 fill-black" />
-                <span>WhatsApp Us →</span>
+                <span>Chat on WhatsApp →</span>
               </a>
             </div>
 
@@ -518,14 +507,15 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
             </div>
 
             {/* 13 VP Packs Grid + 1 Wide Banner in 5-Column Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            {/* 6 Official Indian VP Packs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {sortedPacks.map((pack) => {
                 const pkgId = 'vp-' + pack.id.replace('in-', '');
                 const available = stockMap[pkgId] ?? 0;
                 return (
                   <div
                     key={pack.id}
-                    className="p-3 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] relative min-h-[185px]"
+                    className="p-3.5 rounded-xl bg-[#0c0a18] border border-white/[0.08] hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center text-center justify-between group shadow-md hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] relative min-h-[195px]"
                   >
                     {/* Badge */}
                     {pack.badge && (
@@ -551,13 +541,13 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
 
                     {/* Pack Title & Pricing */}
                     <div className="space-y-0.5 w-full">
-                      <div className="font-black text-sm text-white font-rajdhani tracking-wide">
+                      <div className="font-black text-base text-white font-rajdhani tracking-wide">
                         {pack.vp}
                       </div>
-                      <div className="font-extrabold text-xs text-purple-300 font-rajdhani">
+                      <div className="font-extrabold text-sm text-[#f472b6] font-rajdhani">
                         {formatCurrencyPrice(pack.priceINR, currency)}
                       </div>
-                      <div className="text-[10px] font-mono pt-1">
+                      <div className="text-[10px] font-mono pt-0.5">
                         {available > 0 ? (
                           <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -612,61 +602,60 @@ export const ClientIndianVPPage: React.FC<ClientIndianVPPageProps> = ({
                   </div>
                 );
               })}
+            </div>
 
-              {/* 14th Element: Wide 2-Column Banner "MORE VALUE MORE WINS" (Matching Reference 2) */}
-              <div className="col-span-2 rounded-xl overflow-hidden bg-gradient-to-r from-[#170a2c] via-[#120822] to-[#0d0618] border border-purple-500/35 p-4 flex flex-col justify-between relative shadow-lg min-h-[175px]">
-                {/* Background ambient glow */}
-                <div className="absolute right-0 top-0 w-36 h-36 bg-purple-600/20 blur-2xl pointer-events-none" />
+            {/* Feature Banner: MORE VALUE MORE WINS */}
+            <div className="rounded-xl overflow-hidden bg-gradient-to-r from-[#170a2c] via-[#120822] to-[#0d0618] border border-purple-500/35 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between relative shadow-lg min-h-[110px] gap-4">
+              {/* Background ambient glow */}
+              <div className="absolute right-0 top-0 w-36 h-36 bg-purple-600/20 blur-2xl pointer-events-none" />
 
-                {/* Angled Graffiti Text: MORE VALUE MORE WINS */}
-                <div className="relative z-10 space-y-0.5 select-none pointer-events-none">
-                  <div className="font-marker text-base sm:text-lg text-[#f472b6] -rotate-6 drop-shadow-[0_0_10px_rgba(244,114,182,0.9)]">
-                    MORE VALUE
-                  </div>
-                  <div className="font-marker text-lg sm:text-xl text-[#e879f9] -rotate-6 drop-shadow-[0_0_12px_rgba(232,121,249,0.9)] font-bold -mt-1">
-                    MORE WINS
-                  </div>
+              {/* Angled Graffiti Text: MORE VALUE MORE WINS */}
+              <div className="relative z-10 space-y-0.5 select-none pointer-events-none text-center sm:text-left">
+                <div className="font-marker text-base sm:text-lg text-[#f472b6] -rotate-3 drop-shadow-[0_0_10px_rgba(244,114,182,0.9)]">
+                  MORE VALUE
                 </div>
-
-                {/* Weapon artwork resting on supply box */}
-                <div className="relative z-10 w-full flex items-end justify-end mt-2">
-                  <img
-                    src="/assets/items/vandal-rgx.png"
-                    alt="Valorant Vandal"
-                    className="w-48 h-auto object-contain filter drop-shadow-[0_0_15px_rgba(168,85,247,0.7)] transform -rotate-3"
-                  />
+                <div className="font-marker text-lg sm:text-xl text-[#e879f9] -rotate-3 drop-shadow-[0_0_12px_rgba(232,121,249,0.9)] font-bold -mt-1">
+                  MORE WINS
                 </div>
+                <p className="text-[11px] text-gray-300 font-sans font-normal pt-1">
+                  Official Riot-authorized Indian Region VP codes delivered directly to your dashboard.
+                </p>
+              </div>
+
+              {/* Weapon artwork resting on supply box */}
+              <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
+                <img
+                  src="/assets/items/vandal-rgx.png"
+                  alt="Valorant Vandal"
+                  className="w-44 sm:w-52 h-auto object-contain filter drop-shadow-[0_0_15px_rgba(168,85,247,0.7)] transform -rotate-3"
+                />
               </div>
             </div>
 
-            {/* Custom Amount Callout Bar (Matching Reference 2) */}
+            {/* 24/7 WhatsApp Help Centre Callout Bar */}
             <div className="p-4 rounded-xl bg-gradient-to-r from-[#170d2c] via-[#100920] to-[#0a0614] border border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-purple-900/30 border border-purple-500/30 p-1">
-                  <img
-                    src="/assets/hires/vp_coins_stack.png"
-                    alt="VP Coins"
-                    className="w-full h-full object-contain"
-                  />
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-purple-900/40 border border-purple-500/30 p-1 flex items-center justify-center">
+                  <Headphones className="w-5 h-5 text-purple-300" />
                 </div>
                 <div>
                   <div className="font-black text-sm text-white font-rajdhani">
-                    Looking for a different amount?
+                    For Any Queries, Contact Our 24/7 WhatsApp Help Centre
                   </div>
                   <div className="text-[11px] text-gray-300">
-                    We can help with custom VP orders. Contact us on WhatsApp with your required amount.
+                    Our dedicated support team is available 24/7 to assist you with order verification, PIN dispatch, or general questions.
                   </div>
                 </div>
               </div>
 
               <a
-                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20need%20assistance"
+                href="https://wa.me/918099641606?text=Hi%20VIB%20Team%2C%20I%20have%20a%20query%20regarding%20my%20order"
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-extrabold text-xs whitespace-nowrap cursor-pointer shadow-md flex items-center gap-1.5 transition-all"
               >
                 <MessageSquare className="w-3.5 h-3.5 fill-black" />
-                <span>Request on WhatsApp →</span>
+                <span>Contact 24/7 Help Centre →</span>
               </a>
             </div>
           </div>

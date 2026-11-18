@@ -25,30 +25,30 @@ async function dismissCookieBanner(page: Page) {
 
 // Mirrors ClientIndianVPPage.vpPacks (display order, id mapping, price).
 const INDIAN_PACKS = [
-  { vp: '475 VP', id: 'vp-in-475', price: 499 },
-  { vp: '1,000 VP', id: 'vp-in-1000', price: 999 },
-  { vp: '2,050 VP', id: 'vp-in-2050', price: 1899 },
-  { vp: '3,650 VP', id: 'vp-in-3650', price: 3199 },
-  { vp: '5,350 VP', id: 'vp-in-5350', price: 4499 },
-  { vp: '7,400 VP', id: 'vp-in-7400', price: 6199 },
-  { vp: '11,000 VP', id: 'vp-in-11000', price: 8999 },
-  { vp: '14,650 VP', id: 'vp-in-14650', price: 11999 },
-  { vp: '22,000 VP', id: 'vp-in-22000', price: 17999 },
-  { vp: '44,000 VP', id: 'vp-in-44000', price: 34999 },
-  { vp: '66,000 VP', id: 'vp-in-66000', price: 49999 },
-  { vp: '110,000 VP', id: 'vp-in-110000', price: 79999 },
-  { vp: '220,000 VP', id: 'vp-in-220000', price: 149999 },
+  { vp: '475 VP', id: 'vp-in-475', price: 460 },
+  { vp: '1,000 VP', id: 'vp-in-1000', price: 890 },
+  { vp: '2,050 VP', id: 'vp-in-2050', price: 1850 },
+  { vp: '3,650 VP', id: 'vp-in-3650', price: 3200 },
+  { vp: '5,350 VP', id: 'vp-in-5350', price: 4600 },
+  { vp: '11,000 VP', id: 'vp-in-11000', price: 8950 },
 ];
 
 // Mirrors ClientVPOverviewPage.phpPacks.
 const PHILIPPINES_PACKS = [
-  { vp: '475 VP', id: 'vp-ph-475', price: 299 },
-  { vp: '1,000 VP', id: 'vp-ph-1000', price: 549 },
-  { vp: '1,475 VP', id: 'vp-ph-1475', price: 799 },
-  { vp: '2,050 VP', id: 'vp-ph-2050', price: 1099 },
-  { vp: '2,525 VP', id: 'vp-ph-2525', price: 1349 },
-  { vp: '3,050 VP', id: 'vp-ph-3050', price: 1599 },
-  { vp: '3,650 VP', id: 'vp-ph-3650', price: 1999 },
+  { vp: '475 VP', id: 'vp-ph-475', price: 395 },
+  { vp: '1,000 VP', id: 'vp-ph-1000', price: 860 },
+  { vp: '1,475 VP', id: 'vp-ph-1475', price: 1325 },
+  { vp: '2,050 VP', id: 'vp-ph-2050', price: 1740 },
+  { vp: '2,525 VP', id: 'vp-ph-2525', price: 2105 },
+  { vp: '3,050 VP', id: 'vp-ph-3050', price: 2620 },
+  { vp: '3,650 VP', id: 'vp-ph-3650', price: 2995 },
+  { vp: '5,350 VP', id: 'vp-ph-5350', price: 4030 },
+  { vp: '7,400 VP', id: 'vp-ph-7400', price: 5440 },
+  { vp: '8,400 VP', id: 'vp-ph-8400', price: 6270 },
+  { vp: '10,700 VP', id: 'vp-ph-10700', price: 7695 },
+  { vp: '11,000 VP', id: 'vp-ph-11000', price: 7950 },
+  { vp: '14,650 VP', id: 'vp-ph-14650', price: 10630 },
+  { vp: '22,000 VP', id: 'vp-ph-22000', price: 15915 },
 ];
 
 test.describe('VP Packs', () => {
