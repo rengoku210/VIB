@@ -17,8 +17,6 @@ import {
   Sparkles,
   Clock,
   Shield,
-  CheckCircle2,
-  TrendingDown,
   AlertTriangle,
 } from 'lucide-react';
 import { Currency, CartItem } from '../../types';
@@ -149,142 +147,35 @@ export const ClientVPOverviewPage: React.FC<ClientVPOverviewPageProps> = ({
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* CHANGE REGION FROM IND TO PHP (Regional Arbitrage & VP Savings Gateway)   */}
-        {/* ========================================================================= */}
-        <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0c0919] via-[#140b2a] to-[#0c0919] border border-fuchsia-500/30 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Neon Glows */}
-          <div className="absolute -left-10 top-0 w-80 h-80 bg-fuchsia-600/15 rounded-full blur-[90px] pointer-events-none" />
-          <div className="absolute -right-10 bottom-0 w-80 h-80 bg-purple-600/15 rounded-full blur-[90px] pointer-events-none" />
-
-          {/* Header */}
-          <div className="space-y-1 relative z-10">
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-[#e879f9] uppercase font-bold">
-              <Globe className="w-3.5 h-3.5 text-purple-400" />
-              <span>REGIONAL ARBITRAGE SERVICE</span>
+        {/* Sleek banner linking to dedicated Change Region page */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-fuchsia-950/40 via-[#130a24] to-[#0d0718] border border-fuchsia-500/25 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg relative overflow-hidden">
+          <div className="flex items-center gap-3.5 relative z-10">
+            <div className="w-10 h-10 rounded-xl bg-fuchsia-900/40 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-300 flex-shrink-0 shadow-[0_0_12px_rgba(232,121,249,0.2)]">
+              <Globe className="w-5 h-5" />
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-white font-rajdhani">
-              CHANGE REGION FROM IND TO PHP
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-              Switch your Valorant account region from India (IND) to Philippines (PHP) and unlock 25% to 40% cheaper VP rates on every store purchase forever.
-            </p>
-          </div>
-
-          {/* Twin Portal Gateways Comparison */}
-          <div className="grid grid-cols-1 lg:grid-cols-11 gap-4 items-center relative z-10">
-            {/* Left Portal: INDIA REGION */}
-            <div className="lg:col-span-5 p-5 rounded-xl bg-[#090714] border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FlagIcon country="IN" size="md" />
-                  <div>
-                    <h3 className="font-extrabold text-sm text-white font-rajdhani">INDIA REGION (IND)</h3>
-                    <div className="text-[10px] font-mono text-gray-400">Current Standard Pricing</div>
-                  </div>
-                </div>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase">
-                  STANDARD
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-white font-rajdhani">
+                  WANT 25% TO 40% CHEAPER VP FOREVER?
+                </span>
+                <span className="px-2 py-0.5 rounded bg-fuchsia-900/60 text-[10px] font-mono text-fuchsia-300 uppercase font-bold border border-fuchsia-500/30 hidden md:inline-block">
+                  Save ₹2,900/bundle
                 </span>
               </div>
-
-              <div className="space-y-1.5 text-xs text-gray-300 pt-1">
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">1000 VP Price:</span>
-                  <span className="font-bold text-white">₹800 - ₹850</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Ultra Bundle (8700 VP):</span>
-                  <span className="font-bold text-white">₹7,200+</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Server Latency:</span>
-                  <span className="font-bold text-emerald-400">15-25ms (Mumbai)</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-400">Savings Potential:</span>
-                  <span className="font-bold text-gray-500">None (Full Price)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Portal Bridge */}
-            <div className="lg:col-span-1 flex flex-col items-center justify-center text-center py-2 lg:py-0">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/40">
-                <ArrowRight className="w-5 h-5 hidden lg:block" />
-                <TrendingDown className="w-5 h-5 lg:hidden" />
-              </div>
-              <span className="text-[9px] font-mono text-fuchsia-400 uppercase font-bold mt-1 tracking-wider">
-                SAVE 40%
-              </span>
-            </div>
-
-            {/* Right Portal: PHILIPPINES REGION */}
-            <div className="lg:col-span-5 p-5 rounded-xl bg-gradient-to-br from-[#120824] to-[#1c0d38] border border-fuchsia-500/50 space-y-3 shadow-lg shadow-fuchsia-900/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FlagIcon country="PH" size="md" />
-                  <div>
-                    <h3 className="font-extrabold text-sm text-white font-rajdhani">PHILIPPINES REGION (PHP)</h3>
-                    <div className="text-[10px] font-mono text-fuchsia-300">Discounted Southeast Asia Tier</div>
-                  </div>
-                </div>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-fuchsia-900/60 text-fuchsia-200 border border-fuchsia-500/40 uppercase font-bold">
-                  BEST VALUE
-                </span>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-gray-200 pt-1">
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">1000 VP Price:</span>
-                  <span className="font-bold text-emerald-400">~₹520 (Save ~₹300)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">Ultra Bundle (8700 VP):</span>
-                  <span className="font-bold text-emerald-400">~₹4,300 (Save ~₹2,900)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-fuchsia-500/20">
-                  <span className="text-gray-300">Server Latency:</span>
-                  <span className="font-bold text-emerald-400">Identical Mumbai / SG Ping</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-300">Total Savings:</span>
-                  <span className="font-bold text-fuchsia-300">Up to 40% Off Every VP Pack</span>
-                </div>
+              <div className="text-xs text-gray-400">
+                Switch your Valorant account from India to Philippines. Same Mumbai ping, Riot-compliant setup.
               </div>
             </div>
           </div>
 
-          {/* Why Switch to PHP Checklist & CTA */}
-          <div className="pt-2 border-t border-white/[0.08] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-300">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>25-40% cheaper VP on every purchase</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Identical Mumbai/Singapore server ping</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Safe &amp; Riot-compliant account setup</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Full warranty &amp; instant delivery</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('services', 'region-change')}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
-            >
-              <span>Order Region Switch (₹1,299)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('region-change')}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 relative z-10"
+          >
+            <span>Explore Region Switch</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Flexible Payment Plans (EMI) Strip - Prominent Phase 2 B Banner */}

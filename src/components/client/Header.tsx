@@ -42,6 +42,7 @@ export type ClientPage =
   | 'vp'
   | 'vp-catalog'
   | 'services'
+  | 'region-change'
   | 'advertise'
   | 'rankup'
   | 'rentals'
@@ -364,7 +365,7 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-expanded={moreOpen}
                 aria-haspopup="true"
                 className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
-                  currentPage === 'services' || moreOpen
+                  currentPage === 'services' || currentPage === 'region-change' || moreOpen
                     ? 'bg-[#8a2be2]/30 text-white font-semibold border border-[#9333ea]/50'
                     : 'hover:text-white hover:bg-white/5'
                 }`}
@@ -388,7 +389,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => handleNav('services', 'region-change')}
+                      onClick={() => handleNav('region-change')}
                       className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs text-gray-200 hover:text-white transition-all flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group cursor-pointer"
                     >
                       <div className="w-[38px] h-[38px] rounded-xl bg-indigo-950/70 border border-indigo-500/30 text-indigo-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(99,102,241,0.15)] group-hover:scale-105 group-hover:border-indigo-400 group-hover:text-indigo-300 transition-all">
@@ -869,7 +870,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Top specialized services */}
             <button
               type="button"
-              onClick={() => handleNav('services', 'region-change')}
+              onClick={() => handleNav('region-change')}
               className="min-h-[44px] px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-3 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <div className="w-[38px] h-[38px] rounded-xl bg-indigo-950/70 border border-indigo-500/30 text-indigo-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(99,102,241,0.15)]">

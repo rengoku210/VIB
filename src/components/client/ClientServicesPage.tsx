@@ -227,10 +227,7 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
       title: 'Region Conversion Support',
       desc: 'Assistance with region conversion and profile configuration.',
       icon: Globe,
-      action: () => {
-        const el = document.getElementById('region-change');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      },
+      action: () => onNavigate('region-change'),
     },
     {
       id: 'srv-6',
@@ -725,14 +722,24 @@ export const ClientServicesPage: React.FC<ClientServicesPageProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
-            >
-              <span>Order Region Switch (₹1,299)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onNavigate('region-change')}
+                className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+              >
+                <span>Full Details & Calculator</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenCheckout('Region Conversion Support: IND to PHP', 1299)}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-xs sm:text-sm font-bold font-rajdhani uppercase tracking-wider text-white shadow-lg shadow-fuchsia-600/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+              >
+                <span>Order Region Switch (₹1,299)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </section>

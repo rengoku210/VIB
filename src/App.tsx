@@ -24,6 +24,7 @@ import { CookieConsentBanner } from './components/legal/CookieConsentBanner';
 import { FlexiblePaymentPlansPage } from './components/flexible/FlexiblePaymentPlansPage';
 import { FlexibleCheckoutPage } from './components/flexible/FlexibleCheckoutPage';
 import { FlexibleConfirmationPage } from './components/flexible/FlexibleConfirmationPage';
+import { ClientRegionChangePage } from './components/client/ClientRegionChangePage';
 import { ServiceProductPage } from './components/checkout/ServiceProductPage';
 import { ServiceCheckoutPage } from './components/checkout/ServiceCheckoutPage';
 import { FlexiblePlanSelection } from './types/flexiblePlans';
@@ -42,6 +43,9 @@ function AppContent() {
   const getInitialPage = (): ClientPage => {
     try {
       const path = window.location.pathname;
+      if (path === '/region-change' || path.startsWith('/region-change')) {
+        return 'region-change';
+      }
       if (path === '/advertise' || path.startsWith('/advertise')) {
         return 'advertise';
       }
@@ -71,6 +75,7 @@ function AppContent() {
           'vp',
           'vp-catalog',
           'services',
+          'region-change',
           'advertise',
           'rankup',
           'rentals',
@@ -172,6 +177,10 @@ function AppContent() {
 
     const onPopState = () => {
       const path = window.location.pathname;
+      if (path === '/region-change' || path.startsWith('/region-change')) {
+        setCurrentPage('region-change');
+        return;
+      }
       if (path === '/advertise' || path.startsWith('/advertise')) {
         setCurrentPage('advertise');
         return;
@@ -210,6 +219,7 @@ function AppContent() {
           'vp',
           'vp-catalog',
           'services',
+          'region-change',
           'advertise',
           'rankup',
           'rentals',
@@ -524,6 +534,17 @@ function AppContent() {
         url.searchParams.delete('listingId');
         url.searchParams.delete('ref');
         url.searchParams.delete('tab');
+      } else if (page === 'region-change') {
+        url.pathname = '/region-change';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        url.hash = '';
       } else if (page === 'advertise') {
         url.pathname = '/advertise';
         url.searchParams.delete('page');
@@ -740,6 +761,14 @@ function AppContent() {
             currency={currency}
             onNavigate={handleNavigate}
             onAddToCart={handleAddToCart}
+            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'region-change' && (
+          <ClientRegionChangePage
+            currency={currency}
+            onNavigate={handleNavigate}
             onOpenCheckout={handleOpenCustomCheckout}
           />
         )}

@@ -1542,7 +1542,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
                 Switch your account from Indian region to Philippines region and unlock lower prices, more purchase options and exclusive content.
               </p>
               <button
-                onClick={() => onNavigate('services', 'region-change')}
+                onClick={() => onNavigate('region-change')}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-fuchsia-600/30 hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
               >
                 <span>Switch to PHP</span>
