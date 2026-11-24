@@ -43,6 +43,9 @@ export type ClientPage =
   | 'vp-catalog'
   | 'services'
   | 'region-change'
+  | 'fresh-php'
+  | 'skins-exchange'
+  | 'urgent-sale'
   | 'advertise'
   | 'rankup'
   | 'rentals'
@@ -365,7 +368,7 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-expanded={moreOpen}
                 aria-haspopup="true"
                 className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
-                  currentPage === 'services' || currentPage === 'region-change' || moreOpen
+                  currentPage === 'services' || currentPage === 'region-change' || currentPage === 'fresh-php' || currentPage === 'skins-exchange' || currentPage === 'urgent-sale' || moreOpen
                     ? 'bg-[#8a2be2]/30 text-white font-semibold border border-[#9333ea]/50'
                     : 'hover:text-white hover:bg-white/5'
                 }`}
@@ -404,7 +407,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => handleNav('services', 'urgent-sale')}
+                      onClick={() => handleNav('urgent-sale')}
                       className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs text-gray-200 hover:text-white transition-all flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group cursor-pointer"
                     >
                       <div className="w-[38px] h-[38px] rounded-xl bg-amber-950/70 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.15)] group-hover:scale-105 group-hover:border-amber-400 group-hover:text-amber-300 transition-all">
@@ -419,7 +422,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => handleNav('services', 'skins-exchange')}
+                      onClick={() => handleNav('skins-exchange')}
                       className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs text-gray-200 hover:text-white transition-all flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group cursor-pointer"
                     >
                       <div className="w-[38px] h-[38px] rounded-xl bg-purple-950/70 border border-purple-500/30 text-purple-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.15)] group-hover:scale-105 group-hover:border-purple-400 group-hover:text-purple-300 transition-all">
@@ -434,7 +437,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => handleNav('services', 'fresh-php')}
+                      onClick={() => handleNav('fresh-php')}
                       className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs text-gray-200 hover:text-white transition-all flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group cursor-pointer"
                     >
                       <div className="w-[38px] h-[38px] rounded-xl bg-cyan-950/70 border border-cyan-500/30 text-cyan-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(6,182,212,0.15)] group-hover:scale-105 group-hover:border-cyan-400 group-hover:text-cyan-300 transition-all">
@@ -566,7 +569,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => handleNav('services', 'all-services')}
+                      onClick={() => handleNav('services')}
                       className="w-full text-left p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 text-xs transition-all flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 group shadow-md cursor-pointer"
                     >
                       <div className="w-[38px] h-[38px] rounded-xl bg-purple-800/40 border border-purple-400/40 text-purple-200 flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.3)] group-hover:scale-105 group-hover:border-purple-300 group-hover:text-white transition-all">
@@ -884,7 +887,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               type="button"
-              onClick={() => handleNav('services', 'urgent-sale')}
+              onClick={() => handleNav('urgent-sale')}
               className="min-h-[44px] px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-3 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <div className="w-[38px] h-[38px] rounded-xl bg-amber-950/70 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.15)]">
@@ -898,7 +901,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               type="button"
-              onClick={() => handleNav('services', 'skins-exchange')}
+              onClick={() => handleNav('skins-exchange')}
               className="min-h-[44px] px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-3 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <div className="w-[38px] h-[38px] rounded-xl bg-purple-950/70 border border-purple-500/30 text-purple-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.15)]">
@@ -912,7 +915,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               type="button"
-              onClick={() => handleNav('services', 'fresh-php')}
+              onClick={() => handleNav('fresh-php')}
               className="min-h-[44px] px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-3 text-gray-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <div className="w-[38px] h-[38px] rounded-xl bg-cyan-950/70 border border-cyan-500/30 text-cyan-400 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(6,182,212,0.15)]">
@@ -1032,7 +1035,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* All Services Directory at bottom */}
             <button
               type="button"
-              onClick={() => handleNav('services', 'all-services')}
+              onClick={() => handleNav('services')}
               className={`min-h-[44px] px-3 py-2.5 rounded-xl text-left text-xs font-medium flex items-center gap-3 transition-all cursor-pointer col-span-2 ${
                 currentPage === 'services'
                   ? 'bg-purple-600/30 text-white font-bold border border-purple-500/40'

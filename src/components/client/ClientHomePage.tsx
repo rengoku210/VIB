@@ -912,7 +912,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onNavigate('services', 'urgent-sale')}
+                  onClick={() => onNavigate('urgent-sale')}
                   className="min-h-[44px] px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold font-rajdhani uppercase tracking-wider text-xs shadow-lg shadow-rose-600/30 hover:scale-105 transition-all cursor-pointer flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                 >
                   <span>Get My Profile Evaluated</span>
@@ -1602,7 +1602,7 @@ export const ClientHomePage: React.FC<ClientHomePageProps> = ({
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
-                onClick={() => onNavigate('services', 'fresh-php')}
+                onClick={() => onNavigate('fresh-php')}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sky-500/30 hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
               >
                 <span>Get Your PHP Profile</span>

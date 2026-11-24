@@ -178,6 +178,10 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
   const isRental = sel.category === 'rental';
   const isCoaching = sel.category === 'coaching';
   const isCart = sel.category === 'cart';
+  const isFreshPhp =
+    (product.name || '').toLowerCase().includes('fresh') ||
+    (product.categoryLabel || '').toLowerCase().includes('fresh') ||
+    (sel.productId || '').includes('fresh-php');
   const rentalDuration = sel.rentalDuration || '24h';
 
   const priceFormatted =
@@ -192,7 +196,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
       return;
     }
 
-    if (!riotId.trim() || !tagline.trim()) {
+    if (!isFreshPhp && (!riotId.trim() || !tagline.trim())) {
       setFormError('Your Valorant Riot ID and #Tagline are required to register the order.');
       return;
     }
@@ -200,8 +204,8 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
       setFormError('A valid delivery receipt email address is required.');
       return;
     }
-    if (isRegional && !contactPhone.trim()) {
-      setFormError('WhatsApp phone number is required for regional VP delivery coordination.');
+    if ((isRegional || isFreshPhp) && !contactPhone.trim()) {
+      setFormError('WhatsApp phone number is required for account credential delivery coordination.');
       return;
     }
     if (isCoaching && !discordTag.trim()) {
@@ -217,14 +221,18 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
       return;
     }
 
-    setIsVerifyingRiot(true);
-    const check = await verifyRiotIdOnServer(riotId.trim(), tagline.trim());
-    setIsVerifyingRiot(false);
-    setRiotVerification(check);
+    let verifiedRiotTarget = isFreshPhp ? 'FRESH-PHP-ORDER#PHP' : `${riotId.trim()}#${tagline.trim()}`;
+    if (!isFreshPhp) {
+      setIsVerifyingRiot(true);
+      const check = await verifyRiotIdOnServer(riotId.trim(), tagline.trim());
+      setIsVerifyingRiot(false);
+      setRiotVerification(check);
 
-    if (!check.exists) {
-      setFormError(check.error || 'Please provide a legitimate, existing Valorant Riot ID before ordering.');
-      return;
+      if (!check.exists) {
+        setFormError(check.error || 'Please provide a legitimate, existing Valorant Riot ID before ordering.');
+        return;
+      }
+      verifiedRiotTarget = `${check.gameName || riotId.trim()}#${check.tagLine || tagline.trim()}`;
     }
 
     setIsCreatingOrder(true);
@@ -244,7 +252,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
           type: sel.category,
           paymentMethod: isValuation ? 'Free Valuation / Appraisal' : 'UPI Manual QR Verification',
           details: {
-            riotId: `${check.gameName || riotId}#${check.tagLine || tagline}`,
+            riotId: verifiedRiotTarget,
             email: email.trim(),
             contactPhone: contactPhone.trim() || undefined,
             discordTag: discordTag.trim() || undefined,
@@ -341,7 +349,7 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
         currency={currency}
         itemImageUrl={product.imageUrl || ((product.categoryLabel?.toLowerCase().includes('vp') || product.name?.toLowerCase().includes('vp')) ? '/assets/hires/vp_coins_stack.png' : undefined)}
         specs={[
-          { label: 'Riot ID', value: `${riotId}#${tagline}` },
+          { label: isFreshPhp ? 'Service' : 'Riot ID', value: isFreshPhp ? 'Fresh Clean PHP Profile' : `${riotId}#${tagline}` },
           { label: 'Delivery', value: product.deliverySpeed },
           { label: 'Region', value: product.regionScope },
           { label: 'Receipt Email', value: email },
@@ -599,67 +607,84 @@ export const ServiceCheckoutPage: React.FC<ServiceCheckoutPageProps> = ({
               </div>
             )}
 
-            {/* Riot ID & Tagline */}
-            <div className="space-y-2">
-              <label className="text-xs font-mono uppercase text-gray-300 font-semibold block">
-                Riot ID &amp; Tagline *
-              </label>
-              <div className="grid grid-cols-12 gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="Game Name (e.g. PhoenixAim)"
-                  value={riotId}
-                  onChange={(e) => setRiotId(e.target.value)}
-                  className="col-span-8 h-11 px-4 rounded-xl bg-black/50 border border-white/15 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500"
-                />
-                <div className="col-span-4 relative flex items-center">
-                  <span className="absolute left-3 text-gray-400 font-mono text-sm">#</span>
+            {/* Riot ID & Tagline OR Fresh PHP Provisioning Notice */}
+            {isFreshPhp ? (
+              <div className="p-4 rounded-xl bg-cyan-950/40 border border-cyan-500/35 space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-cyan-300 font-rajdhani uppercase tracking-wider">
+                    New Clean PHP Profile Provisioning
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  No existing Riot ID required. A brand-new, clean, unranked Philippines (PHP) Valorant profile will be created with original first-email access. Credentials will be securely dispatched to your registered email and WhatsApp below.
+                </p>
+                <div className="text-[11px] font-mono text-cyan-400">
+                  Target Region: Philippines (PHP Currency) • Matchmaking: Mumbai / Singapore
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase text-gray-300 font-semibold block">
+                  Riot ID &amp; Tagline *
+                </label>
+                <div className="grid grid-cols-12 gap-2">
                   <input
                     type="text"
                     required
-                    placeholder="IND1"
-                    value={tagline}
-                    onChange={(e) => setTagline(e.target.value.replace('#', ''))}
-                    className="w-full h-11 pl-7 pr-3 rounded-xl bg-black/50 border border-white/15 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500 font-mono"
+                    placeholder="Game Name (e.g. PhoenixAim)"
+                    value={riotId}
+                    onChange={(e) => setRiotId(e.target.value)}
+                    className="col-span-8 h-11 px-4 rounded-xl bg-black/50 border border-white/15 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500"
                   />
+                  <div className="col-span-4 relative flex items-center">
+                    <span className="absolute left-3 text-gray-400 font-mono text-sm">#</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="IND1"
+                      value={tagline}
+                      onChange={(e) => setTagline(e.target.value.replace('#', ''))}
+                      className="w-full h-11 pl-7 pr-3 rounded-xl bg-black/50 border border-white/15 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {isVerifyingRiot && (
+                  <div className="flex items-center gap-2 text-xs text-purple-300 font-mono">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying Valorant Riot ID…</span>
+                  </div>
+                )}
+                {!isVerifyingRiot && riotVerification?.exists && (
+                  <div className={`flex items-center gap-1.5 text-xs font-mono ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {riotVerification.verified
+                        ? `Valorant ID Verified (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline})`
+                        : `Valid Riot ID format (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline}) — confirmed before delivery`}
+                    </span>
+                  </div>
+                )}
+                {!isVerifyingRiot && riotVerification && !riotVerification.exists && (
+                  <div className="flex items-center gap-1.5 text-xs text-rose-400 font-mono">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{riotVerification.error || 'Invalid Riot ID or Tagline'}</span>
+                  </div>
+                )}
+
+                {/* Riot ID Accuracy & Non-Refundable Policy Notice */}
+                <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 text-[11px] text-gray-300 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <span className="text-amber-300 font-bold font-rajdhani uppercase tracking-wider block">
+                      Important: Accurate Riot ID Required (No Replacement)
+                    </span>
+                    Wrong Riot ID tag or incorrect account information will not be applicable for refund, cancellation, or replacement. Kindly verify your exact in-game Riot ID &amp; Tag before submitting.
+                  </div>
                 </div>
               </div>
-
-              {isVerifyingRiot && (
-                <div className="flex items-center gap-2 text-xs text-purple-300 font-mono">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Verifying Valorant Riot ID…</span>
-                </div>
-              )}
-              {!isVerifyingRiot && riotVerification?.exists && (
-                <div className={`flex items-center gap-1.5 text-xs font-mono ${riotVerification.verified ? 'text-emerald-400' : 'text-cyan-300'}`}>
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>
-                    {riotVerification.verified
-                      ? `Valorant ID Verified (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline})`
-                      : `Valid Riot ID format (${riotVerification.gameName || riotId}#${riotVerification.tagLine || tagline}) — confirmed before delivery`}
-                  </span>
-                </div>
-              )}
-              {!isVerifyingRiot && riotVerification && !riotVerification.exists && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-400 font-mono">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{riotVerification.error || 'Invalid Riot ID or Tagline'}</span>
-                </div>
-              )}
-
-              {/* Riot ID Accuracy & Non-Refundable Policy Notice */}
-              <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 text-[11px] text-gray-300 flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <span className="text-amber-300 font-bold font-rajdhani uppercase tracking-wider block">
-                    Important: Accurate Riot ID Required (No Replacement)
-                  </span>
-                  Wrong Riot ID tag or incorrect account information will not be applicable for refund, cancellation, or replacement. Kindly verify your exact in-game Riot ID &amp; Tag before submitting.
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Delivery Receipt Email */}
             <div className="space-y-1.5">

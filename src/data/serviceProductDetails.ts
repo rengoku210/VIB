@@ -41,7 +41,7 @@ export interface ServiceProductDetail {
   fulfillmentMethod: string;
   regionScope: string;
   protectionLabel: string;
-  iconType: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins';
+  iconType: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins' | 'user' | 'zap' | 'globe';
   imageUrl?: string;
   services: string[];
   benefits: string[];
@@ -340,7 +340,175 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
         ],
       };
 
-    case 'service':
+    case 'service': {
+      const lower = (sel.title + ' ' + (sel.productId || '')).toLowerCase();
+      const isFreshPhp = lower.includes('fresh') || lower.includes('fresh-php') || (lower.includes('php') && lower.includes('profile'));
+      const isSkinsExchange = lower.includes('exchange') || lower.includes('swap') || lower.includes('trade');
+      const isUrgentSale = lower.includes('urgent');
+      const isRegionChange = lower.includes('region') || lower.includes('migration') || lower.includes('ind to php');
+
+      if (isFreshPhp) {
+        return {
+          selection: sel,
+          name: sel.title,
+          tagline: 'Clean Unranked Philippines Region Account Delivery',
+          categoryLabel: 'Fresh PHP Profile',
+          breadcrumbParent: 'Fresh PHP Profile',
+          badge: 'CLEAN PROVISIONING',
+          priceINR: sel.priceINR,
+          description:
+            'A brand-new, clean, unranked Philippines (PHP) Valorant profile. Enjoy 40% cheaper VP store prices forever with identical low ping to Mumbai/Singapore servers. Delivered with permanent first-email access within 10–20 minutes.',
+          deliverySpeed: '10 - 20 Minutes',
+          fulfillmentMethod: 'Clean Automated Provisioning',
+          regionScope: 'Philippines (PHP)',
+          protectionLabel: '100% Ban-Free Warranty',
+          iconType: 'user',
+          services: [
+            'Original first-email credentials delivered exclusively to your contact',
+            'Password, recovery email & security questions changeable immediately',
+            'Identical low ping (15–25ms) on Mumbai & Singapore game servers',
+            'Permanent access to 40% cheaper store VP prices',
+          ],
+          benefits: [
+            'Zero account password sharing or impact on your existing primary account',
+            'Permanent first-owner record inside your VIB Customer Dashboard',
+            'Lifetime warranty against regional locks or bans',
+          ],
+          conditions: [
+            'No existing Riot ID required. A brand new Riot ID and fresh credentials will be created and delivered directly to your registered contact email and WhatsApp.',
+          ],
+          faqs: [
+            {
+              question: 'How long does fresh profile delivery take?',
+              answer:
+                'Fresh PHP profile credentials are delivered to your registered email and WhatsApp within 10 to 20 minutes following payment confirmation.',
+            },
+            {
+              question: 'Can I change the email and password to my own?',
+              answer:
+                'Yes, 100%. You receive the original first-email access. You can bind your personal email address, phone number, and password permanently.',
+            },
+          ],
+        };
+      }
+
+      if (isSkinsExchange) {
+        return {
+          selection: sel,
+          name: sel.title,
+          tagline: 'P2P Weapon Swap & Inventory Upgrade Escrow',
+          categoryLabel: 'Valo Skins Exchange',
+          breadcrumbParent: 'Skins Exchange',
+          badge: 'ESCROW PROTECTED',
+          priceINR: sel.priceINR,
+          description:
+            'Verified peer-to-peer weapon trade & swap escrow protection. Both accounts are audited, first-email access tested, and credentials locked safely in neutral middleman escrow before release.',
+          deliverySpeed: '15 - 30 Minutes',
+          fulfillmentMethod: '100% Neutral Escrow',
+          regionScope: 'Global / AP',
+          protectionLabel: 'Lifetime Escrow Warranty',
+          iconType: 'repeat',
+          services: [
+            'Complete audit of weapon tiers, knife skins, and unlocked variants',
+            'Neutral VIB middleman escrow holding credentials during swap',
+            'Direct WhatsApp facilitation with assigned escrow specialist',
+            'Lifetime warranty protection against recovery on traded assets',
+          ],
+          benefits: [
+            'Eliminates peer-to-peer trade scams and stolen credential risks',
+            'Upgrade directly to high-tier vaulted inventories paying fair differentials',
+          ],
+          conditions: [
+            'Provide current in-game Riot ID & #Tag and accurate WhatsApp contact for valuation.',
+          ],
+          faqs: [
+            {
+              question: 'How does escrow protection work for skin swaps?',
+              answer:
+                'Both parties deposit credentials into neutral VIB escrow. Our compliance team verifies security access, and both sides confirm satisfaction before final release.',
+            },
+          ],
+        };
+      }
+
+      if (isUrgentSale) {
+        return {
+          selection: sel,
+          name: sel.title,
+          tagline: 'Fast Profile Evaluation & Instant Cash Payout',
+          categoryLabel: 'Urgent Sale Offer',
+          breadcrumbParent: 'Urgent Sale',
+          badge: 'INSTANT CASHOUT',
+          priceINR: sel.priceINR,
+          description:
+            'Fast evaluation and instant cash buyout. Turn your skin collection into real money deposited directly to your verified UPI ID or bank account within 24 hours.',
+          deliverySpeed: '15 - 45 Minutes',
+          fulfillmentMethod: 'Verified Buyout Desk',
+          regionScope: 'India / UPI',
+          protectionLabel: 'Instant Cash Guarantee',
+          iconType: 'zap',
+          services: [
+            'Senior compliance review of skins, level, and original ownership',
+            'Guaranteed buyout price quote delivered within 15 minutes',
+            'Direct transfer via UPI (GPay, PhonePe, Paytm) or IMPS bank transfer',
+            'Strict adherence to India DPDPA customer privacy standards',
+          ],
+          benefits: [
+            'Instant cash buyout without waiting for marketplace buyers',
+            'Zero counterparty scam risk — direct payment from VIB operations',
+          ],
+          conditions: [
+            'Account must have clean standing, zero active bans, and verified ownership.',
+          ],
+          faqs: [
+            {
+              question: 'When will I receive payment for my urgent sale?',
+              answer:
+                'Payment is dispatched to your UPI or bank account within 15 to 45 minutes of credentials and first-email verification.',
+            },
+          ],
+        };
+      }
+
+      if (isRegionChange) {
+        return {
+          selection: sel,
+          name: sel.title,
+          tagline: 'Valorant Account Regional Migration (IND to PHP)',
+          categoryLabel: 'Change Region (IND → PHP)',
+          breadcrumbParent: 'Region Change',
+          badge: 'LIFETIME ARBITRAGE',
+          priceINR: sel.priceINR,
+          description:
+            'Official technical migration converting your existing Indian Valorant account to Philippines region to unlock 25%–40% cheaper VP on every store purchase forever with identical Mumbai server ping.',
+          deliverySpeed: '15 - 30 Minutes',
+          fulfillmentMethod: 'Concierge Operations',
+          regionScope: 'India -> Philippines',
+          protectionLabel: '100% Riot Compliant',
+          iconType: 'globe',
+          services: [
+            'Safe regional migration preserving all existing skins, MMR & friends list',
+            'Full email & region verification log provided upon completion',
+            'Identical low ping (15–25ms) on Mumbai & Singapore game servers',
+            'Dedicated after-service support on WhatsApp (+91 80996 41606)',
+          ],
+          benefits: [
+            'Save ₹2,900 on every Ultra Bundle purchase forever',
+            'Zero risky third-party scripts or ban risk',
+          ],
+          conditions: [
+            'Ensure accurate Riot ID, tag, and contact details during checkout.',
+          ],
+          faqs: [
+            {
+              question: 'Will I lose my existing skins or rank?',
+              answer:
+                'No. All skins, rank, MMR, level, and friends list are 100% preserved during migration.',
+            },
+          ],
+        };
+      }
+
       return {
         selection: sel,
         name: sel.title,
@@ -350,34 +518,33 @@ export function buildServiceProductDetail(sel: ServiceItemSelection): ServicePro
         badge: 'OFFICIAL SERVICE',
         priceINR: sel.priceINR,
         description:
-          'Dedicated technical and operational assistance for regional store setup, fresh PHP unranked profile delivery, or custom account fulfillment requests.',
+          'Dedicated technical and operational assistance for specialized account services, regional configuration, and custom fulfillment.',
         deliverySpeed: '15 - 45 Minutes',
         fulfillmentMethod: 'Concierge Operations',
-        regionScope: 'India -> PHP / Global',
+        regionScope: 'Global / AP',
         protectionLabel: '100% Escrow Warranty',
-        iconType: 'repeat',
+        iconType: 'shield',
         services: [
           'End-to-end execution by senior VIB specialists',
-          'Full email & region verification log provided upon completion',
-          'Compatible with Mumbai and Singapore matchmaking servers',
+          'Full email & verification log provided upon completion',
           'Dedicated after-service support on WhatsApp (+91 80996 41606)',
         ],
         benefits: [
-          'Eliminates region mismatch errors permanently when performed properly',
-          'Immediate access to cheaper store currencies',
+          'Structured verification protocol',
           'Zero risky third-party scripts',
         ],
         conditions: [
-          'Ensure accurate Riot ID and contact details during checkout.',
+          'Ensure accurate contact details during checkout.',
         ],
         faqs: [
           {
-            question: 'How long does region setup or fresh profile delivery take?',
+            question: 'How long does service delivery take?',
             answer:
               'Most requests are fulfilled completely within 15 to 45 minutes following payment verification.',
           },
         ],
       };
+    }
 
     default:
       return {

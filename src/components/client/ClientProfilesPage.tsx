@@ -1007,7 +1007,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('advertise', 'trade-exchange-plans')}
+                onClick={() => onNavigate('skins-exchange')}
                 className="px-5 py-2.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold font-rajdhani uppercase tracking-wider text-emerald-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Repeat className="w-3.5 h-3.5 text-emerald-400" />
@@ -1084,7 +1084,7 @@ export const ClientProfilesPage: React.FC<ClientProfilesPageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onNavigate('services', 'urgent-sale')}
+                  onClick={() => onNavigate('urgent-sale')}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-700 via-rose-600 to-red-600 hover:from-red-600 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                 >
                   <span>Get My Profile Evaluated</span>

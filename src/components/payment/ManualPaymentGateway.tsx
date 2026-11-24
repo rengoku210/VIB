@@ -23,6 +23,8 @@ import {
   Repeat,
   Crown,
   Shield,
+  Globe,
+  User,
   FileImage,
   FileText,
   Home,
@@ -51,7 +53,7 @@ export interface ManualPaymentGatewayProps {
   itemPrice: number;
   currency?: Currency;
   specs?: PaymentGatewaySpec[];
-  iconType?: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins';
+  iconType?: 'megaphone' | 'repeat' | 'crown' | 'shield' | 'sparkles' | 'vp' | 'coins' | 'user' | 'zap' | 'globe';
   itemImageUrl?: string;
   breadcrumbService?: string;
   onBack: () => void;
@@ -434,6 +436,12 @@ export const ManualPaymentGateway: React.FC<ManualPaymentGatewayProps> = ({
         return <Shield className="w-10 h-10 text-cyan-400" />;
       case 'sparkles':
         return <Sparkles className="w-10 h-10 text-fuchsia-400" />;
+      case 'user':
+        return <User className="w-10 h-10 text-cyan-400" />;
+      case 'zap':
+        return <Zap className="w-10 h-10 text-amber-400" />;
+      case 'globe':
+        return <Globe className="w-10 h-10 text-indigo-400" />;
       default:
         return <Megaphone className="w-10 h-10 text-purple-400" />;
     }

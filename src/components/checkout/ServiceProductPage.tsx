@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Layers,
   Zap,
+  User,
   CheckCircle2,
 } from 'lucide-react';
 import { Currency } from '../../types';
@@ -86,6 +87,12 @@ export const ServiceProductPage: React.FC<ServiceProductPageProps> = ({
         return <Sparkles className="w-8 h-8 text-fuchsia-400" />;
       case 'shield':
         return <Shield className="w-8 h-8 text-emerald-400" />;
+      case 'user':
+        return <User className="w-8 h-8 text-cyan-400" />;
+      case 'zap':
+        return <Zap className="w-8 h-8 text-amber-400" />;
+      case 'globe':
+        return <Globe className="w-8 h-8 text-indigo-400" />;
       default:
         return <Megaphone className="w-8 h-8 text-purple-400" />;
     }

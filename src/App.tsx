@@ -25,6 +25,9 @@ import { FlexiblePaymentPlansPage } from './components/flexible/FlexiblePaymentP
 import { FlexibleCheckoutPage } from './components/flexible/FlexibleCheckoutPage';
 import { FlexibleConfirmationPage } from './components/flexible/FlexibleConfirmationPage';
 import { ClientRegionChangePage } from './components/client/ClientRegionChangePage';
+import { ClientFreshPhpPage } from './components/client/ClientFreshPhpPage';
+import { ClientSkinsExchangePage } from './components/client/ClientSkinsExchangePage';
+import { ClientUrgentSalePage } from './components/client/ClientUrgentSalePage';
 import { ServiceProductPage } from './components/checkout/ServiceProductPage';
 import { ServiceCheckoutPage } from './components/checkout/ServiceCheckoutPage';
 import { FlexiblePlanSelection } from './types/flexiblePlans';
@@ -45,6 +48,18 @@ function AppContent() {
       const path = window.location.pathname;
       if (path === '/region-change' || path.startsWith('/region-change')) {
         return 'region-change';
+      }
+      if (path === '/services' || path.startsWith('/services')) {
+        return 'services';
+      }
+      if (path === '/fresh-php' || path.startsWith('/fresh-php')) {
+        return 'fresh-php';
+      }
+      if (path === '/skins-exchange' || path.startsWith('/skins-exchange')) {
+        return 'skins-exchange';
+      }
+      if (path === '/urgent-sale' || path.startsWith('/urgent-sale')) {
+        return 'urgent-sale';
       }
       if (path === '/advertise' || path.startsWith('/advertise')) {
         return 'advertise';
@@ -76,6 +91,9 @@ function AppContent() {
           'vp-catalog',
           'services',
           'region-change',
+          'fresh-php',
+          'skins-exchange',
+          'urgent-sale',
           'advertise',
           'rankup',
           'rentals',
@@ -181,6 +199,22 @@ function AppContent() {
         setCurrentPage('region-change');
         return;
       }
+      if (path === '/services' || path.startsWith('/services')) {
+        setCurrentPage('services');
+        return;
+      }
+      if (path === '/fresh-php' || path.startsWith('/fresh-php')) {
+        setCurrentPage('fresh-php');
+        return;
+      }
+      if (path === '/skins-exchange' || path.startsWith('/skins-exchange')) {
+        setCurrentPage('skins-exchange');
+        return;
+      }
+      if (path === '/urgent-sale' || path.startsWith('/urgent-sale')) {
+        setCurrentPage('urgent-sale');
+        return;
+      }
       if (path === '/advertise' || path.startsWith('/advertise')) {
         setCurrentPage('advertise');
         return;
@@ -220,6 +254,9 @@ function AppContent() {
           'vp-catalog',
           'services',
           'region-change',
+          'fresh-php',
+          'skins-exchange',
+          'urgent-sale',
           'advertise',
           'rankup',
           'rentals',
@@ -545,6 +582,50 @@ function AppContent() {
         url.searchParams.delete('ref');
         url.searchParams.delete('tab');
         url.hash = '';
+      } else if (page === 'services') {
+        url.pathname = '/services';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        url.hash = '';
+      } else if (page === 'fresh-php') {
+        url.pathname = '/fresh-php';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        url.hash = '';
+      } else if (page === 'skins-exchange') {
+        url.pathname = '/skins-exchange';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        url.hash = '';
+      } else if (page === 'urgent-sale') {
+        url.pathname = '/urgent-sale';
+        url.searchParams.delete('page');
+        url.searchParams.delete('id');
+        url.searchParams.delete('slug');
+        url.searchParams.delete('category');
+        url.searchParams.delete('region');
+        url.searchParams.delete('listingId');
+        url.searchParams.delete('ref');
+        url.searchParams.delete('tab');
+        url.hash = '';
       } else if (page === 'advertise') {
         url.pathname = '/advertise';
         url.searchParams.delete('page');
@@ -767,6 +848,30 @@ function AppContent() {
 
         {currentPage === 'region-change' && (
           <ClientRegionChangePage
+            currency={currency}
+            onNavigate={handleNavigate}
+            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'fresh-php' && (
+          <ClientFreshPhpPage
+            currency={currency}
+            onNavigate={handleNavigate}
+            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'skins-exchange' && (
+          <ClientSkinsExchangePage
+            currency={currency}
+            onNavigate={handleNavigate}
+            onOpenCheckout={handleOpenCustomCheckout}
+          />
+        )}
+
+        {currentPage === 'urgent-sale' && (
+          <ClientUrgentSalePage
             currency={currency}
             onNavigate={handleNavigate}
             onOpenCheckout={handleOpenCustomCheckout}
